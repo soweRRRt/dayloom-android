@@ -19,6 +19,7 @@ android {
 
 dependencies {
     implementation(project(":core:model"))
+    implementation(project(":core:notifications"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:storage"))
     implementation(project(":core:ui"))

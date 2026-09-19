@@ -35,6 +35,7 @@
     <string name="settings_example_habit_water">Пить воду</string>
     <string name="settings_example_habit_reading">Читать 20 минут</string>
     <string name="settings_example_habit_walk">Вечерняя прогулка</string>
+    <string name="settings_example_habit_stretch">Утренняя разминка</string>
     <string name="settings_example_plan_review">Разобрать задачи на день</string>
     <string name="settings_example_plan_groceries">Купить продукты</string>
     <string name="settings_example_plan_call">Позвонить родителям</string>

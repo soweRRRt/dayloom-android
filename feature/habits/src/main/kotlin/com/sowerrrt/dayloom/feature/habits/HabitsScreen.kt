@@ -1,5 +1,11 @@
 package com.sowerrrt.dayloom.feature.habits
 
+import android.Manifest
+import android.app.TimePickerDialog
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +28,7 @@ import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
@@ -29,6 +36,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,10 +49,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sowerrrt.dayloom.core.designsystem.DayloomButton
@@ -58,6 +69,7 @@ import com.sowerrrt.dayloom.core.model.bestStreak
 import com.sowerrrt.dayloom.core.model.currentStreak
 import com.sowerrrt.dayloom.core.ui.ErrorState
 import com.sowerrrt.dayloom.core.ui.LoadingState
+import java.util.Locale
 
 @Composable
 fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
@@ -65,6 +77,9 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
     var editingHabit by remember { mutableStateOf<Habit?>(null) }
     var pendingArchive by remember { mutableStateOf<Habit?>(null) }
+    val context = LocalContext.current
+    val notificationPermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     LaunchedEffect(Unit) { viewModel.refresh() }
 
@@ -110,12 +125,20 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
         HabitEditorDialog(
             habit = editingHabit,
             onDismiss = { showCreateDialog = false },
-            onSave = { title, weekdays ->
+            onSave = { title, weekdays, reminderMinutesOfDay ->
                 val habit = editingHabit
+                if (
+                    reminderMinutesOfDay != null &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
                 if (habit == null) {
-                    viewModel.createHabit(title, weekdays)
+                    viewModel.createHabit(title, weekdays, reminderMinutesOfDay)
                 } else {
-                    viewModel.updateHabit(habit.id, title, weekdays)
+                    viewModel.updateHabit(habit.id, title, weekdays, reminderMinutesOfDay)
                 }
                 showCreateDialog = false
             },
@@ -226,6 +249,16 @@ private fun HabitsList(
                     modifier = Modifier.padding(bottom = DayloomSpacing.sm),
                 )
             }
+            if (state.reminderSchedulingFailed) {
+                item {
+                    DayloomCard(Modifier.fillMaxWidth().testTag("habit_reminder_error")) {
+                        Text(
+                            stringResource(R.string.habits_reminder_error),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
             items(state.habits, key = { it.id.value }) { habit ->
                 HabitRow(
                     habit = habit,
@@ -307,6 +340,25 @@ private fun HabitRow(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                habit.reminderMinutesOfDay?.let { reminderMinutes ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                        modifier = Modifier.testTag("habit_reminder_${habit.title}"),
+                    ) {
+                        Icon(
+                            Icons.Rounded.NotificationsActive,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.secondary,
+                        )
+                        Text(
+                            formatReminderTime(reminderMinutes, currentLocale()),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.secondary,
+                        )
+                    }
+                }
                 Text(
                     text =
                         stringResource(
@@ -335,13 +387,16 @@ private fun HabitRow(
 private fun HabitEditorDialog(
     habit: Habit?,
     onDismiss: () -> Unit,
-    onSave: (String, Set<Weekday>) -> Unit,
+    onSave: (String, Set<Weekday>, Int?) -> Unit,
 ) {
     var title by remember(habit?.id) { mutableStateOf(habit?.title.orEmpty()) }
     var selectedDays by
         remember(habit?.id) {
             mutableStateOf(habit?.scheduledWeekdays ?: Weekday.entries.toSet())
         }
+    var reminderMinutesOfDay by remember(habit?.id) { mutableStateOf(habit?.reminderMinutesOfDay) }
+    val context = LocalContext.current
+    val locale = currentLocale()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -382,15 +437,61 @@ private fun HabitEditorDialog(
                         )
                     }
                 }
+                Text(stringResource(R.string.habits_reminder), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.habits_reminder_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val initial = reminderMinutesOfDay ?: DEFAULT_REMINDER_MINUTES
+                            TimePickerDialog(
+                                context,
+                                { _, hour, minute -> reminderMinutesOfDay = hour * 60 + minute },
+                                initial / 60,
+                                initial % 60,
+                                true,
+                            ).show()
+                        },
+                        modifier = Modifier.testTag("set_habit_reminder"),
+                    ) {
+                        Icon(Icons.Rounded.NotificationsActive, contentDescription = null)
+                        Text(
+                            if (reminderMinutesOfDay == null) {
+                                stringResource(R.string.habits_add_reminder)
+                            } else {
+                                formatReminderTime(requireNotNull(reminderMinutesOfDay), locale)
+                            },
+                            modifier = Modifier.padding(start = DayloomSpacing.xs),
+                        )
+                    }
+                    if (reminderMinutesOfDay != null) {
+                        TextButton(
+                            onClick = { reminderMinutesOfDay = null },
+                            modifier = Modifier.testTag("clear_habit_reminder"),
+                        ) {
+                            Text(stringResource(R.string.habits_remove_reminder))
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(title, selectedDays) },
+                onClick = { onSave(title, selectedDays, reminderMinutesOfDay) },
                 enabled = title.isNotBlank() && selectedDays.isNotEmpty(),
                 modifier = Modifier.testTag("save_habit"),
             ) {
-                Text(stringResource(R.string.habits_create_confirm))
+                Text(
+                    stringResource(
+                        if (habit == null) R.string.habits_create_confirm else R.string.habits_save,
+                    ),
+                )
             }
         },
         dismissButton = {
@@ -426,4 +527,13 @@ private fun weekdayShortLabel(weekday: Weekday): String =
         },
     )
 
+@Composable
+private fun currentLocale(): Locale = LocalConfiguration.current.locales[0]
+
+private fun formatReminderTime(
+    minutesOfDay: Int,
+    locale: Locale,
+): String = String.format(locale, "%02d:%02d", minutesOfDay / 60, minutesOfDay % 60)
+
 private const val MAX_TITLE_LENGTH = 80
+private const val DEFAULT_REMINDER_MINUTES = 9 * 60

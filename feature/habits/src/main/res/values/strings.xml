@@ -13,9 +13,15 @@
     <string name="habits_edit_title">Edit habit</string>
     <string name="habits_name_label">Habit name</string>
     <string name="habits_create_confirm">Create</string>
+    <string name="habits_save">Save</string>
     <string name="habits_cancel">Cancel</string>
     <string name="habits_schedule">Repeat on</string>
     <string name="habits_every_day">Every day</string>
+    <string name="habits_reminder">Reminder</string>
+    <string name="habits_reminder_description">Dayloom will remind you on the selected repeat days. Battery saving may delay delivery slightly.</string>
+    <string name="habits_add_reminder">Add time</string>
+    <string name="habits_remove_reminder">Remove</string>
+    <string name="habits_reminder_error">The habit was saved, but its system reminder could not be scheduled.</string>
     <string name="habits_streaks">Current streak: %1$d · Best: %2$d</string>
     <string name="habits_edit">Edit habit</string>
     <string name="habits_archive">Archive habit</string>

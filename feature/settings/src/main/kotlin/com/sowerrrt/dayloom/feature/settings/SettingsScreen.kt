@@ -256,6 +256,11 @@ private fun rememberDemoContent(): DemoContent =
                     scheduledWeekdays = setOf(Weekday.MONDAY, Weekday.WEDNESDAY, Weekday.FRIDAY),
                     completedDayOffsets = listOf(-7, -5, -3),
                 ),
+                DemoHabit(
+                    title = stringResource(R.string.settings_example_habit_stretch),
+                    scheduledWeekdays = Weekday.entries.toSet(),
+                    reminderMinutesOfDay = 8 * 60 + 30,
+                ),
             ),
         plans =
             listOf(

@@ -129,12 +129,14 @@ private class ReadOnlyHabitsRepository(
         title: String,
         scheduledWeekdays: Set<Weekday>,
         startEpochDay: Long,
+        reminderMinutesOfDay: Int?,
     ): List<Habit> = error("Read-only fake")
 
     override suspend fun updateHabit(
         id: EntityId,
         title: String,
         scheduledWeekdays: Set<Weekday>,
+        reminderMinutesOfDay: Int?,
     ): List<Habit> = error("Read-only fake")
 
     override suspend fun archiveHabit(id: EntityId): List<Habit> = error("Read-only fake")

@@ -30,7 +30,7 @@ class FileHabitsRepositoryTest {
 
             val created =
                 firstRepository
-                    .createHabit("  Read ten pages  ", Weekday.entries.toSet(), TEST_EPOCH_DAY)
+                    .createHabit("  Read ten pages  ", Weekday.entries.toSet(), TEST_EPOCH_DAY, 8 * 60 + 15)
                     .single()
             assertEquals("Read ten pages", created.title)
             assertFalse(TEST_EPOCH_DAY in created.completedEpochDays)
@@ -39,6 +39,7 @@ class FileHabitsRepositoryTest {
 
             val restored = FileHabitsRepository(directory).loadHabits().single()
             assertEquals(id, restored.id)
+            assertEquals(8 * 60 + 15, restored.reminderMinutesOfDay)
             assertTrue(TEST_EPOCH_DAY in restored.completedEpochDays)
         }
 
@@ -107,6 +108,21 @@ class FileHabitsRepositoryTest {
                     .toEpochDay()
             assertEquals(expectedStartDay, restored.startEpochDay)
             assertEquals(Weekday.entries.toSet(), restored.scheduledWeekdays)
+            assertEquals(null, restored.reminderMinutesOfDay)
+        }
+
+    @Test
+    fun `habit reminder must be within a day`() =
+        runTest {
+            val repository = FileHabitsRepository(temporaryFolder.newFolder("invalid-reminder"))
+
+            var failure: Throwable? = null
+            try {
+                repository.createHabit("Invalid", Weekday.entries.toSet(), TEST_EPOCH_DAY, 24 * 60)
+            } catch (error: Throwable) {
+                failure = error
+            }
+            assertTrue(failure is IllegalArgumentException)
         }
 
     private companion object {

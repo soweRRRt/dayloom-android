@@ -21,12 +21,14 @@ interface HabitsRepository {
         title: String,
         scheduledWeekdays: Set<Weekday>,
         startEpochDay: Long,
+        reminderMinutesOfDay: Int? = null,
     ): List<Habit>
 
     suspend fun updateHabit(
         id: EntityId,
         title: String,
         scheduledWeekdays: Set<Weekday>,
+        reminderMinutesOfDay: Int? = null,
     ): List<Habit>
 
     suspend fun archiveHabit(id: EntityId): List<Habit>
@@ -92,9 +94,10 @@ class FileHabitsRepository(
         title: String,
         scheduledWeekdays: Set<Weekday>,
         startEpochDay: Long,
+        reminderMinutesOfDay: Int?,
     ): List<Habit> {
         val normalizedTitle = title.trim()
-        validate(normalizedTitle, scheduledWeekdays)
+        validate(normalizedTitle, scheduledWeekdays, reminderMinutesOfDay)
         return store
             .update { snapshot ->
                 snapshot.copy(
@@ -106,6 +109,7 @@ class FileHabitsRepository(
                                 createdAtEpochMillis = clock(),
                                 startEpochDay = startEpochDay,
                                 scheduledWeekdays = scheduledWeekdays,
+                                reminderMinutesOfDay = reminderMinutesOfDay,
                             ),
                 )
             }.visibleHabits()
@@ -115,11 +119,16 @@ class FileHabitsRepository(
         id: EntityId,
         title: String,
         scheduledWeekdays: Set<Weekday>,
+        reminderMinutesOfDay: Int?,
     ): List<Habit> {
         val normalizedTitle = title.trim()
-        validate(normalizedTitle, scheduledWeekdays)
+        validate(normalizedTitle, scheduledWeekdays, reminderMinutesOfDay)
         return updateExisting(id) { habit ->
-            habit.copy(title = normalizedTitle, scheduledWeekdays = scheduledWeekdays)
+            habit.copy(
+                title = normalizedTitle,
+                scheduledWeekdays = scheduledWeekdays,
+                reminderMinutesOfDay = reminderMinutesOfDay,
+            )
         }
     }
 
@@ -151,10 +160,14 @@ class FileHabitsRepository(
     private fun validate(
         title: String,
         scheduledWeekdays: Set<Weekday>,
+        reminderMinutesOfDay: Int?,
     ) {
         require(title.isNotEmpty()) { "Habit title must not be blank" }
         require(title.length <= MAX_TITLE_LENGTH) { "Habit title is too long" }
         require(scheduledWeekdays.isNotEmpty()) { "Habit schedule must contain at least one day" }
+        require(reminderMinutesOfDay == null || reminderMinutesOfDay in 0 until 24 * 60) {
+            "Habit reminder must be within a day"
+        }
     }
 
     private fun HabitsSnapshot.visibleHabits(): List<Habit> =

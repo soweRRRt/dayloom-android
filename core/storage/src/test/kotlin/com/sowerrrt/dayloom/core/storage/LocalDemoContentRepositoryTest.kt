@@ -37,6 +37,7 @@ class LocalDemoContentRepositoryTest {
             assertEquals(1, first.goalsAdded)
             assertEquals(0, second.totalAdded)
             assertEquals(2, habits.loadHabits().size)
+            assertEquals(8 * 60, habits.loadHabits().first { it.title == "Daily" }.reminderMinutesOfDay)
             assertTrue(
                 habits
                     .loadHabits()
@@ -125,7 +126,7 @@ class LocalDemoContentRepositoryTest {
         DemoContent(
             habits =
                 listOf(
-                    DemoHabit("Daily", Weekday.entries.toSet(), listOf(-1, 0)),
+                    DemoHabit("Daily", Weekday.entries.toSet(), listOf(-1, 0), reminderMinutesOfDay = 8 * 60),
                     DemoHabit("Weekdays", Weekday.entries.toSet()),
                 ),
             plans = listOf(DemoPlan("Done plan", 0, completed = true), DemoPlan("Tomorrow", 1)),

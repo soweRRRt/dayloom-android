@@ -4,6 +4,10 @@ import app.cash.turbine.test
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.Weekday
+import com.sowerrrt.dayloom.core.notifications.NotificationId
+import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
+import com.sowerrrt.dayloom.core.notifications.NotificationScope
+import com.sowerrrt.dayloom.core.notifications.ScheduledNotification
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,15 +36,19 @@ class HabitsViewModelTest {
     fun `create and toggle update the screen state`() =
         runTest(dispatcher) {
             val repository = FakeHabitsRepository()
-            val viewModel = HabitsViewModel(repository)
+            val scheduler = FakeNotificationScheduler()
+            val viewModel = HabitsViewModel(repository, scheduler)
 
             viewModel.uiState.test {
                 assertTrue(awaitItem().isLoading)
                 assertFalse(awaitItem().isLoading)
 
-                viewModel.createHabit("Drink water", Weekday.entries.toSet())
+                viewModel.createHabit("Drink water", Weekday.entries.toSet(), 9 * 60)
                 val created = awaitItem()
                 assertEquals("Drink water", created.habits.single().title)
+                assertEquals(9 * 60, created.habits.single().reminderMinutesOfDay)
+                assertEquals(NotificationScope.HABITS, scheduler.scope)
+                assertEquals(1, scheduler.notifications.size)
 
                 viewModel.toggleCompletion(created.habits.single().id)
                 assertEquals(1, awaitItem().completedToday)
@@ -57,6 +65,7 @@ private class FakeHabitsRepository : HabitsRepository {
         title: String,
         scheduledWeekdays: Set<Weekday>,
         startEpochDay: Long,
+        reminderMinutesOfDay: Int?,
     ): List<Habit> {
         habits =
             habits +
@@ -66,6 +75,7 @@ private class FakeHabitsRepository : HabitsRepository {
                 createdAtEpochMillis = 1L,
                 startEpochDay = startEpochDay,
                 scheduledWeekdays = scheduledWeekdays,
+                reminderMinutesOfDay = reminderMinutesOfDay,
             )
         return habits
     }
@@ -74,8 +84,20 @@ private class FakeHabitsRepository : HabitsRepository {
         id: EntityId,
         title: String,
         scheduledWeekdays: Set<Weekday>,
+        reminderMinutesOfDay: Int?,
     ): List<Habit> {
-        habits = habits.map { if (it.id == id) it.copy(title = title, scheduledWeekdays = scheduledWeekdays) else it }
+        habits =
+            habits.map {
+                if (it.id == id) {
+                    it.copy(
+                        title = title,
+                        scheduledWeekdays = scheduledWeekdays,
+                        reminderMinutesOfDay = reminderMinutesOfDay,
+                    )
+                } else {
+                    it
+                }
+            }
         return habits
     }
 
@@ -97,5 +119,23 @@ private class FakeHabitsRepository : HabitsRepository {
                 }
             }
         return habits
+    }
+}
+
+private class FakeNotificationScheduler : NotificationScheduler {
+    var scope: NotificationScope? = null
+    var notifications = emptyList<ScheduledNotification>()
+
+    override suspend fun schedule(notification: ScheduledNotification): Result<Unit> = Result.success(Unit)
+
+    override suspend fun cancel(id: NotificationId): Result<Unit> = Result.success(Unit)
+
+    override suspend fun rescheduleAll(
+        scope: NotificationScope,
+        notifications: List<ScheduledNotification>,
+    ): Result<Unit> {
+        this.scope = scope
+        this.notifications = notifications
+        return Result.success(Unit)
     }
 }

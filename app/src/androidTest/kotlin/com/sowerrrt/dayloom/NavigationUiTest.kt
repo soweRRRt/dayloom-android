@@ -40,6 +40,13 @@ class NavigationUiTest {
     }
 
     @Test
+    fun habitEditorOffersRepeatingReminderTime() {
+        composeRule.onNodeWithTag("primary_nav_habits").performClick()
+        composeRule.onNodeWithTag("create_habit").performClick()
+        composeRule.onNodeWithTag("set_habit_reminder").assertExists()
+    }
+
+    @Test
     fun calendarCombinesHabitsAndPlansAndRestoresThem() {
         val suffix = System.currentTimeMillis()
         val habitTitle = "Calendar habit $suffix"

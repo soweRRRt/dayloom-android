@@ -15,6 +15,7 @@ data class DemoHabit(
     val title: String,
     val scheduledWeekdays: Set<Weekday>,
     val completedDayOffsets: List<Int> = emptyList(),
+    val reminderMinutesOfDay: Int? = null,
 )
 
 data class DemoPlan(
@@ -111,6 +112,7 @@ class LocalDemoContentRepository(
                     title = demo.title,
                     scheduledWeekdays = demo.scheduledWeekdays,
                     startEpochDay = todayEpochDay - 30,
+                    reminderMinutesOfDay = demo.reminderMinutesOfDay,
                 )
             val habit = created.last { it.title == demo.title }
             demo.completedDayOffsets

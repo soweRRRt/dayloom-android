@@ -74,6 +74,7 @@ data class Habit(
     val createdAtEpochMillis: Long,
     val startEpochDay: Long = 0L,
     val scheduledWeekdays: Set<Weekday> = Weekday.entries.toSet(),
+    val reminderMinutesOfDay: Int? = null,
     val completedEpochDays: Set<Long> = emptySet(),
     val archived: Boolean = false,
 )

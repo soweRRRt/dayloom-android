@@ -14,6 +14,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:model"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.work.runtime.ktx)
     testImplementation(libs.junit)

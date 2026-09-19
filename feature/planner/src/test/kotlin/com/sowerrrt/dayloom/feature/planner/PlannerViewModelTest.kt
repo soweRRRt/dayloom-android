@@ -6,6 +6,7 @@ import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.notifications.NotificationId
 import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
+import com.sowerrrt.dayloom.core.notifications.NotificationScope
 import com.sowerrrt.dayloom.core.notifications.ScheduledNotification
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
@@ -133,12 +134,14 @@ private class FakeHabitsRepository(
         title: String,
         scheduledWeekdays: Set<Weekday>,
         startEpochDay: Long,
+        reminderMinutesOfDay: Int?,
     ): List<Habit> = error("Not needed")
 
     override suspend fun updateHabit(
         id: EntityId,
         title: String,
         scheduledWeekdays: Set<Weekday>,
+        reminderMinutesOfDay: Int?,
     ): List<Habit> = error("Not needed")
 
     override suspend fun archiveHabit(id: EntityId): List<Habit> = error("Not needed")
@@ -196,7 +199,10 @@ private class FakeNotificationScheduler : NotificationScheduler {
 
     override suspend fun cancel(id: NotificationId): Result<Unit> = Result.success(Unit)
 
-    override suspend fun rescheduleAll(notifications: List<ScheduledNotification>): Result<Unit> {
+    override suspend fun rescheduleAll(
+        scope: NotificationScope,
+        notifications: List<ScheduledNotification>,
+    ): Result<Unit> {
         this.notifications = notifications
         return Result.success(Unit)
     }

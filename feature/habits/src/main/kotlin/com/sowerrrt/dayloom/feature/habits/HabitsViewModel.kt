@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.Weekday
+import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
+import com.sowerrrt.dayloom.core.notifications.NotificationScope
+import com.sowerrrt.dayloom.core.notifications.activeHabitReminders
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +23,7 @@ data class HabitsUiState(
     val todayEpochDay: Long = LocalDate.now().toEpochDay(),
     val isLoading: Boolean = true,
     val hasError: Boolean = false,
+    val reminderSchedulingFailed: Boolean = false,
 ) {
     val completedToday: Int
         get() = habits.count { todayEpochDay in it.completedEpochDays }
@@ -30,6 +34,7 @@ class HabitsViewModel
     @Inject
     constructor(
         private val repository: HabitsRepository,
+        private val notificationScheduler: NotificationScheduler,
     ) : ViewModel() {
         private val mutableUiState = MutableStateFlow(HabitsUiState())
         val uiState: StateFlow<HabitsUiState> = mutableUiState.asStateFlow()
@@ -43,12 +48,18 @@ class HabitsViewModel
                 mutableUiState.update { it.copy(isLoading = true, hasError = false) }
                 runCatching { repository.loadHabits() }
                     .onSuccess { habits ->
+                        val reminderResult =
+                            notificationScheduler.rescheduleAll(
+                                NotificationScope.HABITS,
+                                habits.activeHabitReminders(),
+                            )
                         mutableUiState.update {
                             it.copy(
                                 habits = habits,
                                 todayEpochDay = LocalDate.now().toEpochDay(),
                                 isLoading = false,
                                 hasError = false,
+                                reminderSchedulingFailed = reminderResult.isFailure,
                             )
                         }
                     }.onFailure {
@@ -60,19 +71,21 @@ class HabitsViewModel
         fun createHabit(
             title: String,
             scheduledWeekdays: Set<Weekday>,
+            reminderMinutesOfDay: Int?,
         ) {
             if (title.isBlank() || scheduledWeekdays.isEmpty()) return
             val today = LocalDate.now().toEpochDay()
-            updateHabits { repository.createHabit(title, scheduledWeekdays, today) }
+            updateHabits { repository.createHabit(title, scheduledWeekdays, today, reminderMinutesOfDay) }
         }
 
         fun updateHabit(
             id: EntityId,
             title: String,
             scheduledWeekdays: Set<Weekday>,
+            reminderMinutesOfDay: Int?,
         ) {
             if (title.isBlank() || scheduledWeekdays.isEmpty()) return
-            updateHabits { repository.updateHabit(id, title, scheduledWeekdays) }
+            updateHabits { repository.updateHabit(id, title, scheduledWeekdays, reminderMinutesOfDay) }
         }
 
         fun toggleCompletion(id: EntityId) {
@@ -88,7 +101,18 @@ class HabitsViewModel
             viewModelScope.launch {
                 runCatching { operation() }
                     .onSuccess { habits ->
-                        mutableUiState.update { it.copy(habits = habits, hasError = false) }
+                        val reminderResult =
+                            notificationScheduler.rescheduleAll(
+                                NotificationScope.HABITS,
+                                habits.activeHabitReminders(),
+                            )
+                        mutableUiState.update {
+                            it.copy(
+                                habits = habits,
+                                hasError = false,
+                                reminderSchedulingFailed = reminderResult.isFailure,
+                            )
+                        }
                     }.onFailure {
                         mutableUiState.update { it.copy(hasError = true) }
                     }

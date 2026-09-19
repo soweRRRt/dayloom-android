@@ -8,7 +8,9 @@ import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.model.isScheduledOn
 import com.sowerrrt.dayloom.core.notifications.NotificationId
 import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
+import com.sowerrrt.dayloom.core.notifications.NotificationScope
 import com.sowerrrt.dayloom.core.notifications.ScheduledNotification
+import com.sowerrrt.dayloom.core.notifications.activeHabitReminders
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -70,7 +72,13 @@ class PlannerViewModel
                         habits.await() to plans.await()
                     }
                 }.onSuccess { (habits, plans) ->
-                    val reminderResult = notificationScheduler.rescheduleAll(plans.activeReminders())
+                    val planReminderResult =
+                        notificationScheduler.rescheduleAll(NotificationScope.PLANS, plans.activeReminders())
+                    val habitReminderResult =
+                        notificationScheduler.rescheduleAll(
+                            NotificationScope.HABITS,
+                            habits.activeHabitReminders(),
+                        )
                     mutableUiState.update {
                         it.copy(
                             habits = habits,
@@ -78,7 +86,8 @@ class PlannerViewModel
                             todayEpochDay = LocalDate.now().toEpochDay(),
                             isLoading = false,
                             hasError = false,
-                            reminderSchedulingFailed = reminderResult.isFailure,
+                            reminderSchedulingFailed =
+                                planReminderResult.isFailure || habitReminderResult.isFailure,
                         )
                     }
                 }.onFailure {
@@ -148,7 +157,18 @@ class PlannerViewModel
             viewModelScope.launch {
                 runCatching { habitsRepository.toggleCompletion(id, state.selectedEpochDay) }
                     .onSuccess { habits ->
-                        mutableUiState.update { it.copy(habits = habits, hasError = false) }
+                        val reminderResult =
+                            notificationScheduler.rescheduleAll(
+                                NotificationScope.HABITS,
+                                habits.activeHabitReminders(),
+                            )
+                        mutableUiState.update {
+                            it.copy(
+                                habits = habits,
+                                hasError = false,
+                                reminderSchedulingFailed = reminderResult.isFailure,
+                            )
+                        }
                     }.onFailure {
                         mutableUiState.update { it.copy(hasError = true) }
                     }
@@ -159,7 +179,8 @@ class PlannerViewModel
             viewModelScope.launch {
                 runCatching { operation() }
                     .onSuccess { plans ->
-                        val reminderResult = notificationScheduler.rescheduleAll(plans.activeReminders())
+                        val reminderResult =
+                            notificationScheduler.rescheduleAll(NotificationScope.PLANS, plans.activeReminders())
                         mutableUiState.update {
                             it.copy(
                                 plans = plans,
@@ -192,6 +213,7 @@ internal fun List<PlanItem>.activeReminders(
         } else {
             ScheduledNotification(
                 id = NotificationId("plan:${plan.id.value}"),
+                scope = NotificationScope.PLANS,
                 triggerAtEpochMillis = trigger,
                 title = plan.title,
             )
