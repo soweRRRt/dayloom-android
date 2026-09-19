@@ -1,12 +1,17 @@
 package com.sowerrrt.dayloom.feature.settings
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,12 +31,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -80,6 +88,7 @@ import com.sowerrrt.dayloom.core.storage.DemoList
 import com.sowerrrt.dayloom.core.storage.DemoListItem
 import com.sowerrrt.dayloom.core.storage.DemoPlan
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun SettingsScreen(
@@ -90,12 +99,25 @@ fun SettingsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val demoContent = rememberDemoContent()
     val context = LocalContext.current
+    val activity = context.findActivity()
+    val importedMessage = stringResource(R.string.settings_data_imported)
+    val clearedMessage = stringResource(R.string.settings_data_cleared)
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+    val exportLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+            uri?.let(viewModel::exportData)
+        }
+    val importLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            pendingImportUri = uri
+        }
     val canProtectApp =
         remember(context) {
             BiometricManager.from(context).canAuthenticate(supportedAuthenticators()) ==
                 BiometricManager.BIOMETRIC_SUCCESS
         }
     var showLockUnavailable by remember { mutableStateOf(false) }
+    var showClearConfirmation by remember { mutableStateOf(false) }
     val notificationPermissionStatus = rememberNotificationPermissionStatus()
     Column {
         DayloomTopBar(stringResource(R.string.settings_title))
@@ -294,6 +316,80 @@ fun SettingsScreen(
                 }
             }
             item {
+                SettingsSection(
+                    title = stringResource(R.string.settings_data_title),
+                    modifier = Modifier.testTag("data_management_card"),
+                ) {
+                    Text(
+                        stringResource(R.string.settings_data_description),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    DayloomButton(
+                        text =
+                            stringResource(
+                                if (state.dataOperation == DataOperation.EXPORT) {
+                                    R.string.settings_data_exporting
+                                } else {
+                                    R.string.settings_data_export
+                                },
+                            ),
+                        onClick = {
+                            val date = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                            exportLauncher.launch("dayloom-backup-$date.json")
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag("export_data"),
+                        enabled = state.dataOperation == null,
+                    )
+                    OutlinedButton(
+                        onClick = { importLauncher.launch(arrayOf("application/json", "text/plain")) },
+                        modifier = Modifier.fillMaxWidth().testTag("import_data"),
+                        enabled = state.dataOperation == null,
+                    ) {
+                        Text(
+                            stringResource(
+                                if (state.dataOperation == DataOperation.IMPORT) {
+                                    R.string.settings_data_importing
+                                } else {
+                                    R.string.settings_data_import
+                                },
+                            ),
+                        )
+                    }
+                    Text(
+                        stringResource(R.string.settings_data_vault_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    OutlinedButton(
+                        onClick = { showClearConfirmation = true },
+                        modifier = Modifier.fillMaxWidth().testTag("clear_all_data"),
+                        enabled = state.dataOperation == null,
+                    ) {
+                        Text(stringResource(R.string.settings_data_clear), color = MaterialTheme.colorScheme.error)
+                    }
+                    state.dataFeedback?.let { feedback ->
+                        Text(
+                            stringResource(
+                                when (feedback) {
+                                    DataFeedback.EXPORTED -> R.string.settings_data_exported
+                                    DataFeedback.IMPORTED -> R.string.settings_data_imported
+                                    DataFeedback.CLEARED -> R.string.settings_data_cleared
+                                    DataFeedback.ERROR -> R.string.settings_data_error
+                                },
+                            ),
+                            color =
+                                if (feedback == DataFeedback.ERROR) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                },
+                            modifier = Modifier.testTag("data_feedback"),
+                        )
+                    }
+                }
+            }
+            item {
                 SettingsSection(stringResource(R.string.settings_examples_title)) {
                     Text(
                         stringResource(R.string.settings_examples_description),
@@ -341,6 +437,61 @@ fun SettingsScreen(
                     modifier = Modifier.padding(DayloomSpacing.sm),
                 )
             }
+        }
+        if (showClearConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showClearConfirmation = false },
+                title = { Text(stringResource(R.string.settings_data_clear_confirm_title)) },
+                text = { Text(stringResource(R.string.settings_data_clear_confirm_description)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showClearConfirmation = false
+                            viewModel.clearAllData {
+                                Toast.makeText(context, clearedMessage, Toast.LENGTH_LONG).show()
+                                activity?.recreate()
+                            }
+                        },
+                        modifier = Modifier.testTag("confirm_clear_all_data"),
+                    ) {
+                        Text(
+                            stringResource(R.string.settings_data_clear_confirm),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearConfirmation = false }) {
+                        Text(stringResource(R.string.settings_data_cancel))
+                    }
+                },
+            )
+        }
+        pendingImportUri?.let { uri ->
+            AlertDialog(
+                onDismissRequest = { pendingImportUri = null },
+                title = { Text(stringResource(R.string.settings_data_import_confirm_title)) },
+                text = { Text(stringResource(R.string.settings_data_import_confirm_description)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            pendingImportUri = null
+                            viewModel.importData(uri) {
+                                Toast.makeText(context, importedMessage, Toast.LENGTH_LONG).show()
+                                activity?.recreate()
+                            }
+                        },
+                        modifier = Modifier.testTag("confirm_import_data"),
+                    ) {
+                        Text(stringResource(R.string.settings_data_import_confirm))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingImportUri = null }) {
+                        Text(stringResource(R.string.settings_data_cancel))
+                    }
+                },
+            )
         }
     }
 }
@@ -845,3 +996,10 @@ private fun openNotificationSettings(context: Context) {
             )
         }
 }
+
+private tailrec fun Context.findActivity(): Activity? =
+    when (this) {
+        is Activity -> this
+        is ContextWrapper -> baseContext.findActivity()
+        else -> null
+    }

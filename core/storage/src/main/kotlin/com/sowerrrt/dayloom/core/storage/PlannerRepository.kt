@@ -9,6 +9,9 @@ import java.io.File
 interface PlannerRepository {
     suspend fun loadPlans(): List<PlanItem>
 
+    suspend fun replaceAll(plans: List<PlanItem>): List<PlanItem> =
+        error("This planner repository does not support replacement")
+
     suspend fun createPlan(
         title: String,
         dateEpochDay: Long,
@@ -47,6 +50,16 @@ class FilePlannerRepository(
         )
 
     override suspend fun loadPlans(): List<PlanItem> = store.read().sortedPlans()
+
+    override suspend fun replaceAll(plans: List<PlanItem>): List<PlanItem> {
+        require(plans.map(PlanItem::id).distinct().size == plans.size) { "Plan IDs must be unique" }
+        plans.forEach { plan ->
+            normalize(plan.title)
+            validateReminder(plan.reminderMinutesOfDay)
+        }
+        store.write(PlannerSnapshot(plans))
+        return plans.sortedWith(compareBy(PlanItem::dateEpochDay, PlanItem::createdAtEpochMillis))
+    }
 
     override suspend fun createPlan(
         title: String,

@@ -10,6 +10,13 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+
+data class StoredAttachment(
+    val reference: AttachmentRef,
+    val bytes: ByteArray,
+)
 
 class AttachmentStore(
     private val root: File,
@@ -74,8 +81,71 @@ class AttachmentStore(
 
     fun existingFileFor(id: EntityId): File? = fileFor(id).takeIf(File::isFile)
 
+    suspend fun exportAll(references: Collection<AttachmentRef>): List<StoredAttachment> =
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                references.distinctBy { it.id }.map { reference ->
+                    val file =
+                        requireNotNull(existingFileFor(reference.id)) {
+                            "Attachment ${reference.id.value} is missing"
+                        }
+                    require(file.length() in 1..MAX_IMAGE_BYTES) { "Attachment size is invalid" }
+                    StoredAttachment(reference, file.readBytes())
+                }
+            }
+        }
+
+    suspend fun replaceAll(attachments: Collection<StoredAttachment>) =
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                require(attachments.map { it.reference.id }.distinct().size == attachments.size) {
+                    "Attachment IDs must be unique"
+                }
+                require(attachments.sumOf { it.bytes.size.toLong() } <= MAX_TOTAL_BACKUP_BYTES) {
+                    "Attachments are too large"
+                }
+                val parent = requireNotNull(root.parentFile) { "Attachment root must have a parent" }
+                parent.mkdirs()
+                val staging = File(parent, "${root.name}.import-${EntityId.random().value}")
+                val previous = File(parent, "${root.name}.previous-${EntityId.random().value}")
+                try {
+                    check(staging.mkdirs()) { "Unable to prepare attachment import" }
+                    attachments.forEach { attachment ->
+                        validate(attachment)
+                        FileOutputStream(File(staging, attachment.reference.id.value)).use { output ->
+                            output.write(attachment.bytes)
+                            output.fd.sync()
+                        }
+                    }
+                    if (root.exists()) {
+                        Files.move(root.toPath(), previous.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                    }
+                    try {
+                        Files.move(staging.toPath(), root.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                    } catch (error: Throwable) {
+                        if (previous.exists() && !root.exists()) {
+                            Files.move(previous.toPath(), root.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                        }
+                        throw error
+                    }
+                    previous.deleteRecursively()
+                } finally {
+                    staging.deleteRecursively()
+                    if (previous.exists() && root.exists()) previous.deleteRecursively()
+                }
+            }
+        }
+
+    private fun validate(attachment: StoredAttachment) {
+        fileFor(attachment.reference.id)
+        require(attachment.reference.mimeType.startsWith("image/")) { "Only images can be restored" }
+        require(attachment.reference.displayName.length <= MAX_DISPLAY_NAME_LENGTH) { "Image name is too long" }
+        require(attachment.bytes.size.toLong() in 1..MAX_IMAGE_BYTES) { "Image size is invalid" }
+    }
+
     private companion object {
         const val MAX_IMAGE_BYTES = 10L * 1024 * 1024
+        const val MAX_TOTAL_BACKUP_BYTES = 100L * 1024 * 1024
         const val MAX_DISPLAY_NAME_LENGTH = 160
     }
 }

@@ -11,6 +11,9 @@ import java.io.File
 interface WishlistRepository {
     suspend fun loadGoals(): List<WishGoal>
 
+    suspend fun replaceAll(goals: List<WishGoal>): List<WishGoal> =
+        error("This wishlist repository does not support replacement")
+
     suspend fun createGoal(
         title: String,
         targetMinor: Long,
@@ -64,6 +67,27 @@ class FileWishlistRepository(
         )
 
     override suspend fun loadGoals(): List<WishGoal> = store.read().sortedGoals()
+
+    override suspend fun replaceAll(goals: List<WishGoal>): List<WishGoal> {
+        require(goals.map(WishGoal::id).distinct().size == goals.size) { "Wish IDs must be unique" }
+        goals.forEach { goal ->
+            normalizeGoalFields(goal.title, goal.targetMinor, goal.currencyCode, goal.note, goal.purchaseUrl)
+            require(
+                goal.contributions
+                    .map(WishContribution::id)
+                    .distinct()
+                    .size == goal.contributions.size,
+            ) {
+                "Contribution IDs must be unique"
+            }
+            goal.contributions.forEach { contribution ->
+                require(contribution.amountMinor in 1..MAX_AMOUNT_MINOR) { "Contribution is invalid" }
+                normalizeNote(contribution.note)
+            }
+        }
+        store.write(WishlistSnapshot(goals))
+        return WishlistSnapshot(goals).sortedGoals()
+    }
 
     override suspend fun createGoal(
         title: String,

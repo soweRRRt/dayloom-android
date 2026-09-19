@@ -2,9 +2,11 @@ package com.sowerrrt.dayloom.core.storage
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.sowerrrt.dayloom.core.model.AppLanguage
+import com.sowerrrt.dayloom.core.model.AppSettings
 import com.sowerrrt.dayloom.core.model.BottomSection
 import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.PresetType
+import com.sowerrrt.dayloom.core.model.ThemeMode
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -74,6 +76,24 @@ class DataStoreSettingsRepositoryTest {
             val itemRepository = repository("item-preset")
             itemRepository.addPreset(PresetType.LIST_ITEM, "Milk")
             assertTrue("Milk" in itemRepository.settings.first().listItemPresets)
+        }
+
+    @Test
+    fun `complete settings replacement supports backup restore and reset`() =
+        runTest {
+            val repository = repository("replacement")
+            val restored =
+                AppSettings(
+                    themeMode = ThemeMode.DARK,
+                    appLanguage = AppLanguage.RUSSIAN,
+                    bottomSections = listOf(BottomSection.PLANNER, BottomSection.MORE),
+                    homeSections = listOf(HomeSection.WISHLIST),
+                    habitPresets = setOf("Water"),
+                )
+
+            repository.replaceAll(restored)
+
+            assertEquals(restored, repository.settings.first())
         }
 
     private fun kotlinx.coroutines.test.TestScope.repository(name: String): DataStoreSettingsRepository =

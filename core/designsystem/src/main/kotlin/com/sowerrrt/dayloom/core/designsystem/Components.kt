@@ -96,9 +96,11 @@ fun DayloomButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier.defaultMinSize(minHeight = 48.dp),
         shape = MaterialTheme.shapes.medium,
     ) {

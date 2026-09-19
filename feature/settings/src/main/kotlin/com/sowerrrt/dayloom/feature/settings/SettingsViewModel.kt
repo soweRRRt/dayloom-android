@@ -1,5 +1,6 @@
 package com.sowerrrt.dayloom.feature.settings
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.AccentPalette
@@ -9,6 +10,7 @@ import com.sowerrrt.dayloom.core.model.BottomSection
 import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
+import com.sowerrrt.dayloom.core.storage.DataTransferRepository
 import com.sowerrrt.dayloom.core.storage.DemoContent
 import com.sowerrrt.dayloom.core.storage.DemoContentRepository
 import com.sowerrrt.dayloom.core.storage.SettingsRepository
@@ -26,11 +28,26 @@ data class SettingsUiState(
     val settings: AppSettings = AppSettings(),
     val isAddingExamples: Boolean = false,
     val demoFeedback: DemoFeedback? = null,
+    val dataOperation: DataOperation? = null,
+    val dataFeedback: DataFeedback? = null,
 )
 
 enum class DemoFeedback {
     ADDED,
     ALREADY_PRESENT,
+    ERROR,
+}
+
+enum class DataOperation {
+    EXPORT,
+    IMPORT,
+    CLEAR,
+}
+
+enum class DataFeedback {
+    EXPORTED,
+    IMPORTED,
+    CLEARED,
     ERROR,
 }
 
@@ -40,6 +57,7 @@ class SettingsViewModel
     constructor(
         private val repository: SettingsRepository,
         private val demoContentRepository: DemoContentRepository,
+        private val dataTransferRepository: DataTransferRepository,
     ) : ViewModel() {
         private val demoState = MutableStateFlow(SettingsUiState())
         val uiState: StateFlow<SettingsUiState> =
@@ -94,6 +112,50 @@ class SettingsViewModel
                     },
                     onFailure = {
                         demoState.update { it.copy(isAddingExamples = false, demoFeedback = DemoFeedback.ERROR) }
+                    },
+                )
+            }
+        }
+
+        fun exportData(uri: Uri) =
+            runDataOperation(DataOperation.EXPORT) {
+                dataTransferRepository.exportTo(uri)
+                DataFeedback.EXPORTED
+            }
+
+        fun importData(
+            uri: Uri,
+            onImported: () -> Unit,
+        ) = runDataOperation(DataOperation.IMPORT, onImported) {
+            dataTransferRepository.importFrom(uri)
+            DataFeedback.IMPORTED
+        }
+
+        fun clearAllData(onCleared: () -> Unit) =
+            runDataOperation(DataOperation.CLEAR, onCleared) {
+                dataTransferRepository.clearAll()
+                DataFeedback.CLEARED
+            }
+
+        fun consumeDataFeedback() {
+            demoState.update { it.copy(dataFeedback = null) }
+        }
+
+        private fun runDataOperation(
+            operation: DataOperation,
+            onSuccess: () -> Unit = {},
+            block: suspend () -> DataFeedback,
+        ) {
+            if (demoState.value.dataOperation != null) return
+            viewModelScope.launch {
+                demoState.update { it.copy(dataOperation = operation, dataFeedback = null) }
+                runCatching { block() }.fold(
+                    onSuccess = { feedback ->
+                        demoState.update { it.copy(dataOperation = null, dataFeedback = feedback) }
+                        onSuccess()
+                    },
+                    onFailure = {
+                        demoState.update { it.copy(dataOperation = null, dataFeedback = DataFeedback.ERROR) }
                     },
                 )
             }

@@ -18,6 +18,9 @@ import java.time.ZoneId
 interface HabitsRepository {
     suspend fun loadHabits(): List<Habit>
 
+    suspend fun replaceAll(habits: List<Habit>): List<Habit> =
+        error("This habits repository does not support replacement")
+
     suspend fun createHabit(
         title: String,
         scheduledWeekdays: Set<Weekday>,
@@ -103,6 +106,22 @@ class FileHabitsRepository(
         )
 
     override suspend fun loadHabits(): List<Habit> = store.read().visibleHabits()
+
+    override suspend fun replaceAll(habits: List<Habit>): List<Habit> {
+        require(habits.map(Habit::id).distinct().size == habits.size) { "Habit IDs must be unique" }
+        habits.forEach { habit ->
+            validate(
+                habit.title.trim(),
+                habit.scheduledWeekdays,
+                habit.repeatEveryDays,
+                habit.scheduledMonthDays,
+                habit.reminderMinutesOfDay,
+            )
+            normalizeTarget(habit.targetAmount, habit.targetUnit)
+        }
+        store.write(HabitsSnapshot(habits))
+        return habits.visibleHabits()
+    }
 
     override suspend fun createHabit(
         title: String,
@@ -235,6 +254,9 @@ class FileHabitsRepository(
             .filterNot(Habit::archived)
             .sortedBy(Habit::createdAtEpochMillis)
             .toList()
+
+    private fun List<Habit>.visibleHabits(): List<Habit> =
+        asSequence().filterNot(Habit::archived).sortedBy(Habit::createdAtEpochMillis).toList()
 
     private companion object {
         const val MAX_TITLE_LENGTH = 80

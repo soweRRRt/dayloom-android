@@ -10,6 +10,9 @@ import java.io.File
 interface ListsRepository {
     suspend fun loadLists(): List<DayList>
 
+    suspend fun replaceAll(lists: List<DayList>): List<DayList> =
+        error("This lists repository does not support replacement")
+
     suspend fun createList(
         title: String,
         kind: ListKind,
@@ -72,6 +75,25 @@ class FileListsRepository(
         )
 
     override suspend fun loadLists(): List<DayList> = store.read().sortedLists()
+
+    override suspend fun replaceAll(lists: List<DayList>): List<DayList> {
+        require(lists.map(DayList::id).distinct().size == lists.size) { "List IDs must be unique" }
+        lists.forEach { list ->
+            normalizeListTitle(list.title)
+            normalizeCustomKind(list.customKind)
+            require(
+                list.items
+                    .map(DayListItem::id)
+                    .distinct()
+                    .size == list.items.size,
+            ) {
+                "List item IDs must be unique"
+            }
+            list.items.forEach { item -> normalizeItemFields(item.title, item.quantity, item.note) }
+        }
+        store.write(ListsSnapshot(lists))
+        return ListsSnapshot(lists).sortedLists()
+    }
 
     override suspend fun createList(
         title: String,

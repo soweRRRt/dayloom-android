@@ -12,6 +12,7 @@ import com.sowerrrt.dayloom.core.security.VaultCipher
 import com.sowerrrt.dayloom.core.storage.AttachmentRepository
 import com.sowerrrt.dayloom.core.storage.AttachmentStore
 import com.sowerrrt.dayloom.core.storage.DataStoreSettingsRepository
+import com.sowerrrt.dayloom.core.storage.DataTransferRepository
 import com.sowerrrt.dayloom.core.storage.DemoContentRepository
 import com.sowerrrt.dayloom.core.storage.DemoImage
 import com.sowerrrt.dayloom.core.storage.DemoImageAsset
@@ -24,6 +25,7 @@ import com.sowerrrt.dayloom.core.storage.FileWishlistRepository
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.ListsRepository
 import com.sowerrrt.dayloom.core.storage.LocalAttachmentRepository
+import com.sowerrrt.dayloom.core.storage.LocalDataTransferRepository
 import com.sowerrrt.dayloom.core.storage.LocalDemoContentRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
 import com.sowerrrt.dayloom.core.storage.SettingsRepository
@@ -132,6 +134,31 @@ object AppModule {
             attachmentRepository = attachmentRepository,
             demoImageSource = demoImageSource,
             settingsRepository = settingsRepository,
+        )
+
+    @Provides
+    @Singleton
+    fun provideDataTransferRepository(
+        @ApplicationContext context: Context,
+        habitsRepository: HabitsRepository,
+        plannerRepository: PlannerRepository,
+        listsRepository: ListsRepository,
+        wishlistRepository: WishlistRepository,
+        settingsRepository: SettingsRepository,
+        attachmentStore: AttachmentStore,
+        vaultRepository: VaultRepository,
+        vaultCipher: VaultCipher,
+    ): DataTransferRepository =
+        LocalDataTransferRepository(
+            context = context,
+            habitsRepository = habitsRepository,
+            plannerRepository = plannerRepository,
+            listsRepository = listsRepository,
+            wishlistRepository = wishlistRepository,
+            settingsRepository = settingsRepository,
+            attachmentStore = attachmentStore,
+            vaultRepository = vaultRepository,
+            vaultCipher = vaultCipher,
         )
 
     @Provides

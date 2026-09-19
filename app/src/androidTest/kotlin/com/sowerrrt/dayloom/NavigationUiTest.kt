@@ -302,6 +302,19 @@ class NavigationUiTest {
     }
 
     @Test
+    fun settingsExposeBackupRestoreAndProtectedErase() {
+        composeRule.onNodeWithTag("primary_nav_more").performClick()
+        composeRule.onNodeWithTag("more_settings").performClick()
+        composeRule
+            .onNodeWithTag("settings_list")
+            .performScrollToNode(hasTestTag("data_management_card"))
+        composeRule.onNodeWithTag("export_data").assertExists()
+        composeRule.onNodeWithTag("import_data").assertExists()
+        composeRule.onNodeWithTag("clear_all_data").performClick()
+        composeRule.onNodeWithTag("confirm_clear_all_data").assertExists()
+    }
+
+    @Test
     fun demoWishHasLocalCoverAndPhotoControls() {
         composeRule.onNodeWithTag("primary_nav_more").performClick()
         composeRule.onNodeWithTag("more_settings").performClick()

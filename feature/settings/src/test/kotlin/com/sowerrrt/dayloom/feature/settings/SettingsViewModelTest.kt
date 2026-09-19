@@ -1,5 +1,6 @@
 package com.sowerrrt.dayloom.feature.settings
 
+import android.net.Uri
 import app.cash.turbine.test
 import com.sowerrrt.dayloom.core.model.AccentPalette
 import com.sowerrrt.dayloom.core.model.AppLanguage
@@ -9,6 +10,8 @@ import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
+import com.sowerrrt.dayloom.core.storage.DataTransferRepository
+import com.sowerrrt.dayloom.core.storage.DataTransferSummary
 import com.sowerrrt.dayloom.core.storage.DemoContent
 import com.sowerrrt.dayloom.core.storage.DemoContentRepository
 import com.sowerrrt.dayloom.core.storage.DemoSeedResult
@@ -40,7 +43,7 @@ class SettingsViewModelTest {
     fun `theme selection is persisted and reflected in state`() =
         runTest(dispatcher) {
             val repository = FakeSettingsRepository()
-            val viewModel = SettingsViewModel(repository, FakeDemoContentRepository())
+            val viewModel = SettingsViewModel(repository, FakeDemoContentRepository(), FakeDataTransferRepository())
 
             viewModel.uiState.test {
                 assertEquals(ThemeMode.SYSTEM, awaitItem().settings.themeMode)
@@ -53,7 +56,7 @@ class SettingsViewModelTest {
     fun `language selection is persisted before apply callback`() =
         runTest(dispatcher) {
             val repository = FakeSettingsRepository()
-            val viewModel = SettingsViewModel(repository, FakeDemoContentRepository())
+            val viewModel = SettingsViewModel(repository, FakeDemoContentRepository(), FakeDataTransferRepository())
             var appliedLanguage: AppLanguage? = null
 
             viewModel.uiState.test {
@@ -68,7 +71,7 @@ class SettingsViewModelTest {
     fun `example content reports added and repeated states`() =
         runTest(dispatcher) {
             val demoRepository = FakeDemoContentRepository()
-            val viewModel = SettingsViewModel(FakeSettingsRepository(), demoRepository)
+            val viewModel = SettingsViewModel(FakeSettingsRepository(), demoRepository, FakeDataTransferRepository())
             val emptyContent = DemoContent(emptyList(), emptyList(), emptyList(), emptyList())
 
             viewModel.uiState.test {
@@ -86,7 +89,7 @@ class SettingsViewModelTest {
     fun `whole app lock selection is persisted`() =
         runTest(dispatcher) {
             val repository = FakeSettingsRepository()
-            val viewModel = SettingsViewModel(repository, FakeDemoContentRepository())
+            val viewModel = SettingsViewModel(repository, FakeDemoContentRepository(), FakeDataTransferRepository())
 
             viewModel.uiState.test {
                 assertEquals(false, awaitItem().settings.lockWholeApp)
@@ -99,7 +102,7 @@ class SettingsViewModelTest {
     fun `bottom navigation customization is reflected in state`() =
         runTest(dispatcher) {
             val repository = FakeSettingsRepository()
-            val viewModel = SettingsViewModel(repository, FakeDemoContentRepository())
+            val viewModel = SettingsViewModel(repository, FakeDemoContentRepository(), FakeDataTransferRepository())
             val sections = listOf(BottomSection.PLANNER, BottomSection.HABITS, BottomSection.MORE)
 
             viewModel.uiState.test {
@@ -113,7 +116,7 @@ class SettingsViewModelTest {
     fun `home dashboard customization is reflected in state`() =
         runTest(dispatcher) {
             val repository = FakeSettingsRepository()
-            val viewModel = SettingsViewModel(repository, FakeDemoContentRepository())
+            val viewModel = SettingsViewModel(repository, FakeDemoContentRepository(), FakeDataTransferRepository())
             val sections = listOf(HomeSection.WISHLIST, HomeSection.HABITS)
 
             viewModel.uiState.test {
@@ -122,6 +125,49 @@ class SettingsViewModelTest {
                 assertEquals(sections, awaitItem().settings.homeSections)
             }
         }
+
+    @Test
+    fun `clear all data reports completion after repository succeeds`() =
+        runTest(dispatcher) {
+            val transferRepository = FakeDataTransferRepository()
+            val viewModel =
+                SettingsViewModel(
+                    FakeSettingsRepository(),
+                    FakeDemoContentRepository(),
+                    transferRepository,
+                )
+            var callbackInvoked = false
+
+            viewModel.uiState.test {
+                awaitItem()
+                viewModel.clearAllData { callbackInvoked = true }
+                advanceUntilIdle()
+                val state = expectMostRecentItem()
+                assertEquals(DataFeedback.CLEARED, state.dataFeedback)
+                assertEquals(true, transferRepository.cleared)
+                assertEquals(true, callbackInvoked)
+            }
+        }
+}
+
+private class FakeDataTransferRepository : DataTransferRepository {
+    var exported = false
+    var imported = false
+    var cleared = false
+
+    override suspend fun exportTo(uri: Uri): DataTransferSummary {
+        exported = true
+        return DataTransferSummary(1, 2, 3, 4, 5)
+    }
+
+    override suspend fun importFrom(uri: Uri): DataTransferSummary {
+        imported = true
+        return DataTransferSummary(1, 2, 3, 4, 5)
+    }
+
+    override suspend fun clearAll() {
+        cleared = true
+    }
 }
 
 private class FakeDemoContentRepository : DemoContentRepository {

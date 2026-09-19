@@ -17,6 +17,7 @@ import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
@@ -50,6 +51,24 @@ interface SettingsRepository {
     )
 
     suspend fun markUpdateChecked(epochMillis: Long)
+
+    suspend fun replaceAll(value: AppSettings) {
+        setThemeMode(value.themeMode)
+        setAppLanguage(value.appLanguage)
+        setAccentPalette(value.accentPalette)
+        setStartDestination(value.startDestination)
+        setAutomaticUpdateChecks(value.automaticUpdateChecks)
+        setWholeAppLock(value.lockWholeApp)
+        setBottomSections(value.bottomSections)
+        setHomeSections(value.homeSections)
+        val current = settings.first()
+        PresetType.entries.forEach { type ->
+            val oldValues = current.presets(type)
+            val newValues = value.presets(type)
+            oldValues.forEach { removePreset(type, it) }
+            newValues.forEach { addPreset(type, it) }
+        }
+    }
 }
 
 class DataStoreSettingsRepository(
@@ -151,6 +170,26 @@ class DataStoreSettingsRepository(
         dataStore.edit { it[Keys.lastUpdateCheck] = epochMillis }
     }
 
+    override suspend fun replaceAll(value: AppSettings) {
+        dataStore.edit { preferences ->
+            preferences[Keys.theme] = value.themeMode.name
+            preferences[Keys.appLanguage] = value.appLanguage.name
+            preferences[Keys.accent] = value.accentPalette.name
+            preferences[Keys.start] = value.startDestination.name
+            preferences[Keys.autoUpdates] = value.automaticUpdateChecks
+            preferences[Keys.lockWholeApp] = value.lockWholeApp
+            value.lastUpdateCheckEpochMillis?.let { preferences[Keys.lastUpdateCheck] = it }
+                ?: preferences.remove(Keys.lastUpdateCheck)
+            preferences[Keys.bottomSections] =
+                value.bottomSections.joinToString(",", transform = BottomSection::name)
+            preferences[Keys.homeSections] =
+                value.homeSections.joinToString(",", transform = HomeSection::name)
+            preferences[Keys.habitPresets] = value.habitPresets
+            preferences[Keys.planPresets] = value.planPresets
+            preferences[Keys.listItemPresets] = value.listItemPresets
+        }
+    }
+
     private inline fun <reified T : Enum<T>> String.enumOrDefault(default: T): T =
         enumValues<T>().firstOrNull { it.name == this } ?: default
 
@@ -199,3 +238,10 @@ class DataStoreSettingsRepository(
             }
     }
 }
+
+private fun AppSettings.presets(type: PresetType): Set<String> =
+    when (type) {
+        PresetType.HABIT -> habitPresets
+        PresetType.PLAN -> planPresets
+        PresetType.LIST_ITEM -> listItemPresets
+    }
