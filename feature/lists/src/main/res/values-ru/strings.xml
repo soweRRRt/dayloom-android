@@ -1,0 +1,7 @@
+<resources>
+    <string name="lists_title">Списки</string>
+    <string name="lists_description">Записывайте покупки, идеи, вещи в поездку и всё, что важно не забыть.</string>
+    <string name="lists_empty_title">Место для каждой мысли</string>
+    <string name="lists_empty_description">Здесь появятся гибкие списки с разделами, изображениями и быстрыми отметками.</string>
+    <string name="lists_action">Создать список</string>
+</resources>

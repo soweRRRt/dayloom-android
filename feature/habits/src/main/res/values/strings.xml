@@ -1,0 +1,7 @@
+<resources>
+    <string name="habits_title">Habits</string>
+    <string name="habits_description">Build gentle routines and see how consistency shapes your days.</string>
+    <string name="habits_empty_title">Your first rhythm starts here</string>
+    <string name="habits_empty_description">Soon you will be able to track habits, streaks, and flexible goals in one calm view.</string>
+    <string name="habits_action">Create a habit</string>
+</resources>

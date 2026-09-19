@@ -1,0 +1,7 @@
+<resources>
+    <string name="wishlist_title">Желания</string>
+    <string name="wishlist_description">Превращайте желания в понятные цели и отмечайте каждый шаг к ним.</string>
+    <string name="wishlist_empty_title">Освободите место для мечты</string>
+    <string name="wishlist_empty_description">Создавайте отдельные цели, выбирайте валюту и вручную добавляйте накопления.</string>
+    <string name="wishlist_action">Добавить желание</string>
+</resources>

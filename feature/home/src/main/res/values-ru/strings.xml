@@ -1,0 +1,18 @@
+<resources>
+    <string name="home_app_name">Dayloom</string>
+    <string name="home_welcome_title">Сплетите спокойный день</string>
+    <string name="home_welcome_body">Ваши привычки, планы и идеи объединятся в одном приватном пространстве.</string>
+    <string name="home_overview">Сегодня одним взглядом</string>
+    <string name="home_habits_title">Привычки</string>
+    <string name="home_habits_body">Начните с одного небольшого повторяемого действия.</string>
+    <string name="home_habits_metric">Привычек пока нет</string>
+    <string name="home_plan_title">План</string>
+    <string name="home_plan_body">Найдите место для следующего важного дела.</string>
+    <string name="home_plan_metric">День пока свободен</string>
+    <string name="home_lists_title">Списки</string>
+    <string name="home_lists_body">Соберите всё, что хотите запомнить.</string>
+    <string name="home_lists_metric">Можно создать первый список</string>
+    <string name="home_wishes_title">Желания</string>
+    <string name="home_wishes_body">Превратите будущую покупку в наглядную цель.</string>
+    <string name="home_wishes_metric">Целей пока нет</string>
+</resources>

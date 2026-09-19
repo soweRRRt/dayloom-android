@@ -1,0 +1,24 @@
+<resources>
+    <string name="settings_title">Настройки</string>
+    <string name="settings_appearance">Оформление</string>
+    <string name="settings_theme">Тема</string>
+    <string name="settings_theme_system">Системная</string>
+    <string name="settings_theme_light">Светлая</string>
+    <string name="settings_theme_dark">Тёмная</string>
+    <string name="settings_accent">Акцентная палитра</string>
+    <string name="settings_accent_violet">Фиолетовое плетение</string>
+    <string name="settings_accent_ocean">Океанская нить</string>
+    <string name="settings_accent_coral">Коралловое сияние</string>
+    <string name="settings_accent_forest">Лесное спокойствие</string>
+    <string name="settings_selected">Выбрано</string>
+    <string name="settings_start_screen">Стартовый экран</string>
+    <string name="settings_start_home">Главная</string>
+    <string name="settings_start_habits">Привычки</string>
+    <string name="settings_start_planner">План</string>
+    <string name="settings_start_lists">Списки</string>
+    <string name="settings_updates">Обновления</string>
+    <string name="settings_auto_updates">Автоматическая проверка</string>
+    <string name="settings_auto_updates_description">Обращаться к GitHub не чаще одного раза в сутки, не задерживая запуск.</string>
+    <string name="settings_check_updates">Проверить обновления</string>
+    <string name="settings_privacy_note">Dayloom работает локально: без аккаунта, аналитики, рекламы и фоновой отправки данных.</string>
+</resources>

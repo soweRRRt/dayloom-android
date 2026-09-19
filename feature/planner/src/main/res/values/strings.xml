@@ -1,0 +1,7 @@
+<resources>
+    <string name="planner_title">Plan</string>
+    <string name="planner_description">Keep tasks and meaningful moments together without crowding your day.</string>
+    <string name="planner_empty_title">A clear day, ready for you</string>
+    <string name="planner_empty_description">Plans, reminders, and a focused daily timeline will live here.</string>
+    <string name="planner_action">Add a plan</string>
+</resources>

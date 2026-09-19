@@ -1,0 +1,22 @@
+<resources>
+    <string name="app_name">Dayloom</string>
+    <string name="nav_home">Главная</string>
+    <string name="nav_habits">Привычки</string>
+    <string name="nav_plan">План</string>
+    <string name="nav_lists">Списки</string>
+    <string name="nav_more">Ещё</string>
+    <string name="more_title">Ещё</string>
+    <string name="more_description">Здесь находятся ваши цели, защищённое хранилище и параметры приложения.</string>
+    <string name="more_wishlist">Желания и накопления</string>
+    <string name="more_vault">Хранилище паролей</string>
+    <string name="more_settings">Настройки</string>
+    <string name="update_available_title">Доступен Dayloom %1$s</string>
+    <string name="update_available_no_notes">Доступна новая стабильная версия. Подробности находятся на странице релиза.</string>
+    <string name="update_open_release">Подробнее / Обновить</string>
+    <string name="update_later">Позже</string>
+    <string name="update_up_to_date">У вас уже установлена последняя стабильная версия.</string>
+    <string name="update_unavailable">Сейчас не удалось проверить обновления. Приложение по-прежнему полностью работает без сети.</string>
+    <string name="vault_notice_title">Безопасность прежде всего</string>
+    <string name="vault_notice_body">Настройка хранилища появится только вместе с шифрованием через Android Keystore и биометрической разблокировкой. Эта версия не сохраняет пароли.</string>
+    <string name="action_understood">Понятно</string>
+</resources>

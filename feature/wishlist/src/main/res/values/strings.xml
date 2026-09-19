@@ -1,0 +1,7 @@
+<resources>
+    <string name="wishlist_title">Wishes</string>
+    <string name="wishlist_description">Turn wishes into visible goals and celebrate every step toward them.</string>
+    <string name="wishlist_empty_title">Make room for something wonderful</string>
+    <string name="wishlist_empty_description">Create separate goals, choose a currency, and add savings manually.</string>
+    <string name="wishlist_action">Add a wish</string>
+</resources>

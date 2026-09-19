@@ -1,0 +1,24 @@
+<resources>
+    <string name="settings_title">Settings</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_accent">Accent palette</string>
+    <string name="settings_accent_violet">Violet weave</string>
+    <string name="settings_accent_ocean">Ocean thread</string>
+    <string name="settings_accent_coral">Coral glow</string>
+    <string name="settings_accent_forest">Forest calm</string>
+    <string name="settings_selected">Selected</string>
+    <string name="settings_start_screen">Start screen</string>
+    <string name="settings_start_home">Home</string>
+    <string name="settings_start_habits">Habits</string>
+    <string name="settings_start_planner">Plan</string>
+    <string name="settings_start_lists">Lists</string>
+    <string name="settings_updates">Updates</string>
+    <string name="settings_auto_updates">Automatic checks</string>
+    <string name="settings_auto_updates_description">Check GitHub at most once every 24 hours. Startup is never blocked.</string>
+    <string name="settings_check_updates">Check for updates</string>
+    <string name="settings_privacy_note">Dayloom is local-first. There are no accounts, analytics, ads, or background data uploads.</string>
+</resources>

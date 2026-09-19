@@ -1,0 +1,7 @@
+<resources>
+    <string name="lists_title">Lists</string>
+    <string name="lists_description">Capture groceries, ideas, packing lists, and anything else worth remembering.</string>
+    <string name="lists_empty_title">A place for every thought</string>
+    <string name="lists_empty_description">Flexible lists with sections, images, and quick check-off will appear here.</string>
+    <string name="lists_action">Create a list</string>
+</resources>

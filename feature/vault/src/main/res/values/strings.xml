@@ -1,0 +1,6 @@
+<resources>
+    <string name="vault_title">Passwords</string>
+    <string name="vault_locked_title">Vault is protected</string>
+    <string name="vault_locked_description">No passwords are stored in this preview. Biometric unlock and authenticated encryption will be added together in a dedicated security stage.</string>
+    <string name="vault_unlock_action">Set up secure vault</string>
+</resources>

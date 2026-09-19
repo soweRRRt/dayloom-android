@@ -1,0 +1,7 @@
+<resources>
+    <string name="habits_title">Привычки</string>
+    <string name="habits_description">Создавайте комфортные ритуалы и наблюдайте, как постоянство меняет ваши дни.</string>
+    <string name="habits_empty_title">Первый ритм начинается здесь</string>
+    <string name="habits_empty_description">Здесь появятся привычки, серии выполнений и гибкие цели в одном спокойном пространстве.</string>
+    <string name="habits_action">Создать привычку</string>
+</resources>

@@ -1,0 +1,7 @@
+<resources>
+    <string name="planner_title">План</string>
+    <string name="planner_description">Собирайте дела и важные события вместе, не перегружая свой день.</string>
+    <string name="planner_empty_title">Чистый день ждёт ваших планов</string>
+    <string name="planner_empty_description">Здесь будут задачи, напоминания и понятная лента дня.</string>
+    <string name="planner_action">Добавить план</string>
+</resources>
