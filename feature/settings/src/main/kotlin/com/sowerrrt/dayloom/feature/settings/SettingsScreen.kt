@@ -37,8 +37,18 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.model.AccentPalette
+import com.sowerrrt.dayloom.core.model.ListKind
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
+import com.sowerrrt.dayloom.core.model.Weekday
+import com.sowerrrt.dayloom.core.model.WishPriority
+import com.sowerrrt.dayloom.core.storage.DemoContent
+import com.sowerrrt.dayloom.core.storage.DemoGoal
+import com.sowerrrt.dayloom.core.storage.DemoHabit
+import com.sowerrrt.dayloom.core.storage.DemoList
+import com.sowerrrt.dayloom.core.storage.DemoListItem
+import com.sowerrrt.dayloom.core.storage.DemoPlan
+import java.time.LocalDate
 
 @Composable
 fun SettingsScreen(
@@ -46,9 +56,11 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val demoContent = rememberDemoContent()
     Column {
         DayloomTopBar(stringResource(R.string.settings_title))
         LazyColumn(
+            modifier = Modifier.testTag("settings_list"),
             contentPadding = PaddingValues(start = DayloomSpacing.md, end = DayloomSpacing.md, bottom = 104.dp),
             verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
         ) {
@@ -112,6 +124,46 @@ fun SettingsScreen(
                 }
             }
             item {
+                SettingsSection(stringResource(R.string.settings_examples_title)) {
+                    Text(
+                        stringResource(R.string.settings_examples_description),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    DayloomButton(
+                        text =
+                            stringResource(
+                                if (state.isAddingExamples) {
+                                    R.string.settings_examples_adding
+                                } else {
+                                    R.string.settings_examples_action
+                                },
+                            ),
+                        onClick = { viewModel.addExamples(demoContent, LocalDate.now().toEpochDay()) },
+                        modifier = Modifier.testTag("add_demo_content"),
+                    )
+                    state.demoFeedback?.let { feedback ->
+                        Text(
+                            stringResource(
+                                when (feedback) {
+                                    DemoFeedback.ADDED -> R.string.settings_examples_added
+                                    DemoFeedback.ALREADY_PRESENT -> R.string.settings_examples_already_present
+                                    DemoFeedback.ERROR -> R.string.settings_examples_error
+                                },
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color =
+                                if (feedback == DemoFeedback.ERROR) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                },
+                            modifier = Modifier.testTag("demo_content_feedback"),
+                        )
+                    }
+                }
+            }
+            item {
                 Text(
                     stringResource(R.string.settings_privacy_note),
                     style = MaterialTheme.typography.bodyMedium,
@@ -122,6 +174,91 @@ fun SettingsScreen(
         }
     }
 }
+
+@Composable
+private fun rememberDemoContent(): DemoContent =
+    DemoContent(
+        habits =
+            listOf(
+                DemoHabit(
+                    title = stringResource(R.string.settings_example_habit_water),
+                    scheduledWeekdays = Weekday.entries.toSet(),
+                    completedDayOffsets = listOf(-4, -3, -2, -1, 0),
+                ),
+                DemoHabit(
+                    title = stringResource(R.string.settings_example_habit_reading),
+                    scheduledWeekdays = Weekday.entries.toSet(),
+                    completedDayOffsets = listOf(-2, -1),
+                ),
+                DemoHabit(
+                    title = stringResource(R.string.settings_example_habit_walk),
+                    scheduledWeekdays = setOf(Weekday.MONDAY, Weekday.WEDNESDAY, Weekday.FRIDAY),
+                    completedDayOffsets = listOf(-7, -5, -3),
+                ),
+            ),
+        plans =
+            listOf(
+                DemoPlan(stringResource(R.string.settings_example_plan_review), 0, completed = true),
+                DemoPlan(stringResource(R.string.settings_example_plan_groceries), 0),
+                DemoPlan(stringResource(R.string.settings_example_plan_call), 1),
+                DemoPlan(stringResource(R.string.settings_example_plan_dentist), 3),
+            ),
+        lists =
+            listOf(
+                DemoList(
+                    title = stringResource(R.string.settings_example_list_groceries),
+                    kind = ListKind.SHOPPING,
+                    items =
+                        listOf(
+                            DemoListItem(stringResource(R.string.settings_example_item_milk), "2", completed = true),
+                            DemoListItem(stringResource(R.string.settings_example_item_avocado), "3"),
+                            DemoListItem(
+                                stringResource(R.string.settings_example_item_coffee),
+                                "1",
+                                stringResource(R.string.settings_example_item_coffee_note),
+                            ),
+                        ),
+                ),
+                DemoList(
+                    title = stringResource(R.string.settings_example_list_trip),
+                    kind = ListKind.PACKING,
+                    items =
+                        listOf(
+                            DemoListItem(stringResource(R.string.settings_example_item_passport), completed = true),
+                            DemoListItem(stringResource(R.string.settings_example_item_charger)),
+                            DemoListItem(stringResource(R.string.settings_example_item_camera)),
+                        ),
+                ),
+                DemoList(
+                    title = stringResource(R.string.settings_example_list_ideas),
+                    kind = ListKind.IDEAS,
+                    items =
+                        listOf(
+                            DemoListItem(stringResource(R.string.settings_example_item_weekend)),
+                            DemoListItem(stringResource(R.string.settings_example_item_recipe)),
+                        ),
+                ),
+            ),
+        goals =
+            listOf(
+                DemoGoal(
+                    title = stringResource(R.string.settings_example_goal_laptop),
+                    targetMinor = 150_000_00,
+                    currencyCode = stringResource(R.string.settings_example_currency),
+                    priority = WishPriority.HIGH,
+                    note = stringResource(R.string.settings_example_goal_laptop_note),
+                    contributionsMinor = listOf(20_000_00, 15_000_00, 10_000_00),
+                ),
+                DemoGoal(
+                    title = stringResource(R.string.settings_example_goal_trip),
+                    targetMinor = 80_000_00,
+                    currencyCode = stringResource(R.string.settings_example_currency),
+                    priority = WishPriority.MEDIUM,
+                    note = stringResource(R.string.settings_example_goal_trip_note),
+                    contributionsMinor = listOf(12_000_00, 8_000_00),
+                ),
+            ),
+    )
 
 @Composable
 private fun SettingsSection(

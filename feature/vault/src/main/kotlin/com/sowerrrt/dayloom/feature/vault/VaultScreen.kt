@@ -133,6 +133,34 @@ fun VaultScreen(
     val authTitle = stringResource(R.string.vault_auth_title)
     val authSubtitle = stringResource(R.string.vault_auth_subtitle)
     val authCancel = stringResource(R.string.vault_auth_cancel)
+    val vaultExamples =
+        listOf(
+            VaultExample(
+                title = stringResource(R.string.vault_example_email_title),
+                username = stringResource(R.string.vault_example_email_username),
+                password = "Demo-Mail-2026!",
+                website = "https://mail.example.com",
+                note = stringResource(R.string.vault_example_email_note),
+                category = stringResource(R.string.vault_example_category_personal),
+                favorite = true,
+            ),
+            VaultExample(
+                title = stringResource(R.string.vault_example_work_title),
+                username = stringResource(R.string.vault_example_work_username),
+                password = "Demo-Work-42#Safe",
+                website = "https://work.example.com",
+                note = stringResource(R.string.vault_example_work_note),
+                category = stringResource(R.string.vault_example_category_work),
+            ),
+            VaultExample(
+                title = stringResource(R.string.vault_example_streaming_title),
+                username = stringResource(R.string.vault_example_streaming_username),
+                password = "Demo-Stream-7\$Plus",
+                website = "https://video.example.com",
+                note = stringResource(R.string.vault_example_streaming_note),
+                category = stringResource(R.string.vault_example_category_entertainment),
+            ),
+        )
 
     LaunchedEffect(state.authenticationRequest) {
         if (state.authenticationRequest == 0L) return@LaunchedEffect
@@ -236,6 +264,7 @@ fun VaultScreen(
                             onFavoriteFilter = viewModel::toggleFavoriteFilter,
                             onOpenEntry = viewModel::openEntry,
                             onToggleFavorite = viewModel::toggleFavorite,
+                            onAddExamples = { viewModel.addExamples(vaultExamples) },
                             onDeleteVault = { showDeleteVault = true },
                         )
                 }
@@ -321,6 +350,7 @@ private fun VaultOverview(
     onFavoriteFilter: () -> Unit,
     onOpenEntry: (EntityId) -> Unit,
     onToggleFavorite: (EntityId) -> Unit,
+    onAddExamples: () -> Unit,
     onDeleteVault: () -> Unit,
 ) {
     Column(
@@ -348,6 +378,8 @@ private fun VaultOverview(
                 VaultEmptyState(
                     stringResource(R.string.vault_empty_title),
                     stringResource(R.string.vault_empty_description),
+                    actionLabel = stringResource(R.string.vault_add_examples),
+                    onAction = onAddExamples,
                 )
             state.filteredEntries.isEmpty() ->
                 VaultEmptyState(
@@ -377,12 +409,19 @@ private fun VaultOverview(
 private fun VaultEmptyState(
     title: String,
     description: String,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
 ) {
     DayloomCard(Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
             Icon(Icons.Rounded.Key, contentDescription = null, modifier = Modifier.size(48.dp))
             Text(title, style = MaterialTheme.typography.titleLarge)
             Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (actionLabel != null && onAction != null) {
+                OutlinedButton(onClick = onAction, modifier = Modifier.testTag("add_vault_examples")) {
+                    Text(actionLabel)
+                }
+            }
         }
     }
 }

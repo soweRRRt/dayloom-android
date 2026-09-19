@@ -138,6 +138,19 @@ class NavigationUiTest {
     }
 
     @Test
+    fun exampleContentCanBeAddedFromSettings() {
+        composeRule.onNodeWithTag("primary_nav_more").performClick()
+        composeRule.onNodeWithTag("more_settings").performClick()
+        composeRule
+            .onNodeWithTag("settings_list")
+            .performScrollToNode(hasTestTag("add_demo_content"))
+        composeRule.onNodeWithTag("add_demo_content").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching { composeRule.onNodeWithTag("demo_content_feedback").assertExists() }.isSuccess
+        }
+    }
+
+    @Test
     fun themeAndStartScreenSelectionsSurviveRecreation() {
         composeRule.onNodeWithText("More").performClick()
         composeRule.onNodeWithText("Settings").performClick()

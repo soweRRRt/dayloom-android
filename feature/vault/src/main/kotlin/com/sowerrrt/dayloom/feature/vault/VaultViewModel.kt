@@ -52,6 +52,16 @@ data class VaultUiState(
         }
 }
 
+data class VaultExample(
+    val title: String,
+    val username: String,
+    val password: String,
+    val website: String,
+    val note: String,
+    val category: String,
+    val favorite: Boolean = false,
+)
+
 @HiltViewModel
 class VaultViewModel
     @Inject
@@ -198,6 +208,30 @@ class VaultViewModel
                         updatedAtEpochMillis = now,
                     )
                 current.filterNot { it.id == updated.id } + updated
+            }
+        }
+
+        fun addExamples(examples: List<VaultExample>) {
+            mutateEntries { current ->
+                if (current.isNotEmpty()) {
+                    current
+                } else {
+                    val now = System.currentTimeMillis()
+                    examples.mapIndexed { index, example ->
+                        VaultEntry(
+                            id = EntityId.random(),
+                            title = example.title,
+                            username = example.username,
+                            password = example.password,
+                            website = example.website,
+                            note = example.note,
+                            category = example.category,
+                            favorite = example.favorite,
+                            createdAtEpochMillis = now + index,
+                            updatedAtEpochMillis = now + index,
+                        )
+                    }
+                }
             }
         }
 

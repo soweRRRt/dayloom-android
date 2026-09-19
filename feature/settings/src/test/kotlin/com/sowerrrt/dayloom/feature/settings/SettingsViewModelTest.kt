@@ -5,11 +5,15 @@ import com.sowerrrt.dayloom.core.model.AccentPalette
 import com.sowerrrt.dayloom.core.model.AppSettings
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
+import com.sowerrrt.dayloom.core.storage.DemoContent
+import com.sowerrrt.dayloom.core.storage.DemoContentRepository
+import com.sowerrrt.dayloom.core.storage.DemoSeedResult
 import com.sowerrrt.dayloom.core.storage.SettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -32,13 +36,46 @@ class SettingsViewModelTest {
     fun `theme selection is persisted and reflected in state`() =
         runTest(dispatcher) {
             val repository = FakeSettingsRepository()
-            val viewModel = SettingsViewModel(repository)
+            val viewModel = SettingsViewModel(repository, FakeDemoContentRepository())
 
             viewModel.uiState.test {
                 assertEquals(ThemeMode.SYSTEM, awaitItem().settings.themeMode)
                 viewModel.setTheme(ThemeMode.DARK)
                 assertEquals(ThemeMode.DARK, awaitItem().settings.themeMode)
             }
+        }
+
+    @Test
+    fun `example content reports added and repeated states`() =
+        runTest(dispatcher) {
+            val demoRepository = FakeDemoContentRepository()
+            val viewModel = SettingsViewModel(FakeSettingsRepository(), demoRepository)
+            val emptyContent = DemoContent(emptyList(), emptyList(), emptyList(), emptyList())
+
+            viewModel.uiState.test {
+                awaitItem()
+                viewModel.addExamples(emptyContent, 20_000)
+                advanceUntilIdle()
+                assertEquals(DemoFeedback.ADDED, expectMostRecentItem().demoFeedback)
+                viewModel.addExamples(emptyContent, 20_000)
+                advanceUntilIdle()
+                assertEquals(DemoFeedback.ALREADY_PRESENT, expectMostRecentItem().demoFeedback)
+            }
+        }
+}
+
+private class FakeDemoContentRepository : DemoContentRepository {
+    private var first = true
+
+    override suspend fun seedMissing(
+        content: DemoContent,
+        todayEpochDay: Long,
+    ): DemoSeedResult =
+        if (first) {
+            first = false
+            DemoSeedResult(habitsAdded = 1)
+        } else {
+            DemoSeedResult()
         }
 }
 

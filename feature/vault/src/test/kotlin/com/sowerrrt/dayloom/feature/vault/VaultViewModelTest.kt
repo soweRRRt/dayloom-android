@@ -79,6 +79,33 @@ class VaultViewModelTest {
         assertTrue(generated.any(Char::isDigit))
         assertTrue(generated.any { !it.isLetterOrDigit() })
     }
+
+    @Test
+    fun `safe examples are stored only in an empty unlocked vault`() =
+        runTest(dispatcher) {
+            val viewModel = VaultViewModel(FakeVaultRepository(), FakeVaultCipher())
+            runCurrent()
+            viewModel.unlockAfterAuthentication()
+            runCurrent()
+            val examples =
+                listOf(
+                    VaultExample("Mail", "demo@example.com", "Demo-1!", "example.com", "", "Personal"),
+                    VaultExample("Work", "demo", "Demo-2!", "work.example.com", "", "Work"),
+                )
+
+            viewModel.addExamples(examples)
+            runCurrent()
+            viewModel.addExamples(examples)
+            runCurrent()
+
+            assertEquals(2, viewModel.uiState.value.entries.size)
+            assertEquals(
+                setOf("Mail", "Work"),
+                viewModel.uiState.value.entries
+                    .map { it.title }
+                    .toSet(),
+            )
+        }
 }
 
 private class FakeVaultRepository : VaultRepository {
