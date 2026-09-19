@@ -5,16 +5,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
+import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
 import com.sowerrrt.dayloom.core.notifications.NotificationScope
 import com.sowerrrt.dayloom.core.notifications.activeHabitReminders
 import com.sowerrrt.dayloom.core.storage.AttachmentRepository
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
+import com.sowerrrt.dayloom.core.storage.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -29,6 +32,7 @@ data class HabitsUiState(
     val imagePaths: Map<EntityId, String> = emptyMap(),
     val isChangingImage: Boolean = false,
     val hasImageError: Boolean = false,
+    val presets: Set<String> = emptySet(),
 ) {
     val completedToday: Int
         get() = habits.count { todayEpochDay in it.completedEpochDays }
@@ -41,6 +45,7 @@ class HabitsViewModel
         private val repository: HabitsRepository,
         private val notificationScheduler: NotificationScheduler,
         private val attachmentRepository: AttachmentRepository,
+        private val settingsRepository: SettingsRepository,
     ) : ViewModel() {
         private val mutableUiState = MutableStateFlow(HabitsUiState())
         val uiState: StateFlow<HabitsUiState> = mutableUiState.asStateFlow()
@@ -52,8 +57,8 @@ class HabitsViewModel
         fun refresh() {
             viewModelScope.launch {
                 mutableUiState.update { it.copy(isLoading = true, hasError = false) }
-                runCatching { repository.loadHabits() }
-                    .onSuccess { habits ->
+                runCatching { repository.loadHabits() to settingsRepository.settings.first().habitPresets }
+                    .onSuccess { (habits, presets) ->
                         val reminderResult =
                             notificationScheduler.rescheduleAll(
                                 NotificationScope.HABITS,
@@ -67,6 +72,7 @@ class HabitsViewModel
                                 hasError = false,
                                 reminderSchedulingFailed = reminderResult.isFailure,
                                 imagePaths = imagePaths(habits),
+                                presets = presets,
                             )
                         }
                     }.onFailure {
@@ -79,10 +85,21 @@ class HabitsViewModel
             title: String,
             scheduledWeekdays: Set<Weekday>,
             reminderMinutesOfDay: Int?,
+            targetAmount: String = "",
+            targetUnit: String = "",
         ) {
             if (title.isBlank() || scheduledWeekdays.isEmpty()) return
             val today = LocalDate.now().toEpochDay()
-            updateHabits { repository.createHabit(title, scheduledWeekdays, today, reminderMinutesOfDay) }
+            updateHabits {
+                repository.createHabit(
+                    title,
+                    scheduledWeekdays,
+                    today,
+                    reminderMinutesOfDay,
+                    targetAmount,
+                    targetUnit,
+                )
+            }
         }
 
         fun updateHabit(
@@ -90,9 +107,29 @@ class HabitsViewModel
             title: String,
             scheduledWeekdays: Set<Weekday>,
             reminderMinutesOfDay: Int?,
+            targetAmount: String = "",
+            targetUnit: String = "",
         ) {
             if (title.isBlank() || scheduledWeekdays.isEmpty()) return
-            updateHabits { repository.updateHabit(id, title, scheduledWeekdays, reminderMinutesOfDay) }
+            updateHabits {
+                repository.updateHabit(id, title, scheduledWeekdays, reminderMinutesOfDay, targetAmount, targetUnit)
+            }
+        }
+
+        fun savePreset(title: String) {
+            val normalized = title.trim()
+            if (normalized.isEmpty()) return
+            viewModelScope.launch {
+                settingsRepository.addPreset(PresetType.HABIT, normalized)
+                mutableUiState.update { it.copy(presets = it.presets + normalized) }
+            }
+        }
+
+        fun removePreset(title: String) {
+            viewModelScope.launch {
+                settingsRepository.removePreset(PresetType.HABIT, title)
+                mutableUiState.update { it.copy(presets = it.presets - title) }
+            }
         }
 
         fun toggleCompletion(id: EntityId) {

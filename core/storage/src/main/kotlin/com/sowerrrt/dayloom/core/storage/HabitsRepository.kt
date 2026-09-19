@@ -23,6 +23,8 @@ interface HabitsRepository {
         scheduledWeekdays: Set<Weekday>,
         startEpochDay: Long,
         reminderMinutesOfDay: Int? = null,
+        targetAmount: String = "",
+        targetUnit: String = "",
     ): List<Habit>
 
     suspend fun updateHabit(
@@ -30,6 +32,8 @@ interface HabitsRepository {
         title: String,
         scheduledWeekdays: Set<Weekday>,
         reminderMinutesOfDay: Int? = null,
+        targetAmount: String = "",
+        targetUnit: String = "",
     ): List<Habit>
 
     suspend fun archiveHabit(id: EntityId): List<Habit>
@@ -101,8 +105,11 @@ class FileHabitsRepository(
         scheduledWeekdays: Set<Weekday>,
         startEpochDay: Long,
         reminderMinutesOfDay: Int?,
+        targetAmount: String,
+        targetUnit: String,
     ): List<Habit> {
         val normalizedTitle = title.trim()
+        val target = normalizeTarget(targetAmount, targetUnit)
         validate(normalizedTitle, scheduledWeekdays, reminderMinutesOfDay)
         return store
             .update { snapshot ->
@@ -116,6 +123,8 @@ class FileHabitsRepository(
                                 startEpochDay = startEpochDay,
                                 scheduledWeekdays = scheduledWeekdays,
                                 reminderMinutesOfDay = reminderMinutesOfDay,
+                                targetAmount = target.first,
+                                targetUnit = target.second,
                             ),
                 )
             }.visibleHabits()
@@ -126,14 +135,19 @@ class FileHabitsRepository(
         title: String,
         scheduledWeekdays: Set<Weekday>,
         reminderMinutesOfDay: Int?,
+        targetAmount: String,
+        targetUnit: String,
     ): List<Habit> {
         val normalizedTitle = title.trim()
+        val target = normalizeTarget(targetAmount, targetUnit)
         validate(normalizedTitle, scheduledWeekdays, reminderMinutesOfDay)
         return updateExisting(id) { habit ->
             habit.copy(
                 title = normalizedTitle,
                 scheduledWeekdays = scheduledWeekdays,
                 reminderMinutesOfDay = reminderMinutesOfDay,
+                targetAmount = target.first,
+                targetUnit = target.second,
             )
         }
     }
@@ -181,6 +195,17 @@ class FileHabitsRepository(
         }
     }
 
+    private fun normalizeTarget(
+        amount: String,
+        unit: String,
+    ): Pair<String, String> {
+        val normalizedAmount = amount.trim()
+        val normalizedUnit = unit.trim()
+        require(normalizedAmount.length <= MAX_TARGET_AMOUNT_LENGTH) { "Habit target is too long" }
+        require(normalizedUnit.length <= MAX_TARGET_UNIT_LENGTH) { "Habit target unit is too long" }
+        return normalizedAmount to normalizedUnit
+    }
+
     private fun HabitsSnapshot.visibleHabits(): List<Habit> =
         habits
             .asSequence()
@@ -190,5 +215,7 @@ class FileHabitsRepository(
 
     private companion object {
         const val MAX_TITLE_LENGTH = 80
+        const val MAX_TARGET_AMOUNT_LENGTH = 24
+        const val MAX_TARGET_UNIT_LENGTH = 24
     }
 }

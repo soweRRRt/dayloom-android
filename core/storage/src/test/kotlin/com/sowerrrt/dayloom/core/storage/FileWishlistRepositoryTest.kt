@@ -35,7 +35,14 @@ class FileWishlistRepositoryTest {
                     idFactory = { ids.removeFirst() },
                 )
 
-            repository.createGoal("  New laptop  ", 150_000_00, "usd", WishPriority.HIGH, "For work")
+            repository.createGoal(
+                "  New laptop  ",
+                150_000_00,
+                "usd",
+                WishPriority.HIGH,
+                "For work",
+                "https://shop.example/laptop",
+            )
             repository.addContribution(EntityId("goal-1"), 20_000_00, "First month")
             repository.addContribution(EntityId("goal-1"), 15_500_00, "Bonus")
             repository.setImage(
@@ -50,6 +57,7 @@ class FileWishlistRepositoryTest {
                 currencyCode = "EUR",
                 priority = WishPriority.MEDIUM,
                 note = "Work setup",
+                purchaseUrl = "https://shop.example/workstation",
             )
 
             val restored = FileWishlistRepository(directory).loadGoals().single()
@@ -58,6 +66,7 @@ class FileWishlistRepositoryTest {
             assertEquals("EUR", restored.currencyCode)
             assertEquals(WishPriority.MEDIUM, restored.priority)
             assertEquals("Work setup", restored.note)
+            assertEquals("https://shop.example/workstation", restored.purchaseUrl)
             assertEquals(15_500_00, restored.savedMinor)
             assertEquals("Bonus", restored.contributions.single().note)
             assertEquals("laptop.png", restored.image?.displayName)
@@ -74,5 +83,20 @@ class FileWishlistRepositoryTest {
             repository.createGoal("Temporary", 1_000_00, "RUB", WishPriority.LOW, "")
 
             assertTrue(repository.deleteGoal(EntityId("goal-2")).isEmpty())
+        }
+
+    @Test
+    fun `purchase link only accepts web addresses`() =
+        runTest {
+            val repository = FileWishlistRepository(temporaryFolder.newFolder("invalid-url"))
+
+            var failure: Throwable? = null
+            try {
+                repository.createGoal("Camera", 100_00, "EUR", WishPriority.MEDIUM, "", "ftp://example.com")
+            } catch (error: Throwable) {
+                failure = error
+            }
+
+            assertTrue(failure is IllegalArgumentException)
         }
 }

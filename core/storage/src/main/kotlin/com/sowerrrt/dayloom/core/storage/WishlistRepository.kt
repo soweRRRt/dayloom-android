@@ -17,6 +17,7 @@ interface WishlistRepository {
         currencyCode: String,
         priority: WishPriority,
         note: String,
+        purchaseUrl: String = "",
     ): List<WishGoal>
 
     suspend fun updateGoal(
@@ -26,6 +27,7 @@ interface WishlistRepository {
         currencyCode: String,
         priority: WishPriority,
         note: String,
+        purchaseUrl: String = "",
     ): List<WishGoal>
 
     suspend fun deleteGoal(id: EntityId): List<WishGoal>
@@ -69,8 +71,9 @@ class FileWishlistRepository(
         currencyCode: String,
         priority: WishPriority,
         note: String,
+        purchaseUrl: String,
     ): List<WishGoal> {
-        val fields = normalizeGoalFields(title, targetMinor, currencyCode, note)
+        val fields = normalizeGoalFields(title, targetMinor, currencyCode, note, purchaseUrl)
         val now = clock()
         return store
             .update { snapshot ->
@@ -84,6 +87,7 @@ class FileWishlistRepository(
                                 currencyCode = fields.currencyCode,
                                 priority = priority,
                                 note = fields.note,
+                                purchaseUrl = fields.purchaseUrl,
                                 createdAtEpochMillis = now,
                             ),
                 )
@@ -97,8 +101,9 @@ class FileWishlistRepository(
         currencyCode: String,
         priority: WishPriority,
         note: String,
+        purchaseUrl: String,
     ): List<WishGoal> {
-        val fields = normalizeGoalFields(title, targetMinor, currencyCode, note)
+        val fields = normalizeGoalFields(title, targetMinor, currencyCode, note, purchaseUrl)
         return mutateGoal(id) { goal ->
             goal.copy(
                 title = fields.title,
@@ -106,6 +111,7 @@ class FileWishlistRepository(
                 currencyCode = fields.currencyCode,
                 priority = priority,
                 note = fields.note,
+                purchaseUrl = fields.purchaseUrl,
                 updatedAtEpochMillis = clock(),
             )
         }
@@ -175,6 +181,7 @@ class FileWishlistRepository(
         targetMinor: Long,
         currencyCode: String,
         note: String,
+        purchaseUrl: String,
     ): GoalFields {
         val normalizedTitle = title.trim()
         val normalizedCurrency = currencyCode.trim().uppercase()
@@ -183,7 +190,15 @@ class FileWishlistRepository(
         require(targetMinor > 0) { "Target must be positive" }
         require(targetMinor <= MAX_AMOUNT_MINOR) { "Target is too large" }
         require(normalizedCurrency.matches(Regex("[A-Z0-9]{1,8}"))) { "Currency code is invalid" }
-        return GoalFields(normalizedTitle, targetMinor, normalizedCurrency, normalizeNote(note))
+        val normalizedUrl = purchaseUrl.trim()
+        require(
+            normalizedUrl.isEmpty() ||
+                (
+                    normalizedUrl.length <= MAX_URL_LENGTH &&
+                        Regex("https?://.+", RegexOption.IGNORE_CASE).matches(normalizedUrl)
+                ),
+        ) { "Purchase URL is invalid" }
+        return GoalFields(normalizedTitle, targetMinor, normalizedCurrency, normalizeNote(note), normalizedUrl)
     }
 
     private fun normalizeNote(note: String): String {
@@ -200,11 +215,13 @@ class FileWishlistRepository(
         val targetMinor: Long,
         val currencyCode: String,
         val note: String,
+        val purchaseUrl: String,
     )
 
     private companion object {
         const val MAX_TITLE_LENGTH = 100
         const val MAX_NOTE_LENGTH = 500
+        const val MAX_URL_LENGTH = 2_048
         const val MAX_AMOUNT_MINOR = 999_999_999_999_99L
     }
 }

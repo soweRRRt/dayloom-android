@@ -32,6 +32,8 @@
     <string name="lists_kind_shopping">Покупки</string>
     <string name="lists_kind_packing">В поездку</string>
     <string name="lists_kind_ideas">Идеи</string>
+    <string name="lists_custom_kind_label">Свой тип (необязательно)</string>
+    <string name="lists_custom_kind_description">Например: Книги, Работа, Рецепты. Тип сохранится со списком и будет предложен снова.</string>
     <string name="lists_save">Сохранить</string>
     <string name="lists_cancel">Отмена</string>
     <string name="lists_add_item_title">Новый пункт</string>
@@ -40,4 +42,7 @@
     <string name="lists_quantity_label">Количество (необязательно)</string>
     <string name="lists_note_label">Заметка (необязательно)</string>
     <string name="lists_delete">Удалить</string>
+    <string name="lists_item_presets">Быстрые пресеты</string>
+    <string name="lists_save_preset">Сохранить название как пресет</string>
+    <string name="lists_remove_preset">Удалить пресет «%1$s»</string>
 </resources>

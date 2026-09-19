@@ -17,8 +17,8 @@
     <string name="habits_cancel">Отмена</string>
     <string name="habits_schedule">Повторять</string>
     <string name="habits_every_day">Каждый день</string>
-    <string name="habits_reminder">Напоминание</string>
-    <string name="habits_reminder_description">Dayloom напомнит в выбранные дни. Энергосбережение может немного задержать доставку.</string>
+    <string name="habits_reminder">Точное время (необязательно)</string>
+    <string name="habits_reminder_description">Выбранное время показывается в привычке и одновременно создаёт локальное напоминание. Энергосбережение может немного задержать доставку.</string>
     <string name="habits_add_reminder">Добавить время</string>
     <string name="habits_remove_reminder">Убрать</string>
     <string name="habits_add_image">Добавить фото</string>
@@ -43,4 +43,17 @@
     <string name="habits_error_title">Привычки недоступны</string>
     <string name="habits_error_description">Dayloom не удалось прочитать или сохранить привычки. Существующие данные не удалены.</string>
     <string name="habits_retry">Попробовать снова</string>
+    <string name="habits_presets">Быстрые пресеты</string>
+    <string name="habits_save_preset">Сохранить название как пресет</string>
+    <string name="habits_remove_preset">Удалить пресет «%1$s»</string>
+    <string name="habits_target">Количество (необязательно)</string>
+    <string name="habits_target_description">Значение и единицу можно написать свободно.</string>
+    <string name="habits_target_amount">Значение</string>
+    <string name="habits_target_unit">Единица</string>
+    <string name="habits_target_value">Цель: %1$s %2$s</string>
+    <string name="habits_unit_times">раз</string>
+    <string name="habits_unit_steps">шагов</string>
+    <string name="habits_unit_minutes">мин</string>
+    <string name="habits_unit_kg">кг</string>
+    <string name="habits_unit_pieces">штук</string>
 </resources>

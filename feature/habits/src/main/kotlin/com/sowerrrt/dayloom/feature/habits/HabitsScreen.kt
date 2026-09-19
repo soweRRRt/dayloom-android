@@ -24,11 +24,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.NotificationsActive
@@ -39,6 +42,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -153,7 +157,10 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                 imagePicker.launch("image/*")
             },
             onRemoveImage = viewModel::removeImage,
-            onSave = { title, weekdays, reminderMinutesOfDay ->
+            presets = state.presets,
+            onSavePreset = viewModel::savePreset,
+            onRemovePreset = viewModel::removePreset,
+            onSave = { title, weekdays, reminderMinutesOfDay, targetAmount, targetUnit ->
                 val habit = editingHabit
                 if (
                     reminderMinutesOfDay != null &&
@@ -164,9 +171,16 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
                 if (habit == null) {
-                    viewModel.createHabit(title, weekdays, reminderMinutesOfDay)
+                    viewModel.createHabit(title, weekdays, reminderMinutesOfDay, targetAmount, targetUnit)
                 } else {
-                    viewModel.updateHabit(habit.id, title, weekdays, reminderMinutesOfDay)
+                    viewModel.updateHabit(
+                        habit.id,
+                        title,
+                        weekdays,
+                        reminderMinutesOfDay,
+                        targetAmount,
+                        targetUnit,
+                    )
                 }
                 showCreateDialog = false
             },
@@ -399,6 +413,18 @@ private fun HabitRow(
                         )
                     }
                 }
+                if (habit.targetAmount.isNotBlank() || habit.targetUnit.isNotBlank()) {
+                    Text(
+                        stringResource(
+                            R.string.habits_target_value,
+                            habit.targetAmount,
+                            habit.targetUnit,
+                        ).trim(),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.testTag("habit_target_${habit.title}"),
+                    )
+                }
                 Text(
                     text =
                         stringResource(
@@ -443,7 +469,10 @@ private fun HabitEditorDialog(
     hasImageError: Boolean,
     onChooseImage: (Habit) -> Unit,
     onRemoveImage: (EntityId) -> Unit,
-    onSave: (String, Set<Weekday>, Int?) -> Unit,
+    presets: Set<String>,
+    onSavePreset: (String) -> Unit,
+    onRemovePreset: (String) -> Unit,
+    onSave: (String, Set<Weekday>, Int?, String, String) -> Unit,
 ) {
     var title by remember(habit?.id) { mutableStateOf(habit?.title.orEmpty()) }
     var selectedDays by
@@ -451,6 +480,8 @@ private fun HabitEditorDialog(
             mutableStateOf(habit?.scheduledWeekdays ?: Weekday.entries.toSet())
         }
     var reminderMinutesOfDay by remember(habit?.id) { mutableStateOf(habit?.reminderMinutesOfDay) }
+    var targetAmount by remember(habit?.id) { mutableStateOf(habit?.targetAmount.orEmpty()) }
+    var targetUnit by remember(habit?.id) { mutableStateOf(habit?.targetUnit.orEmpty()) }
     val context = LocalContext.current
     val locale = currentLocale()
     AlertDialog(
@@ -463,7 +494,33 @@ private fun HabitEditorDialog(
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+            ) {
+                if (presets.isNotEmpty()) {
+                    Text(stringResource(R.string.habits_presets), style = MaterialTheme.typography.titleMedium)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    ) {
+                        presets.sorted().forEach { preset ->
+                            InputChip(
+                                selected = false,
+                                onClick = { title = preset },
+                                label = { Text(preset) },
+                                trailingIcon = {
+                                    Icon(
+                                        Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.habits_remove_preset, preset),
+                                        modifier = Modifier.size(18.dp).clickable { onRemovePreset(preset) },
+                                    )
+                                },
+                                modifier = Modifier.testTag("habit_preset_$preset"),
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = title,
                     onValueChange = { value -> title = value.take(MAX_TITLE_LENGTH) },
@@ -472,6 +529,13 @@ private fun HabitEditorDialog(
                     supportingText = { Text("${title.length}/$MAX_TITLE_LENGTH") },
                     singleLine = true,
                 )
+                TextButton(
+                    onClick = { onSavePreset(title) },
+                    enabled = title.isNotBlank() && title !in presets,
+                    modifier = Modifier.testTag("save_habit_preset"),
+                ) {
+                    Text(stringResource(R.string.habits_save_preset))
+                }
                 if (habit != null) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -539,6 +603,43 @@ private fun HabitEditorDialog(
                         )
                     }
                 }
+                Text(stringResource(R.string.habits_target), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.habits_target_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+                    OutlinedTextField(
+                        value = targetAmount,
+                        onValueChange = { targetAmount = it.take(MAX_TARGET_LENGTH) },
+                        label = { Text(stringResource(R.string.habits_target_amount)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f).testTag("habit_target_amount"),
+                    )
+                    OutlinedTextField(
+                        value = targetUnit,
+                        onValueChange = { targetUnit = it.take(MAX_TARGET_LENGTH) },
+                        label = { Text(stringResource(R.string.habits_target_unit)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f).testTag("habit_target_unit"),
+                    )
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs)) {
+                    listOf(
+                        stringResource(R.string.habits_unit_times),
+                        stringResource(R.string.habits_unit_steps),
+                        stringResource(R.string.habits_unit_minutes),
+                        stringResource(R.string.habits_unit_kg),
+                        stringResource(R.string.habits_unit_pieces),
+                    ).forEach { unit ->
+                        InputChip(
+                            selected = targetUnit == unit,
+                            onClick = { targetUnit = unit },
+                            label = { Text(unit) },
+                        )
+                    }
+                }
                 Text(stringResource(R.string.habits_reminder), style = MaterialTheme.typography.titleMedium)
                 Text(
                     stringResource(R.string.habits_reminder_description),
@@ -585,7 +686,7 @@ private fun HabitEditorDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(title, selectedDays, reminderMinutesOfDay) },
+                onClick = { onSave(title, selectedDays, reminderMinutesOfDay, targetAmount, targetUnit) },
                 enabled = title.isNotBlank() && selectedDays.isNotEmpty(),
                 modifier = Modifier.testTag("save_habit"),
             ) {
@@ -658,4 +759,5 @@ private fun formatReminderTime(
 ): String = String.format(locale, "%02d:%02d", minutesOfDay / 60, minutesOfDay % 60)
 
 private const val MAX_TITLE_LENGTH = 80
+private const val MAX_TARGET_LENGTH = 24
 private const val DEFAULT_REMINDER_MINUTES = 9 * 60

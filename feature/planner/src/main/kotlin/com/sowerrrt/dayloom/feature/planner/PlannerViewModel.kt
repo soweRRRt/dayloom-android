@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.PlanItem
+import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.isScheduledOn
 import com.sowerrrt.dayloom.core.notifications.NotificationId
 import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
@@ -15,12 +16,14 @@ import com.sowerrrt.dayloom.core.notifications.activeHabitReminders
 import com.sowerrrt.dayloom.core.storage.AttachmentRepository
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
+import com.sowerrrt.dayloom.core.storage.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -40,6 +43,7 @@ data class PlannerUiState(
     val planImagePaths: Map<EntityId, String> = emptyMap(),
     val isChangingImage: Boolean = false,
     val hasImageError: Boolean = false,
+    val presets: Set<String> = emptySet(),
 ) {
     val selectedHabits: List<Habit>
         get() = habits.filter { it.isScheduledOn(selectedEpochDay) }
@@ -60,6 +64,7 @@ class PlannerViewModel
         private val plannerRepository: PlannerRepository,
         private val notificationScheduler: NotificationScheduler,
         private val attachmentRepository: AttachmentRepository,
+        private val settingsRepository: SettingsRepository,
     ) : ViewModel() {
         private val mutableUiState = MutableStateFlow(PlannerUiState())
         val uiState: StateFlow<PlannerUiState> = mutableUiState.asStateFlow()
@@ -75,9 +80,10 @@ class PlannerViewModel
                     coroutineScope {
                         val habits = async { habitsRepository.loadHabits() }
                         val plans = async { plannerRepository.loadPlans() }
-                        habits.await() to plans.await()
+                        val presets = async { settingsRepository.settings.first().planPresets }
+                        Triple(habits.await(), plans.await(), presets.await())
                     }
-                }.onSuccess { (habits, plans) ->
+                }.onSuccess { (habits, plans, presets) ->
                     val planReminderResult =
                         notificationScheduler.rescheduleAll(NotificationScope.PLANS, plans.activeReminders())
                     val habitReminderResult =
@@ -95,6 +101,7 @@ class PlannerViewModel
                             reminderSchedulingFailed =
                                 planReminderResult.isFailure || habitReminderResult.isFailure,
                             planImagePaths = imagePaths(plans),
+                            presets = presets,
                         )
                     }
                 }.onFailure {
@@ -148,6 +155,22 @@ class PlannerViewModel
             if (title.isBlank()) return
             val day = mutableUiState.value.selectedEpochDay
             updatePlans { plannerRepository.updatePlan(id, title, day, reminderMinutesOfDay) }
+        }
+
+        fun savePreset(title: String) {
+            val normalized = title.trim()
+            if (normalized.isEmpty()) return
+            viewModelScope.launch {
+                settingsRepository.addPreset(PresetType.PLAN, normalized)
+                mutableUiState.update { it.copy(presets = it.presets + normalized) }
+            }
+        }
+
+        fun removePreset(title: String) {
+            viewModelScope.launch {
+                settingsRepository.removePreset(PresetType.PLAN, title)
+                mutableUiState.update { it.copy(presets = it.presets - title) }
+            }
         }
 
         fun togglePlan(id: EntityId) {

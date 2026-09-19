@@ -1,10 +1,16 @@
 package com.sowerrrt.dayloom.feature.planner
 
 import android.net.Uri
+import com.sowerrrt.dayloom.core.model.AccentPalette
+import com.sowerrrt.dayloom.core.model.AppSettings
 import com.sowerrrt.dayloom.core.model.AttachmentRef
+import com.sowerrrt.dayloom.core.model.BottomSection
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.PlanItem
+import com.sowerrrt.dayloom.core.model.PresetType
+import com.sowerrrt.dayloom.core.model.StartDestination
+import com.sowerrrt.dayloom.core.model.ThemeMode
 import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.notifications.NotificationId
 import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
@@ -13,8 +19,11 @@ import com.sowerrrt.dayloom.core.notifications.ScheduledNotification
 import com.sowerrrt.dayloom.core.storage.AttachmentRepository
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
+import com.sowerrrt.dayloom.core.storage.SettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -46,7 +55,14 @@ class PlannerViewModelTest {
             val habitsRepository = FakeHabitsRepository(selectedDay)
             val plannerRepository = FakePlannerRepository()
             val scheduler = FakeNotificationScheduler()
-            val viewModel = PlannerViewModel(habitsRepository, plannerRepository, scheduler, FakeAttachmentRepository())
+            val viewModel =
+                PlannerViewModel(
+                    habitsRepository,
+                    plannerRepository,
+                    scheduler,
+                    FakeAttachmentRepository(),
+                    FakeSettingsRepository(),
+                )
 
             runCurrent()
             assertFalse(viewModel.uiState.value.isLoading)
@@ -106,6 +122,7 @@ class PlannerViewModelTest {
                     plannerRepository,
                     FakeNotificationScheduler(),
                     attachments,
+                    FakeSettingsRepository(),
                 )
             runCurrent()
 
@@ -170,6 +187,8 @@ private class FakeHabitsRepository(
         scheduledWeekdays: Set<Weekday>,
         startEpochDay: Long,
         reminderMinutesOfDay: Int?,
+        targetAmount: String,
+        targetUnit: String,
     ): List<Habit> = error("Not needed")
 
     override suspend fun updateHabit(
@@ -177,6 +196,8 @@ private class FakeHabitsRepository(
         title: String,
         scheduledWeekdays: Set<Weekday>,
         reminderMinutesOfDay: Int?,
+        targetAmount: String,
+        targetUnit: String,
     ): List<Habit> = error("Not needed")
 
     override suspend fun archiveHabit(id: EntityId): List<Habit> = error("Not needed")
@@ -261,6 +282,35 @@ private class FakeAttachmentRepository : AttachmentRepository {
     }
 
     override fun localPath(attachment: AttachmentRef): String = "/private/${attachment.displayName}"
+}
+
+private class FakeSettingsRepository : SettingsRepository {
+    private val state = MutableStateFlow(AppSettings())
+    override val settings: Flow<AppSettings> = state
+
+    override suspend fun setThemeMode(value: ThemeMode) = Unit
+
+    override suspend fun setAccentPalette(value: AccentPalette) = Unit
+
+    override suspend fun setStartDestination(value: StartDestination) = Unit
+
+    override suspend fun setAutomaticUpdateChecks(enabled: Boolean) = Unit
+
+    override suspend fun setWholeAppLock(enabled: Boolean) = Unit
+
+    override suspend fun setBottomSections(sections: List<BottomSection>) = Unit
+
+    override suspend fun addPreset(
+        type: PresetType,
+        title: String,
+    ) = Unit
+
+    override suspend fun removePreset(
+        type: PresetType,
+        title: String,
+    ) = Unit
+
+    override suspend fun markUpdateChecked(epochMillis: Long) = Unit
 }
 
 private class FakeNotificationScheduler : NotificationScheduler {

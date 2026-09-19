@@ -27,17 +27,18 @@ class FileListsRepositoryTest {
                     idFactory = { ids.removeFirst() },
                 )
 
-            repository.createList("  Weekend trip  ", ListKind.PACKING)
+            repository.createList("  Weekend trip  ", ListKind.PACKING, "Expeditions")
             repository.addItem(EntityId("list-1"), "  Passport  ", "1", "Top drawer")
             repository.addItem(EntityId("list-1"), "Socks", "3 pairs", "")
             repository.toggleItem(EntityId("list-1"), EntityId("item-1"))
             repository.moveItem(EntityId("list-1"), EntityId("item-2"), -1)
             repository.updateItem(EntityId("list-1"), EntityId("item-2"), "Warm socks", "4 pairs", "Wool")
-            repository.updateList(EntityId("list-1"), "Mountain trip", ListKind.GENERAL)
+            repository.updateList(EntityId("list-1"), "Mountain trip", ListKind.GENERAL, "Adventure kit")
 
             val restored = FileListsRepository(directory).loadLists().single()
             assertEquals("Mountain trip", restored.title)
             assertEquals(ListKind.GENERAL, restored.kind)
+            assertEquals("Adventure kit", restored.customKind)
             assertEquals(listOf("Warm socks", "Passport"), restored.items.map { it.title })
             assertEquals("4 pairs", restored.items.first().quantity)
             assertEquals("Wool", restored.items.first().note)

@@ -31,8 +31,14 @@ class FileHabitsRepositoryTest {
 
             val created =
                 firstRepository
-                    .createHabit("  Read ten pages  ", Weekday.entries.toSet(), TEST_EPOCH_DAY, 8 * 60 + 15)
-                    .single()
+                    .createHabit(
+                        "  Read ten pages  ",
+                        Weekday.entries.toSet(),
+                        TEST_EPOCH_DAY,
+                        8 * 60 + 15,
+                        "20",
+                        "pages",
+                    ).single()
             assertEquals("Read ten pages", created.title)
             assertFalse(TEST_EPOCH_DAY in created.completedEpochDays)
 
@@ -43,6 +49,8 @@ class FileHabitsRepositoryTest {
             val restored = FileHabitsRepository(directory).loadHabits().single()
             assertEquals(id, restored.id)
             assertEquals(8 * 60 + 15, restored.reminderMinutesOfDay)
+            assertEquals("20", restored.targetAmount)
+            assertEquals("pages", restored.targetUnit)
             assertTrue(TEST_EPOCH_DAY in restored.completedEpochDays)
             assertEquals(image, restored.image)
         }

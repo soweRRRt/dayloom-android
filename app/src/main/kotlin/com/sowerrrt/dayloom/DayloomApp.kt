@@ -69,6 +69,7 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomTheme
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.model.AccentPalette
 import com.sowerrrt.dayloom.core.model.AppSettings
+import com.sowerrrt.dayloom.core.model.BottomSection
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
 import com.sowerrrt.dayloom.feature.habits.HabitsScreen
@@ -288,7 +289,7 @@ private fun DayloomShell(
             val wide = maxWidth >= 720.dp
             if (wide) {
                 Row(Modifier.fillMaxSize()) {
-                    DayloomNavigationRail(currentRoute, navController)
+                    DayloomNavigationRail(currentRoute, navController, settings.bottomSections)
                     DayloomNavHost(
                         navController = navController,
                         startRoute = startRoute,
@@ -298,7 +299,7 @@ private fun DayloomShell(
                 }
             } else {
                 Scaffold(
-                    bottomBar = { DayloomBottomBar(currentRoute, navController) },
+                    bottomBar = { DayloomBottomBar(currentRoute, navController, settings.bottomSections) },
                     contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 ) { innerPadding ->
                     DayloomNavHost(
@@ -380,9 +381,10 @@ private fun DayloomNavHost(
 private fun DayloomBottomBar(
     currentRoute: String?,
     navController: NavHostController,
+    sections: List<BottomSection>,
 ) {
     NavigationBar {
-        primaryDestinations().forEach { destination ->
+        primaryDestinations(sections).forEach { destination ->
             NavigationBarItem(
                 selected = destination.matches(currentRoute),
                 onClick = { navController.navigateSingleTop(destination.route) },
@@ -398,9 +400,10 @@ private fun DayloomBottomBar(
 private fun DayloomNavigationRail(
     currentRoute: String?,
     navController: NavHostController,
+    sections: List<BottomSection>,
 ) {
     NavigationRail {
-        primaryDestinations().forEach { destination ->
+        primaryDestinations(sections).forEach { destination ->
             NavigationRailItem(
                 selected = destination.matches(currentRoute),
                 onClick = { navController.navigateSingleTop(destination.route) },
@@ -413,14 +416,19 @@ private fun DayloomNavigationRail(
 }
 
 @Composable
-private fun primaryDestinations(): List<NavItem> =
-    listOf(
-        NavItem(Routes.HOME, stringResource(R.string.nav_home), Icons.Rounded.Home),
-        NavItem(Routes.HABITS, stringResource(R.string.nav_habits), Icons.Rounded.AutoAwesome),
-        NavItem(Routes.PLANNER, stringResource(R.string.nav_plan), Icons.Rounded.CalendarMonth),
-        NavItem(Routes.LISTS, stringResource(R.string.nav_lists), Icons.Rounded.Checklist),
-        NavItem(Routes.MORE, stringResource(R.string.nav_more), Icons.Rounded.MoreHoriz, Routes.moreRoutes),
-    )
+private fun primaryDestinations(sections: List<BottomSection>): List<NavItem> =
+    sections.distinct().map { section ->
+        when (section) {
+            BottomSection.HOME -> NavItem(Routes.HOME, stringResource(R.string.nav_home), Icons.Rounded.Home)
+            BottomSection.HABITS ->
+                NavItem(Routes.HABITS, stringResource(R.string.nav_habits), Icons.Rounded.AutoAwesome)
+            BottomSection.PLANNER ->
+                NavItem(Routes.PLANNER, stringResource(R.string.nav_plan), Icons.Rounded.CalendarMonth)
+            BottomSection.LISTS -> NavItem(Routes.LISTS, stringResource(R.string.nav_lists), Icons.Rounded.Checklist)
+            BottomSection.MORE ->
+                NavItem(Routes.MORE, stringResource(R.string.nav_more), Icons.Rounded.MoreHoriz, Routes.moreRoutes)
+        }
+    }
 
 private data class NavItem(
     val route: String,

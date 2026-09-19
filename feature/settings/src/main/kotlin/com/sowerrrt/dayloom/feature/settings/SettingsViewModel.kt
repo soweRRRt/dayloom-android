@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.AccentPalette
 import com.sowerrrt.dayloom.core.model.AppSettings
+import com.sowerrrt.dayloom.core.model.BottomSection
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
 import com.sowerrrt.dayloom.core.storage.DemoContent
@@ -49,6 +50,9 @@ class SettingsViewModel
 
         fun setStartDestination(value: StartDestination) =
             viewModelScope.launch { repository.setStartDestination(value) }
+
+        fun setBottomSections(value: List<BottomSection>) =
+            viewModelScope.launch { repository.setBottomSections(value) }
 
         fun setAutomaticUpdateChecks(enabled: Boolean) =
             viewModelScope.launch { repository.setAutomaticUpdateChecks(enabled) }

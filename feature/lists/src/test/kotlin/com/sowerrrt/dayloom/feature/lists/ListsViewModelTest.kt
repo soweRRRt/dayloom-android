@@ -1,12 +1,21 @@
 package com.sowerrrt.dayloom.feature.lists
 
+import com.sowerrrt.dayloom.core.model.AccentPalette
+import com.sowerrrt.dayloom.core.model.AppSettings
+import com.sowerrrt.dayloom.core.model.BottomSection
 import com.sowerrrt.dayloom.core.model.DayList
 import com.sowerrrt.dayloom.core.model.DayListItem
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.ListKind
+import com.sowerrrt.dayloom.core.model.PresetType
+import com.sowerrrt.dayloom.core.model.StartDestination
+import com.sowerrrt.dayloom.core.model.ThemeMode
 import com.sowerrrt.dayloom.core.storage.ListsRepository
+import com.sowerrrt.dayloom.core.storage.SettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -32,7 +41,7 @@ class ListsViewModelTest {
     fun `list is selected after creation and item completion updates totals`() =
         runTest(dispatcher) {
             val repository = FakeListsRepository()
-            val viewModel = ListsViewModel(repository)
+            val viewModel = ListsViewModel(repository, FakeSettingsRepository())
             runCurrent()
 
             assertFalse(viewModel.uiState.value.isLoading)
@@ -69,8 +78,9 @@ private class FakeListsRepository : ListsRepository {
     override suspend fun createList(
         title: String,
         kind: ListKind,
+        customKind: String,
     ): List<DayList> {
-        lists = listOf(DayList(EntityId("list-1"), title, kind, createdAtEpochMillis = 1L))
+        lists = listOf(DayList(EntityId("list-1"), title, kind, customKind = customKind, createdAtEpochMillis = 1L))
         return lists
     }
 
@@ -78,7 +88,8 @@ private class FakeListsRepository : ListsRepository {
         id: EntityId,
         title: String,
         kind: ListKind,
-    ): List<DayList> = updateList(id) { it.copy(title = title, kind = kind) }
+        customKind: String,
+    ): List<DayList> = updateList(id) { it.copy(title = title, kind = kind, customKind = customKind) }
 
     override suspend fun deleteList(id: EntityId): List<DayList> {
         lists = lists.filterNot { it.id == id }
@@ -146,4 +157,33 @@ private class FakeListsRepository : ListsRepository {
         updateList(listId) { list ->
             list.copy(items = list.items.map { if (it.id == itemId) transform(it) else it })
         }
+}
+
+private class FakeSettingsRepository : SettingsRepository {
+    private val state = MutableStateFlow(AppSettings())
+    override val settings: Flow<AppSettings> = state
+
+    override suspend fun setThemeMode(value: ThemeMode) = Unit
+
+    override suspend fun setAccentPalette(value: AccentPalette) = Unit
+
+    override suspend fun setStartDestination(value: StartDestination) = Unit
+
+    override suspend fun setAutomaticUpdateChecks(enabled: Boolean) = Unit
+
+    override suspend fun setWholeAppLock(enabled: Boolean) = Unit
+
+    override suspend fun setBottomSections(sections: List<BottomSection>) = Unit
+
+    override suspend fun addPreset(
+        type: PresetType,
+        title: String,
+    ) = Unit
+
+    override suspend fun removePreset(
+        type: PresetType,
+        title: String,
+    ) = Unit
+
+    override suspend fun markUpdateChecked(epochMillis: Long) = Unit
 }

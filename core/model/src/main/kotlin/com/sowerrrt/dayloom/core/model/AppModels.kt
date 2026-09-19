@@ -38,6 +38,22 @@ enum class StartDestination {
 }
 
 @Serializable
+enum class BottomSection {
+    HOME,
+    HABITS,
+    PLANNER,
+    LISTS,
+    MORE,
+}
+
+@Serializable
+enum class PresetType {
+    HABIT,
+    PLAN,
+    LIST_ITEM,
+}
+
+@Serializable
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val accentPalette: AccentPalette = AccentPalette.VIOLET,
@@ -45,6 +61,10 @@ data class AppSettings(
     val automaticUpdateChecks: Boolean = true,
     val lockWholeApp: Boolean = false,
     val lastUpdateCheckEpochMillis: Long? = null,
+    val bottomSections: List<BottomSection> = BottomSection.entries,
+    val habitPresets: Set<String> = emptySet(),
+    val planPresets: Set<String> = emptySet(),
+    val listItemPresets: Set<String> = emptySet(),
 )
 
 @Serializable
@@ -77,6 +97,8 @@ data class Habit(
     val reminderMinutesOfDay: Int? = null,
     val completedEpochDays: Set<Long> = emptySet(),
     val image: AttachmentRef? = null,
+    val targetAmount: String = "",
+    val targetUnit: String = "",
     val archived: Boolean = false,
 )
 
@@ -172,6 +194,7 @@ data class DayList(
     val id: EntityId,
     val title: String,
     val kind: ListKind = ListKind.GENERAL,
+    val customKind: String = "",
     val items: List<DayListItem> = emptyList(),
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long = createdAtEpochMillis,
@@ -205,6 +228,7 @@ data class WishGoal(
     val currencyCode: String,
     val priority: WishPriority = WishPriority.MEDIUM,
     val note: String = "",
+    val purchaseUrl: String = "",
     val image: AttachmentRef? = null,
     val contributions: List<WishContribution> = emptyList(),
     val createdAtEpochMillis: Long,

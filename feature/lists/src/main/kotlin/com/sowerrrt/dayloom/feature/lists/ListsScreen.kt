@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowBack
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Checklist
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Lightbulb
@@ -34,6 +37,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -168,10 +172,19 @@ fun ListsScreen(viewModel: ListsViewModel = hiltViewModel()) {
     if (showListEditor) {
         ListEditorDialog(
             list = editingList,
+            customKinds =
+                state.lists
+                    .map(DayList::customKind)
+                    .filter(String::isNotBlank)
+                    .toSet(),
             onDismiss = { showListEditor = false },
-            onSave = { title, kind ->
+            onSave = { title, kind, customKind ->
                 val list = editingList
-                if (list == null) viewModel.createList(title, kind) else viewModel.updateList(list.id, title, kind)
+                if (list == null) {
+                    viewModel.createList(title, kind, customKind)
+                } else {
+                    viewModel.updateList(list.id, title, kind, customKind)
+                }
                 showListEditor = false
             },
         )
@@ -180,6 +193,9 @@ fun ListsScreen(viewModel: ListsViewModel = hiltViewModel()) {
     if (showItemEditor && selectedList != null) {
         ItemEditorDialog(
             item = editingItem,
+            presets = state.itemPresets,
+            onSavePreset = viewModel::saveItemPreset,
+            onRemovePreset = viewModel::removeItemPreset,
             onDismiss = { showItemEditor = false },
             onSave = { title, quantity, note ->
                 val item = editingItem
@@ -296,7 +312,7 @@ private fun ListOverviewCard(
                 Column(Modifier.weight(1f)) {
                     Text(list.title, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        kindLabel(list.kind),
+                        list.customKind.ifBlank { kindLabel(list.kind) },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -332,7 +348,10 @@ private fun ListDetails(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(kindIcon(list.kind), contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
                         Spacer(Modifier.size(DayloomSpacing.sm))
-                        Text(kindLabel(list.kind), style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            list.customKind.ifBlank { kindLabel(list.kind) },
+                            style = MaterialTheme.typography.titleMedium,
+                        )
                         Spacer(Modifier.weight(1f))
                         Text(stringResource(R.string.lists_progress, completed, list.items.size))
                     }
@@ -442,18 +461,23 @@ private fun ListItemRow(
 @Composable
 private fun ListEditorDialog(
     list: DayList?,
+    customKinds: Set<String>,
     onDismiss: () -> Unit,
-    onSave: (String, ListKind) -> Unit,
+    onSave: (String, ListKind, String) -> Unit,
 ) {
     var title by remember(list?.id) { mutableStateOf(list?.title.orEmpty()) }
     var kind by remember(list?.id) { mutableStateOf(list?.kind ?: ListKind.GENERAL) }
+    var customKind by remember(list?.id) { mutableStateOf(list?.customKind.orEmpty()) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(stringResource(if (list == null) R.string.lists_create_title else R.string.lists_edit_title))
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+            ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it.take(MAX_LIST_TITLE_LENGTH) },
@@ -466,7 +490,10 @@ private fun ListEditorDialog(
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
                     ListKind.entries.forEach { candidate ->
                         AssistChip(
-                            onClick = { kind = candidate },
+                            onClick = {
+                                kind = candidate
+                                customKind = ""
+                            },
                             label = { Text(kindLabel(candidate)) },
                             leadingIcon = {
                                 Icon(
@@ -484,11 +511,35 @@ private fun ListEditorDialog(
                         )
                     }
                 }
+                OutlinedTextField(
+                    value = customKind,
+                    onValueChange = {
+                        customKind = it.take(MAX_CUSTOM_KIND_LENGTH)
+                        if (customKind.isNotBlank()) kind = ListKind.GENERAL
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("custom_list_kind_input"),
+                    label = { Text(stringResource(R.string.lists_custom_kind_label)) },
+                    supportingText = { Text(stringResource(R.string.lists_custom_kind_description)) },
+                    singleLine = true,
+                )
+                if (customKinds.isNotEmpty()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs)) {
+                        customKinds.sorted().forEach { savedKind ->
+                            AssistChip(
+                                onClick = {
+                                    customKind = savedKind
+                                    kind = ListKind.GENERAL
+                                },
+                                label = { Text(savedKind) },
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(title, kind) },
+                onClick = { onSave(title, kind, customKind) },
                 enabled = title.isNotBlank(),
                 modifier = Modifier.testTag("save_list"),
             ) {
@@ -502,6 +553,9 @@ private fun ListEditorDialog(
 @Composable
 private fun ItemEditorDialog(
     item: DayListItem?,
+    presets: Set<String>,
+    onSavePreset: (String) -> Unit,
+    onRemovePreset: (String) -> Unit,
     onDismiss: () -> Unit,
     onSave: (String, String, String) -> Unit,
 ) {
@@ -514,7 +568,33 @@ private fun ItemEditorDialog(
             Text(stringResource(if (item == null) R.string.lists_add_item_title else R.string.lists_edit_item_title))
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+            ) {
+                if (presets.isNotEmpty()) {
+                    Text(stringResource(R.string.lists_item_presets), style = MaterialTheme.typography.titleMedium)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    ) {
+                        presets.sorted().forEach { preset ->
+                            InputChip(
+                                selected = false,
+                                onClick = { title = preset },
+                                label = { Text(preset) },
+                                trailingIcon = {
+                                    Icon(
+                                        Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.lists_remove_preset, preset),
+                                        modifier = Modifier.size(18.dp).clickable { onRemovePreset(preset) },
+                                    )
+                                },
+                                modifier = Modifier.testTag("list_item_preset_$preset"),
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it.take(MAX_ITEM_TITLE_LENGTH) },
@@ -522,6 +602,13 @@ private fun ItemEditorDialog(
                     label = { Text(stringResource(R.string.lists_item_name_label)) },
                     singleLine = true,
                 )
+                TextButton(
+                    onClick = { onSavePreset(title) },
+                    enabled = title.isNotBlank() && title !in presets,
+                    modifier = Modifier.testTag("save_list_item_preset"),
+                ) {
+                    Text(stringResource(R.string.lists_save_preset))
+                }
                 OutlinedTextField(
                     value = quantity,
                     onValueChange = { quantity = it.take(MAX_QUANTITY_LENGTH) },
@@ -592,6 +679,7 @@ private fun kindLabel(kind: ListKind): String =
     )
 
 private const val MAX_LIST_TITLE_LENGTH = 80
+private const val MAX_CUSTOM_KIND_LENGTH = 40
 private const val MAX_ITEM_TITLE_LENGTH = 120
 private const val MAX_QUANTITY_LENGTH = 32
 private const val MAX_NOTE_LENGTH = 500

@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Savings
+import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -60,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -95,6 +97,7 @@ fun WishlistScreen(
     var pendingGoalDelete by remember { mutableStateOf<WishGoal?>(null) }
     var pendingContributionDelete by remember { mutableStateOf<WishContribution?>(null) }
     val selectedGoal = state.selectedGoal
+    val uriHandler = LocalUriHandler.current
     val imagePicker =
         rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             if (uri != null && selectedGoal != null) viewModel.setImage(selectedGoal.id, uri)
@@ -165,6 +168,7 @@ fun WishlistScreen(
                         onRemoveImage = { viewModel.removeImage(selectedGoal.id) },
                         onAddContribution = { showContributionEditor = true },
                         onDeleteContribution = { pendingContributionDelete = it },
+                        onOpenPurchase = { url -> uriHandler.openUri(url) },
                         modifier = Modifier.weight(1f),
                     )
             }
@@ -191,12 +195,12 @@ fun WishlistScreen(
         GoalEditorDialog(
             goal = editingGoal,
             onDismiss = { showGoalEditor = false },
-            onSave = { title, target, currency, priority, note ->
+            onSave = { title, target, currency, priority, note, purchaseUrl ->
                 val goal = editingGoal
                 if (goal == null) {
-                    viewModel.createGoal(title, target, currency, priority, note)
+                    viewModel.createGoal(title, target, currency, priority, note, purchaseUrl)
                 } else {
-                    viewModel.updateGoal(goal.id, title, target, currency, priority, note)
+                    viewModel.updateGoal(goal.id, title, target, currency, priority, note, purchaseUrl)
                 }
                 showGoalEditor = false
             },
@@ -405,6 +409,7 @@ private fun WishDetails(
     onRemoveImage: () -> Unit,
     onAddContribution: () -> Unit,
     onDeleteContribution: (WishContribution) -> Unit,
+    onOpenPurchase: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -484,6 +489,16 @@ private fun WishDetails(
                     if (goal.note.isNotEmpty()) {
                         Text(goal.note, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    if (goal.purchaseUrl.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = { onOpenPurchase(goal.purchaseUrl) },
+                            modifier = Modifier.fillMaxWidth().testTag("open_purchase_link"),
+                        ) {
+                            Icon(Icons.Rounded.ShoppingBag, contentDescription = null)
+                            Spacer(Modifier.size(DayloomSpacing.xs))
+                            Text(stringResource(R.string.wishlist_open_purchase))
+                        }
+                    }
                     Button(
                         onClick = onAddContribution,
                         modifier = Modifier.fillMaxWidth().testTag("add_contribution"),
@@ -554,20 +569,22 @@ private fun ContributionRow(
 private fun GoalEditorDialog(
     goal: WishGoal?,
     onDismiss: () -> Unit,
-    onSave: (String, Long, String, WishPriority, String) -> Unit,
+    onSave: (String, Long, String, WishPriority, String, String) -> Unit,
 ) {
     var title by remember(goal?.id) { mutableStateOf(goal?.title.orEmpty()) }
     var target by remember(goal?.id) { mutableStateOf(goal?.targetMinor?.let(::minorToInput).orEmpty()) }
     var currency by remember(goal?.id) { mutableStateOf(goal?.currencyCode ?: "RUB") }
     var priority by remember(goal?.id) { mutableStateOf(goal?.priority ?: WishPriority.MEDIUM) }
     var note by remember(goal?.id) { mutableStateOf(goal?.note.orEmpty()) }
+    var purchaseUrl by remember(goal?.id) { mutableStateOf(goal?.purchaseUrl.orEmpty()) }
     val parsedTarget = parseAmountToMinor(target)
     val normalizedCurrency = currency.trim().uppercase()
     val canSave =
         title.isNotBlank() &&
             parsedTarget != null &&
             parsedTarget > 0 &&
-            normalizedCurrency.matches(Regex("[A-Z0-9]{1,8}"))
+            normalizedCurrency.matches(Regex("[A-Z0-9]{1,8}")) &&
+            (purchaseUrl.isBlank() || purchaseUrl.trim().matches(Regex("https?://.+", RegexOption.IGNORE_CASE)))
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -649,11 +666,24 @@ private fun GoalEditorDialog(
                         maxLines = 4,
                     )
                 }
+                item {
+                    OutlinedTextField(
+                        value = purchaseUrl,
+                        onValueChange = { purchaseUrl = it.take(MAX_URL_LENGTH) },
+                        modifier = Modifier.fillMaxWidth().testTag("wish_purchase_url_input"),
+                        label = { Text(stringResource(R.string.wishlist_purchase_url_label)) },
+                        supportingText = { Text(stringResource(R.string.wishlist_purchase_url_description)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                        singleLine = true,
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(title, parsedTarget!!, normalizedCurrency, priority, note) },
+                onClick = {
+                    onSave(title, parsedTarget!!, normalizedCurrency, priority, note, purchaseUrl.trim())
+                },
                 enabled = canSave,
                 modifier = Modifier.testTag("save_wish"),
             ) {
@@ -784,5 +814,6 @@ private fun minorToInput(value: Long): String = BigDecimal.valueOf(value, 2).str
 private val COMMON_CURRENCIES = listOf("RUB", "USD", "EUR", "GBP", "KZT")
 private const val MAX_TITLE_LENGTH = 100
 private const val MAX_NOTE_LENGTH = 500
+private const val MAX_URL_LENGTH = 2_048
 private const val MAX_AMOUNT_INPUT_LENGTH = 16
 private const val MAX_AMOUNT_MINOR = 999_999_999_999_99L

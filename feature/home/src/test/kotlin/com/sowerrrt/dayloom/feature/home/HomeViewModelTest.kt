@@ -130,6 +130,8 @@ private class ReadOnlyHabitsRepository(
         scheduledWeekdays: Set<Weekday>,
         startEpochDay: Long,
         reminderMinutesOfDay: Int?,
+        targetAmount: String,
+        targetUnit: String,
     ): List<Habit> = error("Read-only fake")
 
     override suspend fun updateHabit(
@@ -137,6 +139,8 @@ private class ReadOnlyHabitsRepository(
         title: String,
         scheduledWeekdays: Set<Weekday>,
         reminderMinutesOfDay: Int?,
+        targetAmount: String,
+        targetUnit: String,
     ): List<Habit> = error("Read-only fake")
 
     override suspend fun archiveHabit(id: EntityId): List<Habit> = error("Read-only fake")
@@ -188,12 +192,14 @@ private class ReadOnlyListsRepository(
     override suspend fun createList(
         title: String,
         kind: ListKind,
+        customKind: String,
     ): List<DayList> = error("Read-only fake")
 
     override suspend fun updateList(
         id: EntityId,
         title: String,
         kind: ListKind,
+        customKind: String,
     ): List<DayList> = error("Read-only fake")
 
     override suspend fun deleteList(id: EntityId): List<DayList> = error("Read-only fake")
@@ -241,6 +247,7 @@ private class ReadOnlyWishlistRepository(
         currencyCode: String,
         priority: WishPriority,
         note: String,
+        purchaseUrl: String,
     ): List<WishGoal> = error("Read-only fake")
 
     override suspend fun updateGoal(
@@ -250,6 +257,7 @@ private class ReadOnlyWishlistRepository(
         currencyCode: String,
         priority: WishPriority,
         note: String,
+        purchaseUrl: String,
     ): List<WishGoal> = error("Read-only fake")
 
     override suspend fun deleteGoal(id: EntityId): List<WishGoal> = error("Read-only fake")

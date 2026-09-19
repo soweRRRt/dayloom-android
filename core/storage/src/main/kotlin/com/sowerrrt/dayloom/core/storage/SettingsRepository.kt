@@ -6,8 +6,11 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.sowerrrt.dayloom.core.model.AccentPalette
 import com.sowerrrt.dayloom.core.model.AppSettings
+import com.sowerrrt.dayloom.core.model.BottomSection
+import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
 import kotlinx.coroutines.flow.Flow
@@ -27,6 +30,18 @@ interface SettingsRepository {
     suspend fun setAutomaticUpdateChecks(enabled: Boolean)
 
     suspend fun setWholeAppLock(enabled: Boolean)
+
+    suspend fun setBottomSections(sections: List<BottomSection>)
+
+    suspend fun addPreset(
+        type: PresetType,
+        title: String,
+    )
+
+    suspend fun removePreset(
+        type: PresetType,
+        title: String,
+    )
 
     suspend fun markUpdateChecked(epochMillis: Long)
 }
@@ -57,6 +72,10 @@ class DataStoreSettingsRepository(
                     automaticUpdateChecks = preferences[Keys.autoUpdates] ?: true,
                     lockWholeApp = preferences[Keys.lockWholeApp] ?: false,
                     lastUpdateCheckEpochMillis = preferences[Keys.lastUpdateCheck],
+                    bottomSections = preferences[Keys.bottomSections].toBottomSections(),
+                    habitPresets = preferences[Keys.habitPresets].orEmpty(),
+                    planPresets = preferences[Keys.planPresets].orEmpty(),
+                    listItemPresets = preferences[Keys.listItemPresets].orEmpty(),
                 )
             }
 
@@ -80,12 +99,54 @@ class DataStoreSettingsRepository(
         dataStore.edit { it[Keys.lockWholeApp] = enabled }
     }
 
+    override suspend fun setBottomSections(sections: List<BottomSection>) {
+        val normalized = sections.distinct().filter { it in BottomSection.entries }.toMutableList()
+        if (BottomSection.MORE !in normalized) normalized += BottomSection.MORE
+        if (normalized.size < 2) normalized.add(0, BottomSection.HOME)
+        dataStore.edit { it[Keys.bottomSections] = normalized.joinToString(",", transform = BottomSection::name) }
+    }
+
+    override suspend fun addPreset(
+        type: PresetType,
+        title: String,
+    ) {
+        val normalized = title.trim().take(80)
+        if (normalized.isEmpty()) return
+        dataStore.edit { preferences ->
+            val key = Keys.presetKey(type)
+            preferences[key] = (preferences[key].orEmpty() + normalized).takeLastSorted(12)
+        }
+    }
+
+    override suspend fun removePreset(
+        type: PresetType,
+        title: String,
+    ) {
+        dataStore.edit { preferences ->
+            val key = Keys.presetKey(type)
+            preferences[key] = preferences[key].orEmpty() - title
+        }
+    }
+
     override suspend fun markUpdateChecked(epochMillis: Long) {
         dataStore.edit { it[Keys.lastUpdateCheck] = epochMillis }
     }
 
     private inline fun <reified T : Enum<T>> String.enumOrDefault(default: T): T =
         enumValues<T>().firstOrNull { it.name == this } ?: default
+
+    private fun String?.toBottomSections(): List<BottomSection> {
+        val parsed =
+            this
+                ?.split(',')
+                ?.mapNotNull { name -> BottomSection.entries.firstOrNull { it.name == name } }
+                ?.distinct()
+                .orEmpty()
+        return if (parsed.size >= 2 && BottomSection.MORE in parsed) parsed else BottomSection.entries
+    }
+
+    private fun Set<String>.takeLastSorted(max: Int): Set<String> =
+        sortedWith(String.CASE_INSENSITIVE_ORDER).take(max).toSet()
 
     private object Keys {
         val theme = stringPreferencesKey("theme")
@@ -94,5 +155,16 @@ class DataStoreSettingsRepository(
         val autoUpdates = booleanPreferencesKey("automatic_update_checks")
         val lockWholeApp = booleanPreferencesKey("lock_whole_app")
         val lastUpdateCheck = longPreferencesKey("last_update_check_epoch_millis")
+        val bottomSections = stringPreferencesKey("bottom_sections")
+        val habitPresets = stringSetPreferencesKey("habit_presets")
+        val planPresets = stringSetPreferencesKey("plan_presets")
+        val listItemPresets = stringSetPreferencesKey("list_item_presets")
+
+        fun presetKey(type: PresetType) =
+            when (type) {
+                PresetType.HABIT -> habitPresets
+                PresetType.PLAN -> planPresets
+                PresetType.LIST_ITEM -> listItemPresets
+            }
     }
 }

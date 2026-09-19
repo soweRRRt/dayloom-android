@@ -1,14 +1,19 @@
 package com.sowerrrt.dayloom.core.storage
 
 import com.sowerrrt.dayloom.core.model.ListKind
+import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.model.WishPriority
+import kotlinx.coroutines.flow.first
 
 data class DemoContent(
     val habits: List<DemoHabit>,
     val plans: List<DemoPlan>,
     val lists: List<DemoList>,
     val goals: List<DemoGoal>,
+    val habitPresets: List<String> = emptyList(),
+    val planPresets: List<String> = emptyList(),
+    val listItemPresets: List<String> = emptyList(),
 )
 
 data class DemoHabit(
@@ -17,6 +22,8 @@ data class DemoHabit(
     val completedDayOffsets: List<Int> = emptyList(),
     val reminderMinutesOfDay: Int? = null,
     val image: DemoImage? = null,
+    val targetAmount: String = "",
+    val targetUnit: String = "",
 )
 
 data class DemoPlan(
@@ -31,6 +38,7 @@ data class DemoList(
     val title: String,
     val kind: ListKind,
     val items: List<DemoListItem>,
+    val customKind: String = "",
 )
 
 data class DemoListItem(
@@ -48,6 +56,7 @@ data class DemoGoal(
     val note: String = "",
     val contributionsMinor: List<Long> = emptyList(),
     val image: DemoImage? = null,
+    val purchaseUrl: String = "",
 )
 
 enum class DemoImage {
@@ -71,9 +80,11 @@ data class DemoSeedResult(
     val listsAdded: Int = 0,
     val goalsAdded: Int = 0,
     val imagesAdded: Int = 0,
+    val presetsAdded: Int = 0,
+    val detailsAdded: Int = 0,
 ) {
     val totalAdded: Int
-        get() = habitsAdded + plansAdded + listsAdded + goalsAdded + imagesAdded
+        get() = habitsAdded + plansAdded + listsAdded + goalsAdded + imagesAdded + presetsAdded + detailsAdded
 }
 
 interface DemoContentRepository {
@@ -90,6 +101,7 @@ class LocalDemoContentRepository(
     private val wishlistRepository: WishlistRepository,
     private val attachmentRepository: AttachmentRepository? = null,
     private val demoImageSource: DemoImageSource? = null,
+    private val settingsRepository: SettingsRepository? = null,
 ) : DemoContentRepository {
     override suspend fun seedMissing(
         content: DemoContent,
@@ -97,14 +109,17 @@ class LocalDemoContentRepository(
     ): DemoSeedResult {
         val habits = seedMissingHabits(content.habits, todayEpochDay)
         val plans = seedMissingPlans(content.plans, todayEpochDay)
-        val listsAdded = seedMissingLists(content.lists)
+        val lists = seedMissingLists(content.lists)
         val goals = seedMissingGoals(content.goals)
+        val presetsAdded = seedMissingPresets(content)
         return DemoSeedResult(
             habitsAdded = habits.entitiesAdded,
             plansAdded = plans.entitiesAdded,
-            listsAdded = listsAdded,
+            listsAdded = lists.entitiesAdded,
             goalsAdded = goals.goalsAdded,
             imagesAdded = habits.imagesAdded + plans.imagesAdded + goals.imagesAdded,
+            presetsAdded = presetsAdded,
+            detailsAdded = habits.detailsAdded + lists.detailsAdded,
         )
     }
 
@@ -115,6 +130,7 @@ class LocalDemoContentRepository(
         var current = habitsRepository.loadHabits()
         var entitiesAdded = 0
         var imagesAdded = 0
+        var detailsAdded = 0
         habits.forEach { demo ->
             var habit = current.firstOrNull { it.title == demo.title }
             if (habit == null) {
@@ -124,6 +140,8 @@ class LocalDemoContentRepository(
                         scheduledWeekdays = demo.scheduledWeekdays,
                         startEpochDay = todayEpochDay - 30,
                         reminderMinutesOfDay = demo.reminderMinutesOfDay,
+                        targetAmount = demo.targetAmount,
+                        targetUnit = demo.targetUnit,
                     )
                 habit = current.last { it.title == demo.title }
                 demo.completedDayOffsets
@@ -133,6 +151,23 @@ class LocalDemoContentRepository(
                     .forEach { day -> current = habitsRepository.toggleCompletion(habit.id, day) }
                 entitiesAdded++
             }
+            if (
+                habit.targetAmount.isBlank() &&
+                habit.targetUnit.isBlank() &&
+                (demo.targetAmount.isNotBlank() || demo.targetUnit.isNotBlank())
+            ) {
+                current =
+                    habitsRepository.updateHabit(
+                        id = habit.id,
+                        title = habit.title,
+                        scheduledWeekdays = habit.scheduledWeekdays,
+                        reminderMinutesOfDay = habit.reminderMinutesOfDay,
+                        targetAmount = demo.targetAmount,
+                        targetUnit = demo.targetUnit,
+                    )
+                habit = current.first { it.id == habit.id }
+                detailsAdded++
+            }
             if (habit.image == null && demo.image != null && attachmentRepository != null && demoImageSource != null) {
                 val asset = demoImageSource.load(demo.image)
                 val attachment = attachmentRepository.importImage(asset.displayName, asset.mimeType, asset.bytes)
@@ -140,7 +175,7 @@ class LocalDemoContentRepository(
                 imagesAdded++
             }
         }
-        return EntitySeedResult(entitiesAdded, imagesAdded)
+        return EntitySeedResult(entitiesAdded, imagesAdded, detailsAdded)
     }
 
     private suspend fun seedMissingPlans(
@@ -173,26 +208,34 @@ class LocalDemoContentRepository(
         return EntitySeedResult(entitiesAdded, imagesAdded)
     }
 
-    private suspend fun seedMissingLists(lists: List<DemoList>): Int {
-        val existingTitles = listsRepository.loadLists().map { it.title }.toSet()
-        val missing = lists.filterNot { it.title in existingTitles }
-        missing.forEach { demo ->
-            var created = listsRepository.createList(demo.title, demo.kind)
-            val listId = created.first { it.title == demo.title }.id
-            demo.items.forEach { item ->
-                created = listsRepository.addItem(listId, item.title, item.quantity, item.note)
-                if (item.completed) {
-                    val itemId =
-                        created
-                            .first { it.id == listId }
-                            .items
-                            .last { it.title == item.title }
-                            .id
-                    created = listsRepository.toggleItem(listId, itemId)
+    private suspend fun seedMissingLists(lists: List<DemoList>): ListSeedResult {
+        var current = listsRepository.loadLists()
+        var entitiesAdded = 0
+        var detailsAdded = 0
+        lists.forEach { demo ->
+            var list = current.firstOrNull { it.title == demo.title }
+            if (list == null) {
+                current = listsRepository.createList(demo.title, demo.kind, demo.customKind)
+                list = current.first { it.title == demo.title }
+                demo.items.forEach { item ->
+                    current = listsRepository.addItem(list.id, item.title, item.quantity, item.note)
+                    if (item.completed) {
+                        val itemId =
+                            current
+                                .first { it.id == list.id }
+                                .items
+                                .last { it.title == item.title }
+                                .id
+                        current = listsRepository.toggleItem(list.id, itemId)
+                    }
                 }
+                entitiesAdded++
+            } else if (list.customKind.isBlank() && demo.customKind.isNotBlank()) {
+                current = listsRepository.updateList(list.id, list.title, list.kind, demo.customKind)
+                detailsAdded++
             }
         }
-        return missing.size
+        return ListSeedResult(entitiesAdded, detailsAdded)
     }
 
     private suspend fun seedMissingGoals(goals: List<DemoGoal>): GoalSeedResult {
@@ -209,6 +252,7 @@ class LocalDemoContentRepository(
                         currencyCode = demo.currencyCode,
                         priority = demo.priority,
                         note = demo.note,
+                        purchaseUrl = demo.purchaseUrl,
                     )
                 goal = current.first { it.title == demo.title }
                 demo.contributionsMinor.forEachIndexed { index, amount ->
@@ -227,6 +271,27 @@ class LocalDemoContentRepository(
         return GoalSeedResult(goalsAdded, imagesAdded)
     }
 
+    private suspend fun seedMissingPresets(content: DemoContent): Int {
+        val repository = settingsRepository ?: return 0
+        val current = repository.settings.first()
+        val groups =
+            listOf(
+                Triple(PresetType.HABIT, content.habitPresets, current.habitPresets),
+                Triple(PresetType.PLAN, content.planPresets, current.planPresets),
+                Triple(PresetType.LIST_ITEM, content.listItemPresets, current.listItemPresets),
+            )
+        var added = 0
+        groups.forEach { (type, examples, existing) ->
+            examples.map(String::trim).filter(String::isNotEmpty).distinct().forEach { title ->
+                if (title !in existing) {
+                    repository.addPreset(type, title)
+                    added++
+                }
+            }
+        }
+        return added
+    }
+
     private data class GoalSeedResult(
         val goalsAdded: Int,
         val imagesAdded: Int,
@@ -235,5 +300,11 @@ class LocalDemoContentRepository(
     private data class EntitySeedResult(
         val entitiesAdded: Int,
         val imagesAdded: Int,
+        val detailsAdded: Int = 0,
+    )
+
+    private data class ListSeedResult(
+        val entitiesAdded: Int,
+        val detailsAdded: Int,
     )
 }

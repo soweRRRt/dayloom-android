@@ -14,6 +14,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,13 +27,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.NotificationsActive
@@ -41,6 +46,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -155,6 +161,9 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                 imagePicker.launch("image/*")
             },
             onRemoveImage = viewModel::removePlanImage,
+            presets = state.presets,
+            onSavePreset = viewModel::savePreset,
+            onRemovePreset = viewModel::removePreset,
             onSave = { title, reminderMinutesOfDay ->
                 val plan = editingPlan
                 if (
@@ -601,6 +610,7 @@ private fun LocalPlanImage(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PlanEditorDialog(
     plan: PlanItem?,
@@ -610,6 +620,9 @@ private fun PlanEditorDialog(
     hasImageError: Boolean,
     onChooseImage: (PlanItem) -> Unit,
     onRemoveImage: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
+    presets: Set<String>,
+    onSavePreset: (String) -> Unit,
+    onRemovePreset: (String) -> Unit,
     onSave: (String, Int?) -> Unit,
 ) {
     var title by remember(plan?.id) { mutableStateOf(plan?.title.orEmpty()) }
@@ -623,11 +636,37 @@ private fun PlanEditorDialog(
             Text(stringResource(if (plan == null) R.string.planner_create_title else R.string.planner_edit_title))
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+            ) {
                 Text(
                     LocalDate.ofEpochDay(selectedEpochDay).format(DateTimeFormatter.ofPattern("d MMMM yyyy", locale)),
                     color = MaterialTheme.colorScheme.primary,
                 )
+                if (presets.isNotEmpty()) {
+                    Text(stringResource(R.string.planner_presets), style = MaterialTheme.typography.titleMedium)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    ) {
+                        presets.sorted().forEach { preset ->
+                            InputChip(
+                                selected = false,
+                                onClick = { title = preset },
+                                label = { Text(preset) },
+                                trailingIcon = {
+                                    Icon(
+                                        Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.planner_remove_preset, preset),
+                                        modifier = Modifier.size(18.dp).clickable { onRemovePreset(preset) },
+                                    )
+                                },
+                                modifier = Modifier.testTag("plan_preset_$preset"),
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it.take(MAX_PLAN_TITLE_LENGTH) },
@@ -636,6 +675,13 @@ private fun PlanEditorDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("plan_name_input"),
                 )
+                TextButton(
+                    onClick = { onSavePreset(title) },
+                    enabled = title.isNotBlank() && title !in presets,
+                    modifier = Modifier.testTag("save_plan_preset"),
+                ) {
+                    Text(stringResource(R.string.planner_save_preset))
+                }
                 if (plan != null) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),

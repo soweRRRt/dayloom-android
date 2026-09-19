@@ -16,6 +16,11 @@
     <string name="settings_start_habits">Habits</string>
     <string name="settings_start_planner">Plan</string>
     <string name="settings_start_lists">Lists</string>
+    <string name="settings_bottom_navigation">Bottom navigation</string>
+    <string name="settings_bottom_navigation_description">Choose the visible sections and their order. More always remains available so Settings can be reached.</string>
+    <string name="settings_bottom_more">More</string>
+    <string name="settings_move_left">Move left</string>
+    <string name="settings_move_right">Move right</string>
     <string name="settings_updates">Updates</string>
     <string name="settings_security">App protection</string>
     <string name="settings_lock_whole_app">Lock all of Dayloom</string>
@@ -42,6 +47,9 @@
     <string name="settings_example_habit_reading">Read for 20 minutes</string>
     <string name="settings_example_habit_walk">Evening walk</string>
     <string name="settings_example_habit_stretch">Morning stretch</string>
+    <string name="settings_example_unit_glasses">glasses</string>
+    <string name="settings_example_unit_minutes">minutes</string>
+    <string name="settings_example_unit_steps">steps</string>
     <string name="settings_example_plan_review">Review today’s tasks</string>
     <string name="settings_example_plan_groceries">Buy groceries</string>
     <string name="settings_example_plan_call">Call family</string>
@@ -50,6 +58,7 @@
     <string name="settings_example_list_groceries">Weekly groceries</string>
     <string name="settings_example_list_trip">Trip packing</string>
     <string name="settings_example_list_ideas">Ideas</string>
+    <string name="settings_example_custom_kind">Personal ideas</string>
     <string name="settings_example_item_milk">Milk</string>
     <string name="settings_example_item_avocado">Avocados</string>
     <string name="settings_example_item_coffee">Coffee</string>

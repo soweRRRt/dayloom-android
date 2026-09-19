@@ -13,12 +13,14 @@ interface ListsRepository {
     suspend fun createList(
         title: String,
         kind: ListKind,
+        customKind: String = "",
     ): List<DayList>
 
     suspend fun updateList(
         id: EntityId,
         title: String,
         kind: ListKind,
+        customKind: String = "",
     ): List<DayList>
 
     suspend fun deleteList(id: EntityId): List<DayList>
@@ -74,8 +76,10 @@ class FileListsRepository(
     override suspend fun createList(
         title: String,
         kind: ListKind,
+        customKind: String,
     ): List<DayList> {
         val normalizedTitle = normalizeListTitle(title)
+        val normalizedCustomKind = normalizeCustomKind(customKind)
         val now = clock()
         return store
             .update { snapshot ->
@@ -86,6 +90,7 @@ class FileListsRepository(
                                 id = idFactory(),
                                 title = normalizedTitle,
                                 kind = kind,
+                                customKind = normalizedCustomKind,
                                 createdAtEpochMillis = now,
                                 updatedAtEpochMillis = now,
                             ),
@@ -97,10 +102,16 @@ class FileListsRepository(
         id: EntityId,
         title: String,
         kind: ListKind,
+        customKind: String,
     ): List<DayList> {
         val normalizedTitle = normalizeListTitle(title)
         return mutateList(id) { list ->
-            list.copy(title = normalizedTitle, kind = kind, updatedAtEpochMillis = clock())
+            list.copy(
+                title = normalizedTitle,
+                kind = kind,
+                customKind = normalizeCustomKind(customKind),
+                updatedAtEpochMillis = clock(),
+            )
         }
     }
 
@@ -212,6 +223,12 @@ class FileListsRepository(
         return normalized
     }
 
+    private fun normalizeCustomKind(value: String): String {
+        val normalized = value.trim()
+        require(normalized.length <= MAX_CUSTOM_KIND_LENGTH) { "Custom list type is too long" }
+        return normalized
+    }
+
     private fun normalizeItemFields(
         title: String,
         quantity: String,
@@ -243,6 +260,7 @@ class FileListsRepository(
 
     private companion object {
         const val MAX_LIST_TITLE_LENGTH = 80
+        const val MAX_CUSTOM_KIND_LENGTH = 40
         const val MAX_ITEM_TITLE_LENGTH = 120
         const val MAX_QUANTITY_LENGTH = 32
         const val MAX_NOTE_LENGTH = 500

@@ -33,6 +33,9 @@
     <string name="wishlist_priority_medium">Важно</string>
     <string name="wishlist_priority_high">Мечта</string>
     <string name="wishlist_note_label">Заметка (необязательно)</string>
+    <string name="wishlist_purchase_url_label">Ссылка на покупку (необязательно)</string>
+    <string name="wishlist_purchase_url_description">Укажите полную ссылку с http:// или https://.</string>
+    <string name="wishlist_open_purchase">Открыть страницу товара</string>
     <string name="wishlist_save">Сохранить</string>
     <string name="wishlist_cancel">Отмена</string>
     <string name="wishlist_contribution_title">Добавить накопление</string>

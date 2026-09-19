@@ -122,6 +122,7 @@ object AppModule {
         wishlistRepository: WishlistRepository,
         attachmentRepository: AttachmentRepository,
         demoImageSource: DemoImageSource,
+        settingsRepository: SettingsRepository,
     ): DemoContentRepository =
         LocalDemoContentRepository(
             habitsRepository = habitsRepository,
@@ -130,6 +131,7 @@ object AppModule {
             wishlistRepository = wishlistRepository,
             attachmentRepository = attachmentRepository,
             demoImageSource = demoImageSource,
+            settingsRepository = settingsRepository,
         )
 
     @Provides

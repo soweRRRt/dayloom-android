@@ -39,12 +39,24 @@ class WishlistViewModelTest {
             runCurrent()
             assertFalse(viewModel.uiState.value.isLoading)
 
-            viewModel.createGoal("Camera", 100_000, "EUR", WishPriority.HIGH, "Travel")
+            viewModel.createGoal(
+                "Camera",
+                100_000,
+                "EUR",
+                WishPriority.HIGH,
+                "Travel",
+                "https://example.com/camera",
+            )
             runCurrent()
             assertEquals(
                 "Camera",
                 viewModel.uiState.value.selectedGoal
                     ?.title,
+            )
+            assertEquals(
+                "https://example.com/camera",
+                viewModel.uiState.value.selectedGoal
+                    ?.purchaseUrl,
             )
 
             viewModel.addContribution(EntityId("goal-1"), 25_000, "First step")
@@ -123,6 +135,7 @@ private class FakeWishlistRepository(
         currencyCode: String,
         priority: WishPriority,
         note: String,
+        purchaseUrl: String,
     ): List<WishGoal> {
         goals =
             listOf(
@@ -133,6 +146,7 @@ private class FakeWishlistRepository(
                     currencyCode = currencyCode,
                     priority = priority,
                     note = note,
+                    purchaseUrl = purchaseUrl,
                     createdAtEpochMillis = 1L,
                 ),
             )
@@ -146,6 +160,7 @@ private class FakeWishlistRepository(
         currencyCode: String,
         priority: WishPriority,
         note: String,
+        purchaseUrl: String,
     ): List<WishGoal> = error("Not needed")
 
     override suspend fun deleteGoal(id: EntityId): List<WishGoal> {

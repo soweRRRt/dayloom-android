@@ -3,6 +3,8 @@ package com.sowerrrt.dayloom
 import app.cash.turbine.test
 import com.sowerrrt.dayloom.core.model.AccentPalette
 import com.sowerrrt.dayloom.core.model.AppSettings
+import com.sowerrrt.dayloom.core.model.BottomSection
+import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
 import com.sowerrrt.dayloom.core.storage.SettingsRepository
@@ -90,6 +92,20 @@ private class FakeRootSettingsRepository : SettingsRepository {
     override suspend fun setWholeAppLock(enabled: Boolean) {
         mutableSettings.value = mutableSettings.value.copy(lockWholeApp = enabled)
     }
+
+    override suspend fun setBottomSections(sections: List<BottomSection>) {
+        mutableSettings.value = mutableSettings.value.copy(bottomSections = sections)
+    }
+
+    override suspend fun addPreset(
+        type: PresetType,
+        title: String,
+    ) = Unit
+
+    override suspend fun removePreset(
+        type: PresetType,
+        title: String,
+    ) = Unit
 
     override suspend fun markUpdateChecked(epochMillis: Long) {
         mutableSettings.value = mutableSettings.value.copy(lastUpdateCheckEpochMillis = epochMillis)

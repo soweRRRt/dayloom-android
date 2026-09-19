@@ -20,8 +20,8 @@
     <string name="planner_create_title">New plan</string>
     <string name="planner_edit_title">Edit plan</string>
     <string name="planner_name_label">What are you planning?</string>
-    <string name="planner_reminder">Reminder</string>
-    <string name="planner_reminder_description">Choose a time. Android may ask for permission and deliver slightly later to preserve battery.</string>
+    <string name="planner_reminder">Exact time (optional)</string>
+    <string name="planner_reminder_description">The time is shown in your plan and also schedules a local reminder. Android may deliver it slightly later to preserve battery.</string>
     <string name="planner_add_reminder">Add a time</string>
     <string name="planner_remove_reminder">Remove</string>
     <string name="planner_add_image">Add photo</string>
@@ -40,4 +40,7 @@
     <string name="planner_error_title">Calendar is unavailable</string>
     <string name="planner_error_description">Dayloom could not read or save the calendar. Existing data was not discarded.</string>
     <string name="planner_retry">Try again</string>
+    <string name="planner_presets">Quick presets</string>
+    <string name="planner_save_preset">Save name as preset</string>
+    <string name="planner_remove_preset">Remove preset %1$s</string>
 </resources>

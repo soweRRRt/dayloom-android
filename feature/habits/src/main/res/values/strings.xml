@@ -17,8 +17,8 @@
     <string name="habits_cancel">Cancel</string>
     <string name="habits_schedule">Repeat on</string>
     <string name="habits_every_day">Every day</string>
-    <string name="habits_reminder">Reminder</string>
-    <string name="habits_reminder_description">Dayloom will remind you on the selected repeat days. Battery saving may delay delivery slightly.</string>
+    <string name="habits_reminder">Exact time (optional)</string>
+    <string name="habits_reminder_description">The selected time is shown with the habit and also schedules a local reminder. Battery saving may delay delivery slightly.</string>
     <string name="habits_add_reminder">Add time</string>
     <string name="habits_remove_reminder">Remove</string>
     <string name="habits_add_image">Add photo</string>
@@ -43,4 +43,17 @@
     <string name="habits_error_title">Habits are unavailable</string>
     <string name="habits_error_description">Dayloom could not read or save your habits. Your existing data was not discarded.</string>
     <string name="habits_retry">Try again</string>
+    <string name="habits_presets">Quick presets</string>
+    <string name="habits_save_preset">Save name as preset</string>
+    <string name="habits_remove_preset">Remove preset %1$s</string>
+    <string name="habits_target">Amount (optional)</string>
+    <string name="habits_target_description">Use any value and unit that makes sense to you.</string>
+    <string name="habits_target_amount">Value</string>
+    <string name="habits_target_unit">Unit</string>
+    <string name="habits_target_value">Goal: %1$s %2$s</string>
+    <string name="habits_unit_times">times</string>
+    <string name="habits_unit_steps">steps</string>
+    <string name="habits_unit_minutes">min</string>
+    <string name="habits_unit_kg">kg</string>
+    <string name="habits_unit_pieces">pcs</string>
 </resources>

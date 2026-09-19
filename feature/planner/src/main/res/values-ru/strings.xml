@@ -20,8 +20,8 @@
     <string name="planner_create_title">Новый план</string>
     <string name="planner_edit_title">Редактирование плана</string>
     <string name="planner_name_label">Что планируем?</string>
-    <string name="planner_reminder">Напоминание</string>
-    <string name="planner_reminder_description">Выберите время. Android может попросить разрешение и доставить уведомление немного позже из-за энергосбережения.</string>
+    <string name="planner_reminder">Точное время (необязательно)</string>
+    <string name="planner_reminder_description">Время показывается в плане и одновременно создаёт локальное напоминание. Android может доставить его немного позже из-за энергосбережения.</string>
     <string name="planner_add_reminder">Добавить время</string>
     <string name="planner_remove_reminder">Убрать</string>
     <string name="planner_add_image">Добавить фото</string>
@@ -40,4 +40,7 @@
     <string name="planner_error_title">Календарь недоступен</string>
     <string name="planner_error_description">Dayloom не удалось прочитать или сохранить календарь. Существующие данные не удалены.</string>
     <string name="planner_retry">Попробовать снова</string>
+    <string name="planner_presets">Быстрые пресеты</string>
+    <string name="planner_save_preset">Сохранить название как пресет</string>
+    <string name="planner_remove_preset">Удалить пресет «%1$s»</string>
 </resources>

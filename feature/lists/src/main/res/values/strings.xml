@@ -32,6 +32,8 @@
     <string name="lists_kind_shopping">Shopping</string>
     <string name="lists_kind_packing">Packing</string>
     <string name="lists_kind_ideas">Ideas</string>
+    <string name="lists_custom_kind_label">Your own type (optional)</string>
+    <string name="lists_custom_kind_description">For example: Books, Work, Recipes. It is saved with the list and offered again.</string>
     <string name="lists_save">Save</string>
     <string name="lists_cancel">Cancel</string>
     <string name="lists_add_item_title">New item</string>
@@ -40,4 +42,7 @@
     <string name="lists_quantity_label">Quantity (optional)</string>
     <string name="lists_note_label">Note (optional)</string>
     <string name="lists_delete">Delete</string>
+    <string name="lists_item_presets">Quick presets</string>
+    <string name="lists_save_preset">Save name as preset</string>
+    <string name="lists_remove_preset">Remove preset %1$s</string>
 </resources>

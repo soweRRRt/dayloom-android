@@ -23,7 +23,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -55,6 +60,7 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.model.AccentPalette
+import com.sowerrrt.dayloom.core.model.BottomSection
 import com.sowerrrt.dayloom.core.model.ListKind
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
@@ -121,6 +127,19 @@ fun SettingsScreen(
                     StartDestinationChoices(
                         selected = state.settings.startDestination,
                         onSelected = viewModel::setStartDestination,
+                    )
+                }
+            }
+            item {
+                SettingsSection(stringResource(R.string.settings_bottom_navigation)) {
+                    Text(
+                        stringResource(R.string.settings_bottom_navigation_description),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    BottomNavigationSettings(
+                        selected = state.settings.bottomSections,
+                        onChanged = viewModel::setBottomSections,
                     )
                 }
             }
@@ -288,6 +307,78 @@ fun SettingsScreen(
 }
 
 @Composable
+private fun BottomNavigationSettings(
+    selected: List<BottomSection>,
+    onChanged: (List<BottomSection>) -> Unit,
+) {
+    val visible = selected.ifEmpty { BottomSection.entries }
+    (visible + BottomSection.entries.filterNot { it in visible }).forEach { section ->
+        val isVisible = section in visible
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+        ) {
+            Text(bottomSectionLabel(section), modifier = Modifier.weight(1f))
+            if (isVisible) {
+                val index = visible.indexOf(section)
+                IconButton(
+                    onClick = {
+                        if (index > 0) {
+                            val reordered = visible.toMutableList()
+                            java.util.Collections.swap(reordered, index, index - 1)
+                            onChanged(reordered)
+                        }
+                    },
+                    enabled = index > 0,
+                ) {
+                    Icon(Icons.Rounded.ArrowUpward, contentDescription = stringResource(R.string.settings_move_left))
+                }
+                IconButton(
+                    onClick = {
+                        if (index in 0 until visible.lastIndex) {
+                            val reordered = visible.toMutableList()
+                            java.util.Collections.swap(reordered, index, index + 1)
+                            onChanged(reordered)
+                        }
+                    },
+                    enabled = index in 0 until visible.lastIndex,
+                ) {
+                    Icon(
+                        Icons.Rounded.ArrowDownward,
+                        contentDescription = stringResource(R.string.settings_move_right),
+                    )
+                }
+            }
+            Switch(
+                checked = isVisible,
+                onCheckedChange = { enabled ->
+                    when {
+                        section == BottomSection.MORE -> Unit
+                        enabled -> onChanged((visible + section).distinct())
+                        visible.size > 2 -> onChanged(visible - section)
+                    }
+                },
+                enabled = section != BottomSection.MORE && (isVisible.not() || visible.size > 2),
+                modifier = Modifier.testTag("bottom_section_${section.name.lowercase()}"),
+            )
+        }
+    }
+}
+
+@Composable
+private fun bottomSectionLabel(section: BottomSection): String =
+    stringResource(
+        when (section) {
+            BottomSection.HOME -> R.string.settings_start_home
+            BottomSection.HABITS -> R.string.settings_start_habits
+            BottomSection.PLANNER -> R.string.settings_start_planner
+            BottomSection.LISTS -> R.string.settings_start_lists
+            BottomSection.MORE -> R.string.settings_bottom_more
+        },
+    )
+
+@Composable
 private fun rememberDemoContent(): DemoContent =
     DemoContent(
         habits =
@@ -296,22 +387,30 @@ private fun rememberDemoContent(): DemoContent =
                     title = stringResource(R.string.settings_example_habit_water),
                     scheduledWeekdays = Weekday.entries.toSet(),
                     completedDayOffsets = listOf(-4, -3, -2, -1, 0),
+                    targetAmount = "8",
+                    targetUnit = stringResource(R.string.settings_example_unit_glasses),
                 ),
                 DemoHabit(
                     title = stringResource(R.string.settings_example_habit_reading),
                     scheduledWeekdays = Weekday.entries.toSet(),
                     completedDayOffsets = listOf(-2, -1),
+                    targetAmount = "20",
+                    targetUnit = stringResource(R.string.settings_example_unit_minutes),
                 ),
                 DemoHabit(
                     title = stringResource(R.string.settings_example_habit_walk),
                     scheduledWeekdays = setOf(Weekday.MONDAY, Weekday.WEDNESDAY, Weekday.FRIDAY),
                     completedDayOffsets = listOf(-7, -5, -3),
+                    targetAmount = "10000",
+                    targetUnit = stringResource(R.string.settings_example_unit_steps),
                 ),
                 DemoHabit(
                     title = stringResource(R.string.settings_example_habit_stretch),
                     scheduledWeekdays = Weekday.entries.toSet(),
                     reminderMinutesOfDay = 8 * 60 + 30,
                     image = DemoImage.TRAVEL,
+                    targetAmount = "10",
+                    targetUnit = stringResource(R.string.settings_example_unit_minutes),
                 ),
             ),
         plans =
@@ -356,6 +455,7 @@ private fun rememberDemoContent(): DemoContent =
                 DemoList(
                     title = stringResource(R.string.settings_example_list_ideas),
                     kind = ListKind.IDEAS,
+                    customKind = stringResource(R.string.settings_example_custom_kind),
                     items =
                         listOf(
                             DemoListItem(stringResource(R.string.settings_example_item_weekend)),
@@ -383,6 +483,24 @@ private fun rememberDemoContent(): DemoContent =
                     contributionsMinor = listOf(12_000_00, 8_000_00),
                     image = DemoImage.TRAVEL,
                 ),
+            ),
+        habitPresets =
+            listOf(
+                stringResource(R.string.settings_example_habit_water),
+                stringResource(R.string.settings_example_habit_reading),
+                stringResource(R.string.settings_example_habit_stretch),
+            ),
+        planPresets =
+            listOf(
+                stringResource(R.string.settings_example_plan_review),
+                stringResource(R.string.settings_example_plan_groceries),
+                stringResource(R.string.settings_example_plan_call),
+            ),
+        listItemPresets =
+            listOf(
+                stringResource(R.string.settings_example_item_milk),
+                stringResource(R.string.settings_example_item_coffee),
+                stringResource(R.string.settings_example_item_charger),
             ),
     )
 

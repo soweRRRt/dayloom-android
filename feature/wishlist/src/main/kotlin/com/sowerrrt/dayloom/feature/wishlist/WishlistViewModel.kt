@@ -70,13 +70,14 @@ class WishlistViewModel
             currencyCode: String,
             priority: WishPriority,
             note: String,
+            purchaseUrl: String,
         ) {
             val previousIds =
                 mutableUiState.value.goals
                     .map(WishGoal::id)
                     .toSet()
             updateGoals(
-                operation = { repository.createGoal(title, targetMinor, currencyCode, priority, note) },
+                operation = { repository.createGoal(title, targetMinor, currencyCode, priority, note, purchaseUrl) },
                 selectedId = { goals -> goals.firstOrNull { it.id !in previousIds }?.id },
             )
         }
@@ -88,8 +89,13 @@ class WishlistViewModel
             currencyCode: String,
             priority: WishPriority,
             note: String,
+            purchaseUrl: String,
         ) {
-            updateGoals(operation = { repository.updateGoal(id, title, targetMinor, currencyCode, priority, note) })
+            updateGoals(
+                operation = {
+                    repository.updateGoal(id, title, targetMinor, currencyCode, priority, note, purchaseUrl)
+                },
+            )
         }
 
         fun deleteGoal(id: EntityId) {

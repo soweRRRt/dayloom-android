@@ -28,8 +28,11 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("primary_nav_habits").performClick()
         composeRule.onNodeWithTag("create_habit").performClick()
         composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("habit_target_amount").performScrollTo().performTextInput("5")
+        composeRule.onNodeWithTag("habit_target_unit").performScrollTo().performTextInput("times")
         composeRule.onNodeWithTag("save_habit").performClick()
         composeRule.onNodeWithText(title).assertExists()
+        composeRule.onNodeWithTag("habit_target_$title").assertExists()
         composeRule.onNodeWithTag("habit_image_action_$title").assertExists()
 
         composeRule.onNodeWithTag("habit_toggle_$title").performClick()
@@ -38,6 +41,17 @@ class NavigationUiTest {
         composeRule.activityRule.scenario.recreate()
         composeRule.onNodeWithText(title).assertExists()
         composeRule.onNodeWithText("Completed today").assertExists()
+    }
+
+    @Test
+    fun habitPresetCanBeSaved() {
+        val title = "Preset ${System.currentTimeMillis()}"
+        composeRule.onNodeWithTag("primary_nav_habits").performClick()
+        composeRule.onNodeWithTag("create_habit").performClick()
+        composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("save_habit_preset").performClick()
+
+        composeRule.onNodeWithTag("habit_preset_$title").assertExists()
     }
 
     @Test
@@ -102,8 +116,10 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("create_list").performClick()
         composeRule.onNodeWithTag("list_name_input").performTextInput(listTitle)
         composeRule.onNodeWithTag("list_kind_shopping").performClick()
+        composeRule.onNodeWithTag("custom_list_kind_input").performScrollTo().performTextInput("Errands")
         composeRule.onNodeWithTag("save_list").performClick()
         composeRule.onNodeWithTag("list_details").assertExists()
+        composeRule.onNodeWithText("Errands").assertExists()
 
         composeRule.onNodeWithTag("create_list_item").performClick()
         composeRule.onNodeWithTag("list_item_name_input").performTextInput(itemTitle)
@@ -131,8 +147,13 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("wish_target_input").performTextInput("2500")
         composeRule.onNodeWithTag("wish_currency_usd").performClick()
         composeRule.onNodeWithTag("wish_priority_high").performScrollTo().performClick()
+        composeRule
+            .onNodeWithTag("wish_purchase_url_input")
+            .performScrollTo()
+            .performTextInput("https://example.com/camera")
         composeRule.onNodeWithTag("save_wish").performClick()
         composeRule.onNodeWithTag("wish_details").assertExists()
+        composeRule.onNodeWithTag("open_purchase_link").assertExists()
 
         composeRule.onNodeWithTag("add_contribution").performClick()
         composeRule.onNodeWithTag("contribution_amount_input").performTextInput("125.50")
@@ -174,6 +195,17 @@ class NavigationUiTest {
             .onNodeWithTag("settings_list")
             .performScrollToNode(hasTestTag("app_lock_switch"))
         composeRule.onNodeWithTag("app_lock_switch").assertExists()
+    }
+
+    @Test
+    fun settingsExposeCustomizableBottomNavigation() {
+        composeRule.onNodeWithTag("primary_nav_more").performClick()
+        composeRule.onNodeWithTag("more_settings").performClick()
+        composeRule
+            .onNodeWithTag("settings_list")
+            .performScrollToNode(hasTestTag("bottom_section_home"))
+        composeRule.onNodeWithTag("bottom_section_home").assertExists()
+        composeRule.onNodeWithTag("bottom_section_more").assertExists()
     }
 
     @Test
