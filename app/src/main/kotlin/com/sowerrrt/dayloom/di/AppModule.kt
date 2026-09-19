@@ -7,7 +7,9 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.sowerrrt.dayloom.core.storage.DataStoreSettingsRepository
 import com.sowerrrt.dayloom.core.storage.FileHabitsRepository
+import com.sowerrrt.dayloom.core.storage.FilePlannerRepository
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
+import com.sowerrrt.dayloom.core.storage.PlannerRepository
 import com.sowerrrt.dayloom.core.storage.SettingsRepository
 import com.sowerrrt.dayloom.core.updates.GitHubUpdateSource
 import com.sowerrrt.dayloom.core.updates.UpdateSource
@@ -40,6 +42,12 @@ object AppModule {
     fun provideHabitsRepository(
         @ApplicationContext context: Context,
     ): HabitsRepository = FileHabitsRepository(context.filesDir)
+
+    @Provides
+    @Singleton
+    fun providePlannerRepository(
+        @ApplicationContext context: Context,
+    ): PlannerRepository = FilePlannerRepository(context.filesDir)
 
     @Provides
     @Singleton

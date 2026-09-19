@@ -1,19 +1,530 @@
 package com.sowerrrt.dayloom.feature.planner
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import com.sowerrrt.dayloom.core.ui.ModulePreviewScreen
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sowerrrt.dayloom.core.designsystem.DayloomCard
+import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
+import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
+import com.sowerrrt.dayloom.core.model.Habit
+import com.sowerrrt.dayloom.core.model.PlanItem
+import com.sowerrrt.dayloom.core.ui.ErrorState
+import com.sowerrrt.dayloom.core.ui.LoadingState
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 
 @Composable
-fun PlannerScreen() {
-    ModulePreviewScreen(
-        title = stringResource(R.string.planner_title),
-        description = stringResource(R.string.planner_description),
-        emptyTitle = stringResource(R.string.planner_empty_title),
-        emptyDescription = stringResource(R.string.planner_empty_description),
-        actionLabel = stringResource(R.string.planner_action),
-        icon = Icons.Rounded.CalendarMonth,
+fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var showPlanDialog by rememberSaveable { mutableStateOf(false) }
+    var editingPlan by remember { mutableStateOf<PlanItem?>(null) }
+    var pendingDelete by remember { mutableStateOf<PlanItem?>(null) }
+
+    LaunchedEffect(Unit) { viewModel.refresh() }
+
+    Column(Modifier.fillMaxSize().testTag("planner_screen")) {
+        DayloomTopBar(stringResource(R.string.planner_title))
+        when {
+            state.isLoading -> LoadingState(Modifier.weight(1f))
+            state.hasError ->
+                ErrorState(
+                    title = stringResource(R.string.planner_error_title),
+                    message = stringResource(R.string.planner_error_description),
+                    retryLabel = stringResource(R.string.planner_retry),
+                    onRetry = viewModel::refresh,
+                    modifier = Modifier.weight(1f),
+                )
+            else ->
+                PlannerContent(
+                    state = state,
+                    onSelectDate = viewModel::selectDate,
+                    onPreviousMonth = viewModel::showPreviousMonth,
+                    onNextMonth = viewModel::showNextMonth,
+                    onToday = viewModel::showToday,
+                    onToggleHabit = viewModel::toggleHabit,
+                    onTogglePlan = viewModel::togglePlan,
+                    onCreatePlan = {
+                        editingPlan = null
+                        showPlanDialog = true
+                    },
+                    onEditPlan = {
+                        editingPlan = it
+                        showPlanDialog = true
+                    },
+                    onDeletePlan = { pendingDelete = it },
+                    modifier = Modifier.weight(1f),
+                )
+        }
+    }
+
+    if (showPlanDialog) {
+        PlanEditorDialog(
+            plan = editingPlan,
+            selectedEpochDay = state.selectedEpochDay,
+            onDismiss = { showPlanDialog = false },
+            onSave = { title ->
+                val plan = editingPlan
+                if (plan == null) viewModel.createPlan(title) else viewModel.updatePlan(plan.id, title)
+                showPlanDialog = false
+            },
+        )
+    }
+
+    pendingDelete?.let { plan ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text(stringResource(R.string.planner_delete_title)) },
+            text = { Text(stringResource(R.string.planner_delete_description, plan.title)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deletePlan(plan.id)
+                        pendingDelete = null
+                    },
+                ) {
+                    Text(stringResource(R.string.planner_delete_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.planner_cancel)) }
+            },
+        )
+    }
+}
+
+@Composable
+private fun PlannerContent(
+    state: PlannerUiState,
+    onSelectDate: (Long) -> Unit,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onToday: () -> Unit,
+    onToggleHabit: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
+    onTogglePlan: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
+    onCreatePlan: () -> Unit,
+    onEditPlan: (PlanItem) -> Unit,
+    onDeletePlan: (PlanItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val locale = currentLocale()
+    Box(modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().testTag("planner_list"),
+            contentPadding = PaddingValues(start = DayloomSpacing.md, end = DayloomSpacing.md, bottom = 104.dp),
+            verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+        ) {
+            item {
+                Text(
+                    stringResource(R.string.planner_calendar_description),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+            item {
+                MonthCalendar(
+                    state = state,
+                    locale = locale,
+                    onSelectDate = onSelectDate,
+                    onPreviousMonth = onPreviousMonth,
+                    onNextMonth = onNextMonth,
+                    onToday = onToday,
+                )
+            }
+            item {
+                SelectedDateHeader(
+                    epochDay = state.selectedEpochDay,
+                    locale = locale,
+                    habitCount = state.selectedHabits.size,
+                    planCount = state.selectedPlans.size,
+                )
+            }
+            item { SectionTitle(stringResource(R.string.planner_habits_section), MaterialTheme.colorScheme.primary) }
+            if (state.selectedHabits.isEmpty()) {
+                item { EmptyDayCard(stringResource(R.string.planner_no_habits)) }
+            } else {
+                items(state.selectedHabits, key = { "habit-${it.id.value}" }) { habit ->
+                    CalendarHabitRow(
+                        habit = habit,
+                        epochDay = state.selectedEpochDay,
+                        canComplete = state.selectedEpochDay <= state.todayEpochDay,
+                        onToggle = { onToggleHabit(habit.id) },
+                    )
+                }
+            }
+            item { SectionTitle(stringResource(R.string.planner_plans_section), MaterialTheme.colorScheme.secondary) }
+            if (state.selectedPlans.isEmpty()) {
+                item { EmptyDayCard(stringResource(R.string.planner_no_plans)) }
+            } else {
+                items(state.selectedPlans, key = { "plan-${it.id.value}" }) { plan ->
+                    PlanRow(
+                        plan = plan,
+                        onToggle = { onTogglePlan(plan.id) },
+                        onEdit = { onEditPlan(plan) },
+                        onDelete = { onDeletePlan(plan) },
+                    )
+                }
+            }
+        }
+        FloatingActionButton(
+            onClick = onCreatePlan,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(DayloomSpacing.md).testTag("create_plan"),
+        ) {
+            Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.planner_action))
+        }
+    }
+}
+
+@Composable
+private fun MonthCalendar(
+    state: PlannerUiState,
+    locale: Locale,
+    onSelectDate: (Long) -> Unit,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onToday: () -> Unit,
+) {
+    val month = state.displayedMonth
+    val firstDay = month.atDay(1)
+    val leadingEmptyDays = firstDay.dayOfWeek.value - 1
+    val cells = List(leadingEmptyDays) { null } + (1..month.lengthOfMonth()).map(month::atDay)
+    val rows = cells.chunked(7)
+    DayloomCard(Modifier.fillMaxWidth().testTag("month_calendar")) {
+        Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                IconButton(onClick = onPreviousMonth) {
+                    Icon(
+                        Icons.Rounded.ChevronLeft,
+                        contentDescription = stringResource(R.string.planner_previous_month),
+                    )
+                }
+                Text(monthLabel(month, locale), style = MaterialTheme.typography.titleLarge)
+                IconButton(onClick = onNextMonth) {
+                    Icon(
+                        Icons.Rounded.ChevronRight,
+                        contentDescription = stringResource(R.string.planner_next_month),
+                    )
+                }
+            }
+            TextButton(onClick = onToday, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                Text(stringResource(R.string.planner_today))
+            }
+            Row(Modifier.fillMaxWidth()) {
+                java.time.DayOfWeek.entries.forEach { dayOfWeek ->
+                    Text(
+                        dayOfWeek.getDisplayName(TextStyle.SHORT, locale),
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            rows.forEach { week ->
+                Row(Modifier.fillMaxWidth()) {
+                    repeat(7) { index ->
+                        val date = week.getOrNull(index)
+                        if (date == null) {
+                            Spacer(Modifier.weight(1f).aspectRatio(1f))
+                        } else {
+                            CalendarDay(
+                                date = date,
+                                selected = date.toEpochDay() == state.selectedEpochDay,
+                                today = date.toEpochDay() == state.todayEpochDay,
+                                habitCount = state.habitCount(date.toEpochDay()),
+                                planCount = state.planCount(date.toEpochDay()),
+                                onClick = { onSelectDate(date.toEpochDay()) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalendarDay(
+    date: LocalDate,
+    selected: Boolean,
+    today: Boolean,
+    habitCount: Int,
+    planCount: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = MaterialTheme.shapes.small
+    val background = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+    val borderModifier =
+        if (today && !selected) {
+            Modifier.border(1.dp, MaterialTheme.colorScheme.primary, shape)
+        } else {
+            Modifier
+        }
+    Column(
+        modifier =
+            modifier
+                .aspectRatio(1f)
+                .padding(2.dp)
+                .then(borderModifier)
+                .clip(shape)
+                .background(background)
+                .clickable(onClick = onClick)
+                .testTag("calendar_day_${date.toEpochDay()}"),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(date.dayOfMonth.toString(), style = MaterialTheme.typography.bodyMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            if (habitCount > 0) CalendarDot(MaterialTheme.colorScheme.primary)
+            if (planCount > 0) CalendarDot(MaterialTheme.colorScheme.secondary)
+        }
+    }
+}
+
+@Composable
+private fun CalendarDot(color: Color) {
+    Box(Modifier.size(5.dp).clip(CircleShape).background(color))
+}
+
+@Composable
+private fun SelectedDateHeader(
+    epochDay: Long,
+    locale: Locale,
+    habitCount: Int,
+    planCount: Int,
+) {
+    val date = LocalDate.ofEpochDay(epochDay)
+    Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs)) {
+        Text(
+            date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", locale)).replaceFirstChar { it.titlecase(locale) },
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Text(
+            stringResource(R.string.planner_day_summary, habitCount, planCount),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun SectionTitle(
+    text: String,
+    color: Color,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+    ) {
+        Box(Modifier.size(9.dp).clip(CircleShape).background(color))
+        Text(text, style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+@Composable
+private fun EmptyDayCard(message: String) {
+    DayloomCard(Modifier.fillMaxWidth()) {
+        Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun CalendarHabitRow(
+    habit: Habit,
+    epochDay: Long,
+    canComplete: Boolean,
+    onToggle: () -> Unit,
+) {
+    val completed = epochDay in habit.completedEpochDays
+    DayloomCard(
+        Modifier
+            .fillMaxWidth()
+            .clickable(
+                enabled = canComplete,
+                onClick = onToggle,
+            ).testTag("calendar_habit_${habit.title}"),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+        ) {
+            Icon(
+                if (completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                contentDescription = null,
+                tint = if (completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Column(Modifier.weight(1f)) {
+                Text(habit.title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    when {
+                        !canComplete -> stringResource(R.string.planner_future_habit)
+                        completed -> stringResource(R.string.planner_habit_completed)
+                        else -> stringResource(R.string.planner_habit_open)
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanRow(
+    plan: PlanItem,
+    onToggle: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    DayloomCard(Modifier.fillMaxWidth().testTag("plan_${plan.title}")) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+        ) {
+            IconButton(
+                onClick = onToggle,
+                modifier = Modifier.testTag("plan_toggle_${plan.title}"),
+            ) {
+                Icon(
+                    if (plan.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                    contentDescription = stringResource(R.string.planner_toggle_plan, plan.title),
+                    tint =
+                        if (plan.completed) {
+                            MaterialTheme.colorScheme.secondary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                )
+            }
+            Text(
+                plan.title,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium,
+                textDecoration = if (plan.completed) TextDecoration.LineThrough else null,
+            )
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.planner_edit))
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.planner_delete))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanEditorDialog(
+    plan: PlanItem?,
+    selectedEpochDay: Long,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+) {
+    var title by remember(plan?.id) { mutableStateOf(plan?.title.orEmpty()) }
+    val locale = currentLocale()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null) },
+        title = {
+            Text(stringResource(if (plan == null) R.string.planner_create_title else R.string.planner_edit_title))
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+                Text(
+                    LocalDate.ofEpochDay(selectedEpochDay).format(DateTimeFormatter.ofPattern("d MMMM yyyy", locale)),
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it.take(MAX_PLAN_TITLE_LENGTH) },
+                    label = { Text(stringResource(R.string.planner_name_label)) },
+                    supportingText = { Text("${title.length}/$MAX_PLAN_TITLE_LENGTH") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("plan_name_input"),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(title) },
+                enabled = title.isNotBlank(),
+                modifier = Modifier.testTag("save_plan"),
+            ) {
+                Text(stringResource(R.string.planner_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.planner_cancel)) }
+        },
     )
 }
+
+@Composable
+private fun currentLocale(): Locale = LocalConfiguration.current.locales[0]
+
+private fun monthLabel(
+    month: YearMonth,
+    locale: Locale,
+): String =
+    month
+        .atDay(1)
+        .format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))
+        .replaceFirstChar { it.titlecase(locale) }
+
+private const val MAX_PLAN_TITLE_LENGTH = 120

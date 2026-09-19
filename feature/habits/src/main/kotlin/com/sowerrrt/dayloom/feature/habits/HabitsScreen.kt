@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,19 +18,25 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -45,6 +53,9 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
+import com.sowerrrt.dayloom.core.model.Weekday
+import com.sowerrrt.dayloom.core.model.bestStreak
+import com.sowerrrt.dayloom.core.model.currentStreak
 import com.sowerrrt.dayloom.core.ui.ErrorState
 import com.sowerrrt.dayloom.core.ui.LoadingState
 
@@ -52,6 +63,10 @@ import com.sowerrrt.dayloom.core.ui.LoadingState
 fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
+    var editingHabit by remember { mutableStateOf<Habit?>(null) }
+    var pendingArchive by remember { mutableStateOf<Habit?>(null) }
+
+    LaunchedEffect(Unit) { viewModel.refresh() }
 
     Column(Modifier.fillMaxSize().testTag("habits_screen")) {
         DayloomTopBar(stringResource(R.string.habits_title))
@@ -67,25 +82,63 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                 )
             state.habits.isEmpty() ->
                 EmptyHabits(
-                    onCreate = { showCreateDialog = true },
+                    onCreate = {
+                        editingHabit = null
+                        showCreateDialog = true
+                    },
                     modifier = Modifier.weight(1f),
                 )
             else ->
                 HabitsList(
                     state = state,
                     onToggle = viewModel::toggleCompletion,
-                    onCreate = { showCreateDialog = true },
+                    onEdit = { habit ->
+                        editingHabit = habit
+                        showCreateDialog = true
+                    },
+                    onArchive = { pendingArchive = it },
+                    onCreate = {
+                        editingHabit = null
+                        showCreateDialog = true
+                    },
                     modifier = Modifier.weight(1f),
                 )
         }
     }
 
     if (showCreateDialog) {
-        CreateHabitDialog(
+        HabitEditorDialog(
+            habit = editingHabit,
             onDismiss = { showCreateDialog = false },
-            onCreate = { title ->
-                viewModel.createHabit(title)
+            onSave = { title, weekdays ->
+                val habit = editingHabit
+                if (habit == null) {
+                    viewModel.createHabit(title, weekdays)
+                } else {
+                    viewModel.updateHabit(habit.id, title, weekdays)
+                }
                 showCreateDialog = false
+            },
+        )
+    }
+
+    pendingArchive?.let { habit ->
+        AlertDialog(
+            onDismissRequest = { pendingArchive = null },
+            title = { Text(stringResource(R.string.habits_archive_title)) },
+            text = { Text(stringResource(R.string.habits_archive_description, habit.title)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.archiveHabit(habit.id)
+                        pendingArchive = null
+                    },
+                ) {
+                    Text(stringResource(R.string.habits_archive_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingArchive = null }) { Text(stringResource(R.string.habits_cancel)) }
             },
         )
     }
@@ -143,6 +196,8 @@ private fun EmptyHabits(
 private fun HabitsList(
     state: HabitsUiState,
     onToggle: (EntityId) -> Unit,
+    onEdit: (Habit) -> Unit,
+    onArchive: (Habit) -> Unit,
     onCreate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -176,6 +231,9 @@ private fun HabitsList(
                     habit = habit,
                     completed = state.todayEpochDay in habit.completedEpochDays,
                     onToggle = { onToggle(habit.id) },
+                    onEdit = { onEdit(habit) },
+                    onArchive = { onArchive(habit) },
+                    todayEpochDay = state.todayEpochDay,
                 )
             }
         }
@@ -192,7 +250,10 @@ private fun HabitsList(
 private fun HabitRow(
     habit: Habit,
     completed: Boolean,
+    todayEpochDay: Long,
     onToggle: () -> Unit,
+    onEdit: () -> Unit,
+    onArchive: () -> Unit,
 ) {
     val action =
         if (completed) {
@@ -241,34 +302,92 @@ private fun HabitRow(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Text(
+                    text = scheduleLabel(habit.scheduledWeekdays),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text =
+                        stringResource(
+                            R.string.habits_streaks,
+                            habit.currentStreak(todayEpochDay),
+                            habit.bestStreak(),
+                        ),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Column {
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.habits_edit))
+                }
+                IconButton(onClick = onArchive) {
+                    Icon(Icons.Rounded.Archive, contentDescription = stringResource(R.string.habits_archive))
+                }
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CreateHabitDialog(
+private fun HabitEditorDialog(
+    habit: Habit?,
     onDismiss: () -> Unit,
-    onCreate: (String) -> Unit,
+    onSave: (String, Set<Weekday>) -> Unit,
 ) {
-    var title by rememberSaveable { mutableStateOf("") }
+    var title by remember(habit?.id) { mutableStateOf(habit?.title.orEmpty()) }
+    var selectedDays by
+        remember(habit?.id) {
+            mutableStateOf(habit?.scheduledWeekdays ?: Weekday.entries.toSet())
+        }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.habits_create_title)) },
-        text = {
-            OutlinedTextField(
-                value = title,
-                onValueChange = { value -> title = value.take(MAX_TITLE_LENGTH) },
-                modifier = Modifier.fillMaxWidth().testTag("habit_name_input"),
-                label = { Text(stringResource(R.string.habits_name_label)) },
-                supportingText = { Text("${title.length}/$MAX_TITLE_LENGTH") },
-                singleLine = true,
+        title = {
+            Text(
+                stringResource(
+                    if (habit == null) R.string.habits_create_title else R.string.habits_edit_title,
+                ),
             )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { value -> title = value.take(MAX_TITLE_LENGTH) },
+                    modifier = Modifier.fillMaxWidth().testTag("habit_name_input"),
+                    label = { Text(stringResource(R.string.habits_name_label)) },
+                    supportingText = { Text("${title.length}/$MAX_TITLE_LENGTH") },
+                    singleLine = true,
+                )
+                Text(stringResource(R.string.habits_schedule), style = MaterialTheme.typography.titleMedium)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                ) {
+                    Weekday.entries.forEach { weekday ->
+                        FilterChip(
+                            selected = weekday in selectedDays,
+                            onClick = {
+                                selectedDays =
+                                    if (weekday in selectedDays) {
+                                        selectedDays - weekday
+                                    } else {
+                                        selectedDays + weekday
+                                    }
+                            },
+                            label = { Text(weekdayShortLabel(weekday)) },
+                            modifier = Modifier.testTag("habit_day_${weekday.name.lowercase()}"),
+                        )
+                    }
+                }
+            }
         },
         confirmButton = {
             TextButton(
-                onClick = { onCreate(title) },
-                enabled = title.isNotBlank(),
+                onClick = { onSave(title, selectedDays) },
+                enabled = title.isNotBlank() && selectedDays.isNotEmpty(),
                 modifier = Modifier.testTag("save_habit"),
             ) {
                 Text(stringResource(R.string.habits_create_confirm))
@@ -279,5 +398,32 @@ private fun CreateHabitDialog(
         },
     )
 }
+
+@Composable
+private fun scheduleLabel(days: Set<Weekday>): String {
+    if (days.size == Weekday.entries.size) {
+        return stringResource(R.string.habits_every_day)
+    }
+
+    var result = ""
+    for (weekday in days.sortedBy(Weekday::ordinal)) {
+        result = listOf(result, weekdayShortLabel(weekday)).filter(String::isNotEmpty).joinToString(" · ")
+    }
+    return result
+}
+
+@Composable
+private fun weekdayShortLabel(weekday: Weekday): String =
+    stringResource(
+        when (weekday) {
+            Weekday.MONDAY -> R.string.weekday_monday_short
+            Weekday.TUESDAY -> R.string.weekday_tuesday_short
+            Weekday.WEDNESDAY -> R.string.weekday_wednesday_short
+            Weekday.THURSDAY -> R.string.weekday_thursday_short
+            Weekday.FRIDAY -> R.string.weekday_friday_short
+            Weekday.SATURDAY -> R.string.weekday_saturday_short
+            Weekday.SUNDAY -> R.string.weekday_sunday_short
+        },
+    )
 
 private const val MAX_TITLE_LENGTH = 80

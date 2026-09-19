@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
+import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,7 +44,12 @@ class HabitsViewModel
                 runCatching { repository.loadHabits() }
                     .onSuccess { habits ->
                         mutableUiState.update {
-                            it.copy(habits = habits, isLoading = false, hasError = false)
+                            it.copy(
+                                habits = habits,
+                                todayEpochDay = LocalDate.now().toEpochDay(),
+                                isLoading = false,
+                                hasError = false,
+                            )
                         }
                     }.onFailure {
                         mutableUiState.update { it.copy(isLoading = false, hasError = true) }
@@ -51,14 +57,31 @@ class HabitsViewModel
             }
         }
 
-        fun createHabit(title: String) {
-            if (title.isBlank()) return
-            updateHabits { repository.createHabit(title) }
+        fun createHabit(
+            title: String,
+            scheduledWeekdays: Set<Weekday>,
+        ) {
+            if (title.isBlank() || scheduledWeekdays.isEmpty()) return
+            val today = LocalDate.now().toEpochDay()
+            updateHabits { repository.createHabit(title, scheduledWeekdays, today) }
+        }
+
+        fun updateHabit(
+            id: EntityId,
+            title: String,
+            scheduledWeekdays: Set<Weekday>,
+        ) {
+            if (title.isBlank() || scheduledWeekdays.isEmpty()) return
+            updateHabits { repository.updateHabit(id, title, scheduledWeekdays) }
         }
 
         fun toggleCompletion(id: EntityId) {
             val today = mutableUiState.value.todayEpochDay
             updateHabits { repository.toggleCompletion(id, today) }
+        }
+
+        fun archiveHabit(id: EntityId) {
+            updateHabits { repository.archiveHabit(id) }
         }
 
         private fun updateHabits(operation: suspend () -> List<Habit>) {

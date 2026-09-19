@@ -1,6 +1,7 @@
 package com.sowerrrt.dayloom.core.model
 
 import kotlinx.serialization.Serializable
+import java.time.LocalDate
 import java.util.UUID
 
 @Serializable
@@ -70,6 +71,8 @@ data class Habit(
     val id: EntityId,
     val title: String,
     val createdAtEpochMillis: Long,
+    val startEpochDay: Long = 0L,
+    val scheduledWeekdays: Set<Weekday> = Weekday.entries.toSet(),
     val completedEpochDays: Set<Long> = emptySet(),
     val archived: Boolean = false,
 )
@@ -77,4 +80,65 @@ data class Habit(
 @Serializable
 data class HabitsSnapshot(
     val habits: List<Habit> = emptyList(),
+)
+
+@Serializable
+enum class Weekday {
+    MONDAY,
+    TUESDAY,
+    WEDNESDAY,
+    THURSDAY,
+    FRIDAY,
+    SATURDAY,
+    SUNDAY,
+    ;
+
+    companion object {
+        fun fromEpochDay(epochDay: Long): Weekday = entries[LocalDate.ofEpochDay(epochDay).dayOfWeek.value - 1]
+    }
+}
+
+fun Habit.isScheduledOn(epochDay: Long): Boolean =
+    !archived && epochDay >= startEpochDay && Weekday.fromEpochDay(epochDay) in scheduledWeekdays
+
+fun Habit.currentStreak(asOfEpochDay: Long): Int {
+    var day = asOfEpochDay
+    while (!isScheduledOn(day) && day >= startEpochDay) day--
+    var streak = 0
+    while (day >= startEpochDay && isScheduledOn(day) && day in completedEpochDays) {
+        streak++
+        do {
+            day--
+        } while (day >= startEpochDay && !isScheduledOn(day))
+    }
+    return streak
+}
+
+fun Habit.bestStreak(): Int {
+    val completed = completedEpochDays.filter(::isScheduledOn).sorted()
+    var best = 0
+    var current = 0
+    var previous: Long? = null
+    completed.forEach { day ->
+        var expected = previous?.plus(1)
+        while (expected != null && expected <= day && !isScheduledOn(expected)) expected++
+        current = if (previous == null || expected == day) current + 1 else 1
+        best = maxOf(best, current)
+        previous = day
+    }
+    return best
+}
+
+@Serializable
+data class PlanItem(
+    val id: EntityId,
+    val title: String,
+    val dateEpochDay: Long,
+    val createdAtEpochMillis: Long,
+    val completed: Boolean = false,
+)
+
+@Serializable
+data class PlannerSnapshot(
+    val plans: List<PlanItem> = emptyList(),
 )

@@ -1,6 +1,7 @@
 package com.sowerrrt.dayloom.core.storage
 
 import com.sowerrrt.dayloom.core.model.EntityId
+import com.sowerrrt.dayloom.core.model.Weekday
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -8,6 +9,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.time.Instant
+import java.time.ZoneId
 
 class FileHabitsRepositoryTest {
     @get:Rule
@@ -25,7 +28,10 @@ class FileHabitsRepositoryTest {
                     idFactory = { id },
                 )
 
-            val created = firstRepository.createHabit("  Read ten pages  ").single()
+            val created =
+                firstRepository
+                    .createHabit("  Read ten pages  ", Weekday.entries.toSet(), TEST_EPOCH_DAY)
+                    .single()
             assertEquals("Read ten pages", created.title)
             assertFalse(TEST_EPOCH_DAY in created.completedEpochDays)
 
@@ -46,11 +52,61 @@ class FileHabitsRepositoryTest {
                     idFactory = { id },
                 )
 
-            repository.createHabit("Stretch")
+            repository.createHabit("Stretch", Weekday.entries.toSet(), TEST_EPOCH_DAY)
             repository.toggleCompletion(id, TEST_EPOCH_DAY)
             val habit = repository.toggleCompletion(id, TEST_EPOCH_DAY).single()
 
             assertFalse(TEST_EPOCH_DAY in habit.completedEpochDays)
+        }
+
+    @Test
+    fun `habit can be edited and archived without deleting stored data`() =
+        runTest {
+            val directory = temporaryFolder.newFolder("editing")
+            val id = EntityId("habit-3")
+            val repository = FileHabitsRepository(directory, idFactory = { id })
+            repository.createHabit("Run", setOf(Weekday.MONDAY), TEST_EPOCH_DAY)
+
+            val edited = repository.updateHabit(id, "Morning run", setOf(Weekday.MONDAY, Weekday.FRIDAY)).single()
+            assertEquals("Morning run", edited.title)
+            assertEquals(setOf(Weekday.MONDAY, Weekday.FRIDAY), edited.scheduledWeekdays)
+
+            assertTrue(repository.archiveHabit(id).isEmpty())
+            assertTrue(FileHabitsRepository(directory).loadHabits().isEmpty())
+        }
+
+    @Test
+    fun `schema one habits receive the default daily schedule`() =
+        runTest {
+            val directory = temporaryFolder.newFolder("migration")
+            directory.resolve("habits.json").writeText(
+                """
+                {
+                  "schemaVersion": 1,
+                  "updatedAtEpochMillis": 123,
+                  "payload": {
+                    "habits": [{
+                      "id": "legacy-habit",
+                      "title": "Legacy habit",
+                      "createdAtEpochMillis": 100,
+                      "completedEpochDays": [],
+                      "archived": false
+                    }]
+                  }
+                }
+                """.trimIndent(),
+            )
+
+            val restored = FileHabitsRepository(directory).loadHabits().single()
+
+            val expectedStartDay =
+                Instant
+                    .ofEpochMilli(100L)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+                    .toEpochDay()
+            assertEquals(expectedStartDay, restored.startEpochDay)
+            assertEquals(Weekday.entries.toSet(), restored.scheduledWeekdays)
         }
 
     private companion object {
