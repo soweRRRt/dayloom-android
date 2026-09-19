@@ -49,14 +49,14 @@ Dayloom — локальное Android-приложение, которое об
 # Локальные unit-тесты всех вариантов
 ./gradlew testDebugUnitTest
 
-# Компиляция instrumented UI tests
-./gradlew :app:assembleDebugAndroidTest
+# Instrumented UI tests на подключённом устройстве/эмуляторе
+./gradlew :app:connectedDebugAndroidTest
 
-# Компиляция Macrobenchmark APK
-./gradlew :benchmark:assembleBenchmark
+# Macrobenchmark на подключённом устройстве/эмуляторе
+./gradlew :benchmark:connectedBenchmarkAndroidTest
 ```
 
-Instrumented UI tests проверяют навигацию, сохранение темы/стартового экрана и диалог обновления. Macrobenchmark измеряет cold start и переход между основными вкладками. Для их выполнения нужен физический Android-девайс или эмулятор; проект не заявляет целевой FPS без измерений на конкретном устройстве. Главный экран также имеет Compose Preview для RU/EN и light/dark.
+Instrumented UI tests проверяют навигацию, восстановление экрана после пересоздания Activity, сохранение темы/стартового экрана и диалог обновления. Macrobenchmark измеряет cold start и переход между основными вкладками. Запуск на эмуляторе разрешён для функциональной QA и поиска регрессий, но такие цифры не репрезентативны: итоговую производительность следует измерять на физическом Android-устройстве. Главный экран также имеет Compose Preview для RU/EN и light/dark.
 
 ## Приватность и данные
 

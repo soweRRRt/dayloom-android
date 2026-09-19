@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -23,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -76,13 +79,10 @@ fun SettingsScreen(
             }
             item {
                 SettingsSection(stringResource(R.string.settings_start_screen)) {
-                    StartDestination.entries.forEach { destination ->
-                        FilterChip(
-                            selected = state.settings.startDestination == destination,
-                            onClick = { viewModel.setStartDestination(destination) },
-                            label = { Text(startDestinationLabel(destination)) },
-                        )
-                    }
+                    StartDestinationChoices(
+                        selected = state.settings.startDestination,
+                        onSelected = viewModel::setStartDestination,
+                    )
                 }
             }
             item {
@@ -145,6 +145,28 @@ private fun ChoiceRow(content: @Composable RowScope.() -> Unit) {
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun StartDestinationChoices(
+    selected: StartDestination,
+    onSelected: (StartDestination) -> Unit,
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+    ) {
+        StartDestination.entries.forEach { destination ->
+            FilterChip(
+                selected = selected == destination,
+                onClick = { onSelected(destination) },
+                label = { Text(startDestinationLabel(destination)) },
+                modifier = Modifier.testTag("start_destination_${destination.name.lowercase()}"),
+            )
+        }
+    }
+}
+
 @Composable
 private fun AccentChoice(
     palette: AccentPalette,
@@ -152,6 +174,12 @@ private fun AccentChoice(
     onClick: () -> Unit,
 ) {
     val label = accentLabel(palette)
+    val contentColor =
+        if (selected) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        }
     Row(
         modifier =
             Modifier
@@ -165,8 +193,8 @@ private fun AccentChoice(
         horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
     ) {
         Box(Modifier.size(28.dp).clip(MaterialTheme.shapes.small).background(accentColor(palette)))
-        Text(label, modifier = Modifier.weight(1f))
-        if (selected) Text(stringResource(R.string.settings_selected), color = MaterialTheme.colorScheme.primary)
+        Text(label, modifier = Modifier.weight(1f), color = contentColor)
+        if (selected) Text(stringResource(R.string.settings_selected), color = contentColor)
     }
 }
 

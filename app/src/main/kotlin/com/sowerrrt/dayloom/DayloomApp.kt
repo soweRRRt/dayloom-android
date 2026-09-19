@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -249,6 +250,7 @@ private fun DayloomBottomBar(
                 onClick = { navController.navigateSingleTop(destination.route) },
                 icon = { Icon(destination.icon, contentDescription = null) },
                 label = { Text(destination.label) },
+                modifier = Modifier.testTag("primary_nav_${destination.route}"),
             )
         }
     }
@@ -266,6 +268,7 @@ private fun DayloomNavigationRail(
                 onClick = { navController.navigateSingleTop(destination.route) },
                 icon = { Icon(destination.icon, contentDescription = null) },
                 label = { Text(destination.label) },
+                modifier = Modifier.testTag("primary_nav_${destination.route}"),
             )
         }
     }

@@ -2,7 +2,7 @@ package com.sowerrrt.dayloom
 
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import org.junit.Rule
@@ -14,7 +14,7 @@ class NavigationUiTest {
 
     @Test
     fun primaryNavigationOpensHabits() {
-        composeRule.onNodeWithText("Habits").performClick()
+        composeRule.onNodeWithTag("primary_nav_habits").performClick()
         composeRule.onNodeWithText("Your first rhythm starts here").assertExists()
     }
 
@@ -23,11 +23,11 @@ class NavigationUiTest {
         composeRule.onNodeWithText("More").performClick()
         composeRule.onNodeWithText("Settings").performClick()
         composeRule.onNodeWithText("Dark").performClick().assertIsSelected()
-        composeRule.onNodeWithText("Plan").performClick().assertIsSelected()
+        composeRule.onNodeWithTag("start_destination_planner").performClick().assertIsSelected()
 
         composeRule.activityRule.scenario.recreate()
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText("A clear day, ready for you").fetchSemanticsNodes().isNotEmpty()
-        }
+        composeRule.onNodeWithText("Settings").assertExists()
+        composeRule.onNodeWithText("Dark").assertIsSelected()
+        composeRule.onNodeWithTag("start_destination_planner").assertIsSelected()
     }
 }
