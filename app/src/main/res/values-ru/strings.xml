@@ -16,4 +16,14 @@
     <string name="update_later">Позже</string>
     <string name="update_up_to_date">У вас уже установлена последняя стабильная версия.</string>
     <string name="update_unavailable">Сейчас не удалось проверить обновления. Приложение по-прежнему полностью работает без сети.</string>
+    <string name="app_lock_title">Dayloom заблокирован</string>
+    <string name="app_lock_description">Подтвердите, что это вы, чтобы открыть привычки, планы, списки и цели.</string>
+    <string name="app_lock_unlock">Разблокировать Dayloom</string>
+    <string name="app_lock_auth_title">Открыть Dayloom</string>
+    <string name="app_lock_auth_subtitle">Используйте биометрию или код экрана устройства</string>
+    <string name="app_lock_cancel">Отмена</string>
+    <string name="app_lock_failed">Не удалось подтвердить личность. Попробуйте ещё раз.</string>
+    <string name="app_lock_unavailable">Системная аутентификация больше недоступна на этом устройстве.</string>
+    <string name="app_lock_disable">Отключить защиту на этом устройстве</string>
+    <string name="app_lock_local_note">Данные остаются локальными. Vault защищён отдельной зашифрованной сессией.</string>
 </resources>

@@ -62,6 +62,19 @@ class SettingsViewModelTest {
                 assertEquals(DemoFeedback.ALREADY_PRESENT, expectMostRecentItem().demoFeedback)
             }
         }
+
+    @Test
+    fun `whole app lock selection is persisted`() =
+        runTest(dispatcher) {
+            val repository = FakeSettingsRepository()
+            val viewModel = SettingsViewModel(repository, FakeDemoContentRepository())
+
+            viewModel.uiState.test {
+                assertEquals(false, awaitItem().settings.lockWholeApp)
+                viewModel.setWholeAppLock(true)
+                assertEquals(true, awaitItem().settings.lockWholeApp)
+            }
+        }
 }
 
 private class FakeDemoContentRepository : DemoContentRepository {
@@ -97,6 +110,10 @@ private class FakeSettingsRepository : SettingsRepository {
 
     override suspend fun setAutomaticUpdateChecks(enabled: Boolean) {
         mutableSettings.value = mutableSettings.value.copy(automaticUpdateChecks = enabled)
+    }
+
+    override suspend fun setWholeAppLock(enabled: Boolean) {
+        mutableSettings.value = mutableSettings.value.copy(lockWholeApp = enabled)
     }
 
     override suspend fun markUpdateChecked(epochMillis: Long) {

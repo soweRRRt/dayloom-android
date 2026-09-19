@@ -43,6 +43,7 @@ data class AppSettings(
     val accentPalette: AccentPalette = AccentPalette.VIOLET,
     val startDestination: StartDestination = StartDestination.HOME,
     val automaticUpdateChecks: Boolean = true,
+    val lockWholeApp: Boolean = false,
     val lastUpdateCheckEpochMillis: Long? = null,
 )
 

@@ -17,4 +17,9 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         setContent { DayloomApp(rootViewModel, updateViewModel) }
     }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) rootViewModel.lock()
+    }
 }

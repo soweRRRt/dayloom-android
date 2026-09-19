@@ -1,5 +1,8 @@
 package com.sowerrrt.dayloom
 
+import android.os.Build
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +32,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -39,13 +43,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -53,6 +61,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.sowerrrt.dayloom.core.designsystem.DayloomButton
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomLogo
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
@@ -85,12 +94,158 @@ fun DayloomApp(
         Surface(Modifier.fillMaxSize()) {
             if (settings == null) {
                 StartupScreen()
+            } else if (!rootState.isAppUnlocked) {
+                AppLockScreen(rootState, rootViewModel)
             } else {
                 DayloomShell(settings, updateState, updateViewModel)
             }
         }
     }
 }
+
+@Composable
+private fun AppLockScreen(
+    state: RootUiState,
+    viewModel: RootViewModel,
+) {
+    val context = LocalContext.current
+    val activity = context as? FragmentActivity
+    val unlockSuccess by rememberUpdatedState(viewModel::authenticationSucceeded)
+    val authFailed by rememberUpdatedState(viewModel::authenticationFailed)
+    val authCancelled by rememberUpdatedState(viewModel::authenticationCancelled)
+    val prompt =
+        remember(activity) {
+            activity?.let {
+                BiometricPrompt(
+                    it,
+                    ContextCompat.getMainExecutor(it),
+                    object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) =
+                            unlockSuccess()
+
+                        override fun onAuthenticationFailed() = authFailed()
+
+                        override fun onAuthenticationError(
+                            errorCode: Int,
+                            errString: CharSequence,
+                        ) {
+                            if (
+                                errorCode == BiometricPrompt.ERROR_CANCELED ||
+                                errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
+                                errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON
+                            ) {
+                                authCancelled()
+                            } else {
+                                authFailed()
+                            }
+                        }
+                    },
+                )
+            }
+        }
+    val authTitle = stringResource(R.string.app_lock_auth_title)
+    val authSubtitle = stringResource(R.string.app_lock_auth_subtitle)
+    val authCancel = stringResource(R.string.app_lock_cancel)
+
+    LaunchedEffect(Unit) { viewModel.requestAuthentication() }
+    LaunchedEffect(state.authenticationRequest) {
+        if (state.authenticationRequest == 0L) return@LaunchedEffect
+        val authenticators = supportedAppAuthenticators()
+        if (
+            activity == null ||
+            prompt == null ||
+            BiometricManager.from(context).canAuthenticate(authenticators) != BiometricManager.BIOMETRIC_SUCCESS
+        ) {
+            viewModel.authenticationUnavailable()
+            return@LaunchedEffect
+        }
+        val builder =
+            BiometricPrompt.PromptInfo
+                .Builder()
+                .setTitle(authTitle)
+                .setSubtitle(authSubtitle)
+                .setAllowedAuthenticators(authenticators)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) builder.setNegativeButtonText(authCancel)
+        prompt.authenticate(builder.build())
+    }
+
+    AppLockedContent(
+        error = state.lockError,
+        onUnlock = viewModel::requestAuthentication,
+        onDisableUnavailableLock = viewModel::disableUnavailableLock,
+    )
+}
+
+@Composable
+internal fun AppLockedContent(
+    error: AppLockError?,
+    onUnlock: () -> Unit,
+    onDisableUnavailableLock: () -> Unit,
+) {
+    Box(
+        modifier = Modifier.fillMaxSize().padding(DayloomSpacing.lg).testTag("app_locked"),
+        contentAlignment = Alignment.Center,
+    ) {
+        DayloomCard(Modifier.fillMaxWidth()) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+            ) {
+                DayloomLogo(Modifier.size(72.dp))
+                Icon(
+                    Icons.Rounded.Lock,
+                    contentDescription = null,
+                    modifier = Modifier.size(42.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(stringResource(R.string.app_lock_title), style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    stringResource(R.string.app_lock_description),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                error?.let {
+                    Text(
+                        stringResource(
+                            if (it == AppLockError.UNAVAILABLE) {
+                                R.string.app_lock_unavailable
+                            } else {
+                                R.string.app_lock_failed
+                            },
+                        ),
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.testTag("app_lock_error"),
+                    )
+                }
+                DayloomButton(
+                    text = stringResource(R.string.app_lock_unlock),
+                    onClick = onUnlock,
+                    modifier = Modifier.fillMaxWidth().testTag("unlock_app"),
+                )
+                if (error == AppLockError.UNAVAILABLE) {
+                    OutlinedButton(
+                        onClick = onDisableUnavailableLock,
+                        modifier = Modifier.fillMaxWidth().testTag("disable_app_lock"),
+                    ) {
+                        Text(stringResource(R.string.app_lock_disable))
+                    }
+                }
+                Text(
+                    stringResource(R.string.app_lock_local_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+private fun supportedAppAuthenticators(): Int =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+    } else {
+        BiometricManager.Authenticators.BIOMETRIC_STRONG
+    }
 
 @Composable
 private fun StartupScreen() {

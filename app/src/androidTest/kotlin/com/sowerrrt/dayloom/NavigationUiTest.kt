@@ -151,6 +151,16 @@ class NavigationUiTest {
     }
 
     @Test
+    fun settingsExposeWholeAppProtection() {
+        composeRule.onNodeWithTag("primary_nav_more").performClick()
+        composeRule.onNodeWithTag("more_settings").performClick()
+        composeRule
+            .onNodeWithTag("settings_list")
+            .performScrollToNode(hasTestTag("app_lock_switch"))
+        composeRule.onNodeWithTag("app_lock_switch").assertExists()
+    }
+
+    @Test
     fun demoWishHasLocalCoverAndPhotoControls() {
         composeRule.onNodeWithTag("primary_nav_more").performClick()
         composeRule.onNodeWithTag("more_settings").performClick()

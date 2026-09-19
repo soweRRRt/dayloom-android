@@ -1,5 +1,7 @@
 package com.sowerrrt.dayloom.feature.settings
 
+import android.os.Build
+import androidx.biometric.BiometricManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,10 +23,14 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -58,6 +64,13 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val demoContent = rememberDemoContent()
+    val context = LocalContext.current
+    val canProtectApp =
+        remember(context) {
+            BiometricManager.from(context).canAuthenticate(supportedAuthenticators()) ==
+                BiometricManager.BIOMETRIC_SUCCESS
+        }
+    var showLockUnavailable by remember { mutableStateOf(false) }
     Column {
         DayloomTopBar(stringResource(R.string.settings_title))
         LazyColumn(
@@ -96,6 +109,53 @@ fun SettingsScreen(
                         selected = state.settings.startDestination,
                         onSelected = viewModel::setStartDestination,
                     )
+                }
+            }
+            item {
+                SettingsSection(stringResource(R.string.settings_security)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.settings_lock_whole_app),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Text(
+                                stringResource(R.string.settings_lock_whole_app_description),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = state.settings.lockWholeApp,
+                            onCheckedChange = { enabled ->
+                                if (!enabled || canProtectApp) {
+                                    showLockUnavailable = false
+                                    viewModel.setWholeAppLock(enabled)
+                                } else {
+                                    showLockUnavailable = true
+                                }
+                            },
+                            enabled = canProtectApp || state.settings.lockWholeApp,
+                            modifier = Modifier.testTag("app_lock_switch"),
+                        )
+                    }
+                    Text(
+                        stringResource(R.string.settings_vault_always_locked),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    if (showLockUnavailable) {
+                        Text(
+                            stringResource(R.string.settings_lock_unavailable),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.testTag("app_lock_unavailable"),
+                        )
+                    }
                 }
             }
             item {
@@ -376,4 +436,11 @@ private fun accentColor(palette: AccentPalette): Color =
         AccentPalette.OCEAN -> Color(0xFF007C91)
         AccentPalette.CORAL -> Color(0xFFC4475D)
         AccentPalette.FOREST -> Color(0xFF357A4F)
+    }
+
+private fun supportedAuthenticators(): Int =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+    } else {
+        BiometricManager.Authenticators.BIOMETRIC_STRONG
     }

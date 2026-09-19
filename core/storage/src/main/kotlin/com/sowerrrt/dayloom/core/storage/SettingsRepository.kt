@@ -26,6 +26,8 @@ interface SettingsRepository {
 
     suspend fun setAutomaticUpdateChecks(enabled: Boolean)
 
+    suspend fun setWholeAppLock(enabled: Boolean)
+
     suspend fun markUpdateChecked(epochMillis: Long)
 }
 
@@ -53,6 +55,7 @@ class DataStoreSettingsRepository(
                         preferences[Keys.start]?.enumOrDefault(StartDestination.HOME)
                             ?: StartDestination.HOME,
                     automaticUpdateChecks = preferences[Keys.autoUpdates] ?: true,
+                    lockWholeApp = preferences[Keys.lockWholeApp] ?: false,
                     lastUpdateCheckEpochMillis = preferences[Keys.lastUpdateCheck],
                 )
             }
@@ -73,6 +76,10 @@ class DataStoreSettingsRepository(
         dataStore.edit { it[Keys.autoUpdates] = enabled }
     }
 
+    override suspend fun setWholeAppLock(enabled: Boolean) {
+        dataStore.edit { it[Keys.lockWholeApp] = enabled }
+    }
+
     override suspend fun markUpdateChecked(epochMillis: Long) {
         dataStore.edit { it[Keys.lastUpdateCheck] = epochMillis }
     }
@@ -85,6 +92,7 @@ class DataStoreSettingsRepository(
         val accent = stringPreferencesKey("accent")
         val start = stringPreferencesKey("start_destination")
         val autoUpdates = booleanPreferencesKey("automatic_update_checks")
+        val lockWholeApp = booleanPreferencesKey("lock_whole_app")
         val lastUpdateCheck = longPreferencesKey("last_update_check_epoch_millis")
     }
 }

@@ -17,6 +17,11 @@
     <string name="settings_start_planner">План</string>
     <string name="settings_start_lists">Списки</string>
     <string name="settings_updates">Обновления</string>
+    <string name="settings_security">Защита приложения</string>
+    <string name="settings_lock_whole_app">Блокировать весь Dayloom</string>
+    <string name="settings_lock_whole_app_description">При каждом новом запуске и после ухода в фон потребуется биометрия или код устройства.</string>
+    <string name="settings_vault_always_locked">Vault продолжает использовать отдельную защищённую сессию.</string>
+    <string name="settings_lock_unavailable">Сначала настройте код экрана или сильную биометрию в Android.</string>
     <string name="settings_auto_updates">Автоматическая проверка</string>
     <string name="settings_auto_updates_description">Обращаться к GitHub не чаще одного раза в сутки, не задерживая запуск.</string>
     <string name="settings_check_updates">Проверить обновления</string>

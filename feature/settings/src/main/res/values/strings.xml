@@ -17,6 +17,11 @@
     <string name="settings_start_planner">Plan</string>
     <string name="settings_start_lists">Lists</string>
     <string name="settings_updates">Updates</string>
+    <string name="settings_security">App protection</string>
+    <string name="settings_lock_whole_app">Lock all of Dayloom</string>
+    <string name="settings_lock_whole_app_description">Biometrics or your device screen lock will be required after every fresh launch and return from background.</string>
+    <string name="settings_vault_always_locked">Vault keeps its own separate secure session.</string>
+    <string name="settings_lock_unavailable">Set up a device screen lock or strong biometric in Android first.</string>
     <string name="settings_auto_updates">Automatic checks</string>
     <string name="settings_auto_updates_description">Check GitHub at most once every 24 hours. Startup is never blocked.</string>
     <string name="settings_check_updates">Check for updates</string>

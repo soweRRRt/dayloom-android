@@ -16,4 +16,14 @@
     <string name="update_later">Later</string>
     <string name="update_up_to_date">You already have the latest stable version.</string>
     <string name="update_unavailable">Could not check right now. Your app remains fully available offline.</string>
+    <string name="app_lock_title">Dayloom is locked</string>
+    <string name="app_lock_description">Verify it’s you to open your habits, plans, lists, and goals.</string>
+    <string name="app_lock_unlock">Unlock Dayloom</string>
+    <string name="app_lock_auth_title">Open Dayloom</string>
+    <string name="app_lock_auth_subtitle">Use biometrics or your device screen lock</string>
+    <string name="app_lock_cancel">Cancel</string>
+    <string name="app_lock_failed">Identity couldn’t be verified. Try again.</string>
+    <string name="app_lock_unavailable">System authentication is no longer available on this device.</string>
+    <string name="app_lock_disable">Disable protection on this device</string>
+    <string name="app_lock_local_note">Your data stays local. Vault keeps its own encrypted secure session.</string>
 </resources>

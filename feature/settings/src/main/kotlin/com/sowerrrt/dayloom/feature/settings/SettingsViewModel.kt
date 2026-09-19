@@ -53,6 +53,8 @@ class SettingsViewModel
         fun setAutomaticUpdateChecks(enabled: Boolean) =
             viewModelScope.launch { repository.setAutomaticUpdateChecks(enabled) }
 
+        fun setWholeAppLock(enabled: Boolean) = viewModelScope.launch { repository.setWholeAppLock(enabled) }
+
         fun addExamples(
             content: DemoContent,
             todayEpochDay: Long,
