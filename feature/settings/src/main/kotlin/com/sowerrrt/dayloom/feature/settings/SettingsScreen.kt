@@ -60,8 +60,10 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.model.AccentPalette
+import com.sowerrrt.dayloom.core.model.AppLanguage
 import com.sowerrrt.dayloom.core.model.BottomSection
 import com.sowerrrt.dayloom.core.model.HabitPreset
+import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.ListItemPreset
 import com.sowerrrt.dayloom.core.model.ListKind
 import com.sowerrrt.dayloom.core.model.PlanPreset
@@ -82,6 +84,7 @@ import java.time.LocalDate
 @Composable
 fun SettingsScreen(
     onCheckUpdates: () -> Unit,
+    onApplyLanguage: (AppLanguage) -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -116,6 +119,25 @@ fun SettingsScreen(
                 }
             }
             item {
+                SettingsSection(stringResource(R.string.settings_language)) {
+                    Text(
+                        stringResource(R.string.settings_language_description),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    ChoiceRow {
+                        AppLanguage.entries.forEach { language ->
+                            FilterChip(
+                                selected = state.settings.appLanguage == language,
+                                onClick = { viewModel.setLanguage(language) { onApplyLanguage(language) } },
+                                label = { Text(languageLabel(language)) },
+                                modifier = Modifier.testTag("language_${language.name.lowercase()}"),
+                            )
+                        }
+                    }
+                }
+            }
+            item {
                 SettingsSection(stringResource(R.string.settings_accent)) {
                     AccentPalette.entries.forEach { palette ->
                         AccentChoice(
@@ -144,6 +166,19 @@ fun SettingsScreen(
                     BottomNavigationSettings(
                         selected = state.settings.bottomSections,
                         onChanged = viewModel::setBottomSections,
+                    )
+                }
+            }
+            item {
+                SettingsSection(stringResource(R.string.settings_home_dashboard)) {
+                    Text(
+                        stringResource(R.string.settings_home_dashboard_description),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    HomeDashboardSettings(
+                        selected = state.settings.homeSections,
+                        onChanged = viewModel::setHomeSections,
                     )
                 }
             }
@@ -371,6 +406,64 @@ private fun BottomNavigationSettings(
 }
 
 @Composable
+private fun HomeDashboardSettings(
+    selected: List<HomeSection>,
+    onChanged: (List<HomeSection>) -> Unit,
+) {
+    val visible = selected.ifEmpty { HomeSection.entries }
+    (visible + HomeSection.entries.filterNot { it in visible }).forEach { section ->
+        val isVisible = section in visible
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+        ) {
+            Text(homeSectionLabel(section), modifier = Modifier.weight(1f))
+            if (isVisible) {
+                val index = visible.indexOf(section)
+                IconButton(
+                    onClick = {
+                        if (index > 0) {
+                            val reordered = visible.toMutableList()
+                            java.util.Collections.swap(reordered, index, index - 1)
+                            onChanged(reordered)
+                        }
+                    },
+                    enabled = index > 0,
+                    modifier = Modifier.testTag("home_section_move_up_${section.name.lowercase()}"),
+                ) {
+                    Icon(Icons.Rounded.ArrowUpward, contentDescription = stringResource(R.string.settings_move_up))
+                }
+                IconButton(
+                    onClick = {
+                        if (index in 0 until visible.lastIndex) {
+                            val reordered = visible.toMutableList()
+                            java.util.Collections.swap(reordered, index, index + 1)
+                            onChanged(reordered)
+                        }
+                    },
+                    enabled = index in 0 until visible.lastIndex,
+                    modifier = Modifier.testTag("home_section_move_down_${section.name.lowercase()}"),
+                ) {
+                    Icon(Icons.Rounded.ArrowDownward, contentDescription = stringResource(R.string.settings_move_down))
+                }
+            }
+            Switch(
+                checked = isVisible,
+                onCheckedChange = { enabled ->
+                    when {
+                        enabled -> onChanged((visible + section).distinct())
+                        visible.size > 1 -> onChanged(visible - section)
+                    }
+                },
+                enabled = isVisible.not() || visible.size > 1,
+                modifier = Modifier.testTag("home_section_${section.name.lowercase()}"),
+            )
+        }
+    }
+}
+
+@Composable
 private fun bottomSectionLabel(section: BottomSection): String =
     stringResource(
         when (section) {
@@ -379,6 +472,17 @@ private fun bottomSectionLabel(section: BottomSection): String =
             BottomSection.PLANNER -> R.string.settings_start_planner
             BottomSection.LISTS -> R.string.settings_start_lists
             BottomSection.MORE -> R.string.settings_bottom_more
+        },
+    )
+
+@Composable
+private fun homeSectionLabel(section: HomeSection): String =
+    stringResource(
+        when (section) {
+            HomeSection.HABITS -> R.string.settings_start_habits
+            HomeSection.PLANNER -> R.string.settings_start_planner
+            HomeSection.LISTS -> R.string.settings_start_lists
+            HomeSection.WISHLIST -> R.string.settings_home_wishlist
         },
     )
 
@@ -633,6 +737,16 @@ private fun themeLabel(mode: ThemeMode): String =
             ThemeMode.SYSTEM -> R.string.settings_theme_system
             ThemeMode.LIGHT -> R.string.settings_theme_light
             ThemeMode.DARK -> R.string.settings_theme_dark
+        },
+    )
+
+@Composable
+private fun languageLabel(language: AppLanguage): String =
+    stringResource(
+        when (language) {
+            AppLanguage.SYSTEM -> R.string.settings_language_system
+            AppLanguage.RUSSIAN -> R.string.settings_language_russian
+            AppLanguage.ENGLISH -> R.string.settings_language_english
         },
     )
 

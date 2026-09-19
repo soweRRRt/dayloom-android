@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -44,10 +45,12 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTheme
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.model.AccentPalette
+import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.ThemeMode
 
 @Composable
 fun HomeScreen(
+    sections: List<HomeSection> = HomeSection.entries,
     onOpenHabits: () -> Unit,
     onOpenPlanner: () -> Unit,
     onOpenLists: () -> Unit,
@@ -58,6 +61,7 @@ fun HomeScreen(
     LaunchedEffect(Unit) { viewModel.refresh() }
     HomeContent(
         state = state,
+        sections = sections,
         onOpenHabits = onOpenHabits,
         onOpenPlanner = onOpenPlanner,
         onOpenLists = onOpenLists,
@@ -68,61 +72,66 @@ fun HomeScreen(
 @Composable
 private fun HomeContent(
     state: HomeUiState,
+    sections: List<HomeSection>,
     onOpenHabits: () -> Unit,
     onOpenPlanner: () -> Unit,
     onOpenLists: () -> Unit,
     onOpenWishlist: () -> Unit,
 ) {
     val cards =
-        listOf(
-            HomeCardData(
-                stringResource(R.string.home_habits_title),
-                stringResource(R.string.home_habits_body),
-                if (state.habitsToday == 0) {
-                    stringResource(R.string.home_habits_metric)
-                } else {
-                    stringResource(R.string.home_habits_metric_value, state.habitsCompletedToday, state.habitsToday)
-                },
-                Icons.Rounded.AutoAwesome,
-                MaterialTheme.colorScheme.primary,
-                onOpenHabits,
-            ),
-            HomeCardData(
-                stringResource(R.string.home_plan_title),
-                stringResource(R.string.home_plan_body),
-                if (state.plansToday == 0) {
-                    stringResource(R.string.home_plan_metric)
-                } else {
-                    stringResource(R.string.home_plan_metric_value, state.plansCompletedToday, state.plansToday)
-                },
-                Icons.Rounded.CalendarMonth,
-                MaterialTheme.colorScheme.secondary,
-                onOpenPlanner,
-            ),
-            HomeCardData(
-                stringResource(R.string.home_lists_title),
-                stringResource(R.string.home_lists_body),
-                if (state.listCount == 0) {
-                    stringResource(R.string.home_lists_metric)
-                } else {
-                    stringResource(R.string.home_lists_metric_value, state.listCount, state.openListItems)
-                },
-                Icons.Rounded.Checklist,
-                MaterialTheme.colorScheme.tertiary,
-                onOpenLists,
-            ),
-            HomeCardData(
-                stringResource(R.string.home_wishes_title),
-                stringResource(R.string.home_wishes_body),
-                if (state.wishCount == 0) {
-                    stringResource(R.string.home_wishes_metric)
-                } else {
-                    stringResource(R.string.home_wishes_metric_value, state.completedWishCount, state.wishCount)
-                },
-                Icons.Rounded.Savings,
-                MaterialTheme.colorScheme.primary,
-                onOpenWishlist,
-            ),
+        mapOf(
+            HomeSection.HABITS to
+                HomeCardData(
+                    stringResource(R.string.home_habits_title),
+                    stringResource(R.string.home_habits_body),
+                    if (state.habitsToday == 0) {
+                        stringResource(R.string.home_habits_metric)
+                    } else {
+                        stringResource(R.string.home_habits_metric_value, state.habitsCompletedToday, state.habitsToday)
+                    },
+                    Icons.Rounded.AutoAwesome,
+                    MaterialTheme.colorScheme.primary,
+                    onOpenHabits,
+                ),
+            HomeSection.PLANNER to
+                HomeCardData(
+                    stringResource(R.string.home_plan_title),
+                    stringResource(R.string.home_plan_body),
+                    if (state.plansToday == 0) {
+                        stringResource(R.string.home_plan_metric)
+                    } else {
+                        stringResource(R.string.home_plan_metric_value, state.plansCompletedToday, state.plansToday)
+                    },
+                    Icons.Rounded.CalendarMonth,
+                    MaterialTheme.colorScheme.secondary,
+                    onOpenPlanner,
+                ),
+            HomeSection.LISTS to
+                HomeCardData(
+                    stringResource(R.string.home_lists_title),
+                    stringResource(R.string.home_lists_body),
+                    if (state.listCount == 0) {
+                        stringResource(R.string.home_lists_metric)
+                    } else {
+                        stringResource(R.string.home_lists_metric_value, state.listCount, state.openListItems)
+                    },
+                    Icons.Rounded.Checklist,
+                    MaterialTheme.colorScheme.tertiary,
+                    onOpenLists,
+                ),
+            HomeSection.WISHLIST to
+                HomeCardData(
+                    stringResource(R.string.home_wishes_title),
+                    stringResource(R.string.home_wishes_body),
+                    if (state.wishCount == 0) {
+                        stringResource(R.string.home_wishes_metric)
+                    } else {
+                        stringResource(R.string.home_wishes_metric_value, state.completedWishCount, state.wishCount)
+                    },
+                    Icons.Rounded.Savings,
+                    MaterialTheme.colorScheme.primary,
+                    onOpenWishlist,
+                ),
         )
     Column {
         DayloomTopBar(stringResource(R.string.home_app_name))
@@ -144,7 +153,9 @@ private fun HomeContent(
                     style = MaterialTheme.typography.titleLarge,
                 )
             }
-            items(cards) { card -> ModuleSummaryCard(card) }
+            items(sections.distinct().mapNotNull { section -> cards[section]?.let { section to it } }) { entry ->
+                ModuleSummaryCard(entry.first, entry.second)
+            }
         }
     }
 }
@@ -176,9 +187,16 @@ private fun WelcomeCard() {
 }
 
 @Composable
-private fun ModuleSummaryCard(data: HomeCardData) {
+private fun ModuleSummaryCard(
+    section: HomeSection,
+    data: HomeCardData,
+) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = data.onClick),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag("home_card_${section.name.lowercase()}")
+                .clickable(onClick = data.onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.68f)),
         shape = MaterialTheme.shapes.large,
     ) {
@@ -225,6 +243,6 @@ private fun HomeScreenPreview() {
         themeMode = ThemeMode.SYSTEM,
         accentPalette = AccentPalette.VIOLET,
     ) {
-        HomeContent(HomeUiState(), {}, {}, {}, {})
+        HomeContent(HomeUiState(), HomeSection.entries, {}, {}, {}, {})
     }
 }

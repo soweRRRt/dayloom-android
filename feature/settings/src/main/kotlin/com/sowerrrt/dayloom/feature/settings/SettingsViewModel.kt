@@ -3,8 +3,10 @@ package com.sowerrrt.dayloom.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.AccentPalette
+import com.sowerrrt.dayloom.core.model.AppLanguage
 import com.sowerrrt.dayloom.core.model.AppSettings
 import com.sowerrrt.dayloom.core.model.BottomSection
+import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
 import com.sowerrrt.dayloom.core.storage.DemoContent
@@ -46,6 +48,14 @@ class SettingsViewModel
 
         fun setTheme(value: ThemeMode) = viewModelScope.launch { repository.setThemeMode(value) }
 
+        fun setLanguage(
+            value: AppLanguage,
+            onPersisted: () -> Unit,
+        ) = viewModelScope.launch {
+            repository.setAppLanguage(value)
+            onPersisted()
+        }
+
         fun setAccent(value: AccentPalette) = viewModelScope.launch { repository.setAccentPalette(value) }
 
         fun setStartDestination(value: StartDestination) =
@@ -53,6 +63,8 @@ class SettingsViewModel
 
         fun setBottomSections(value: List<BottomSection>) =
             viewModelScope.launch { repository.setBottomSections(value) }
+
+        fun setHomeSections(value: List<HomeSection>) = viewModelScope.launch { repository.setHomeSections(value) }
 
         fun setAutomaticUpdateChecks(enabled: Boolean) =
             viewModelScope.launch { repository.setAutomaticUpdateChecks(enabled) }

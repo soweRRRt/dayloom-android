@@ -1,7 +1,9 @@
 package com.sowerrrt.dayloom.core.storage
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import com.sowerrrt.dayloom.core.model.AppLanguage
 import com.sowerrrt.dayloom.core.model.BottomSection
+import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.PresetType
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -28,6 +30,34 @@ class DataStoreSettingsRepositoryTest {
                 listOf(BottomSection.PLANNER, BottomSection.HABITS, BottomSection.MORE),
                 repository.settings.first().bottomSections,
             )
+        }
+
+    @Test
+    fun `home dashboard order visibility and one required card are persisted`() =
+        runTest {
+            val repository = repository("home-dashboard")
+
+            repository.setHomeSections(
+                listOf(HomeSection.WISHLIST, HomeSection.PLANNER, HomeSection.WISHLIST),
+            )
+            assertEquals(
+                listOf(HomeSection.WISHLIST, HomeSection.PLANNER),
+                repository.settings.first().homeSections,
+            )
+
+            val emptyRepository = repository("home-dashboard-empty")
+            emptyRepository.setHomeSections(emptyList())
+            assertEquals(listOf(HomeSection.HABITS), emptyRepository.settings.first().homeSections)
+        }
+
+    @Test
+    fun `app language is persisted`() =
+        runTest {
+            val repository = repository("language")
+
+            repository.setAppLanguage(AppLanguage.RUSSIAN)
+
+            assertEquals(AppLanguage.RUSSIAN, repository.settings.first().appLanguage)
         }
 
     @Test

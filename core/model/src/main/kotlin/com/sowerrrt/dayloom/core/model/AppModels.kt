@@ -22,6 +22,13 @@ enum class ThemeMode {
 }
 
 @Serializable
+enum class AppLanguage {
+    SYSTEM,
+    RUSSIAN,
+    ENGLISH,
+}
+
+@Serializable
 enum class AccentPalette {
     VIOLET,
     OCEAN,
@@ -47,6 +54,14 @@ enum class BottomSection {
 }
 
 @Serializable
+enum class HomeSection {
+    HABITS,
+    PLANNER,
+    LISTS,
+    WISHLIST,
+}
+
+@Serializable
 enum class PresetType {
     HABIT,
     PLAN,
@@ -56,12 +71,14 @@ enum class PresetType {
 @Serializable
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val accentPalette: AccentPalette = AccentPalette.VIOLET,
     val startDestination: StartDestination = StartDestination.HOME,
     val automaticUpdateChecks: Boolean = true,
     val lockWholeApp: Boolean = false,
     val lastUpdateCheckEpochMillis: Long? = null,
     val bottomSections: List<BottomSection> = BottomSection.entries,
+    val homeSections: List<HomeSection> = HomeSection.entries,
     val habitPresets: Set<String> = emptySet(),
     val planPresets: Set<String> = emptySet(),
     val listItemPresets: Set<String> = emptySet(),
@@ -72,19 +89,6 @@ data class AttachmentRef(
     val id: EntityId,
     val displayName: String,
     val mimeType: String,
-)
-
-@Serializable
-data class HomeSectionPreference(
-    val id: EntityId,
-    val moduleKey: String,
-    val visible: Boolean = true,
-    val order: Int,
-)
-
-@Serializable
-data class HomeLayout(
-    val sections: List<HomeSectionPreference> = emptyList(),
 )
 
 @Serializable

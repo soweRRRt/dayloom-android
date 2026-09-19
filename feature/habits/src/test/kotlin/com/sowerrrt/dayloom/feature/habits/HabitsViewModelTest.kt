@@ -3,11 +3,13 @@ package com.sowerrrt.dayloom.feature.habits
 import android.net.Uri
 import app.cash.turbine.test
 import com.sowerrrt.dayloom.core.model.AccentPalette
+import com.sowerrrt.dayloom.core.model.AppLanguage
 import com.sowerrrt.dayloom.core.model.AppSettings
 import com.sowerrrt.dayloom.core.model.AttachmentRef
 import com.sowerrrt.dayloom.core.model.BottomSection
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
+import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
@@ -252,6 +254,8 @@ private class FakeSettingsRepository : SettingsRepository {
 
     override suspend fun setThemeMode(value: ThemeMode) = Unit
 
+    override suspend fun setAppLanguage(value: AppLanguage) = Unit
+
     override suspend fun setAccentPalette(value: AccentPalette) = Unit
 
     override suspend fun setStartDestination(value: StartDestination) = Unit
@@ -261,6 +265,8 @@ private class FakeSettingsRepository : SettingsRepository {
     override suspend fun setWholeAppLock(enabled: Boolean) = Unit
 
     override suspend fun setBottomSections(sections: List<BottomSection>) = Unit
+
+    override suspend fun setHomeSections(sections: List<HomeSection>) = Unit
 
     override suspend fun addPreset(
         type: PresetType,

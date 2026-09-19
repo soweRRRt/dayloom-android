@@ -2,8 +2,10 @@ package com.sowerrrt.dayloom.feature.settings
 
 import app.cash.turbine.test
 import com.sowerrrt.dayloom.core.model.AccentPalette
+import com.sowerrrt.dayloom.core.model.AppLanguage
 import com.sowerrrt.dayloom.core.model.AppSettings
 import com.sowerrrt.dayloom.core.model.BottomSection
+import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
@@ -44,6 +46,21 @@ class SettingsViewModelTest {
                 assertEquals(ThemeMode.SYSTEM, awaitItem().settings.themeMode)
                 viewModel.setTheme(ThemeMode.DARK)
                 assertEquals(ThemeMode.DARK, awaitItem().settings.themeMode)
+            }
+        }
+
+    @Test
+    fun `language selection is persisted before apply callback`() =
+        runTest(dispatcher) {
+            val repository = FakeSettingsRepository()
+            val viewModel = SettingsViewModel(repository, FakeDemoContentRepository())
+            var appliedLanguage: AppLanguage? = null
+
+            viewModel.uiState.test {
+                awaitItem()
+                viewModel.setLanguage(AppLanguage.RUSSIAN) { appliedLanguage = AppLanguage.RUSSIAN }
+                assertEquals(AppLanguage.RUSSIAN, awaitItem().settings.appLanguage)
+                assertEquals(AppLanguage.RUSSIAN, appliedLanguage)
             }
         }
 
@@ -91,6 +108,20 @@ class SettingsViewModelTest {
                 assertEquals(sections, awaitItem().settings.bottomSections)
             }
         }
+
+    @Test
+    fun `home dashboard customization is reflected in state`() =
+        runTest(dispatcher) {
+            val repository = FakeSettingsRepository()
+            val viewModel = SettingsViewModel(repository, FakeDemoContentRepository())
+            val sections = listOf(HomeSection.WISHLIST, HomeSection.HABITS)
+
+            viewModel.uiState.test {
+                awaitItem()
+                viewModel.setHomeSections(sections)
+                assertEquals(sections, awaitItem().settings.homeSections)
+            }
+        }
 }
 
 private class FakeDemoContentRepository : DemoContentRepository {
@@ -116,6 +147,10 @@ private class FakeSettingsRepository : SettingsRepository {
         mutableSettings.value = mutableSettings.value.copy(themeMode = value)
     }
 
+    override suspend fun setAppLanguage(value: AppLanguage) {
+        mutableSettings.value = mutableSettings.value.copy(appLanguage = value)
+    }
+
     override suspend fun setAccentPalette(value: AccentPalette) {
         mutableSettings.value = mutableSettings.value.copy(accentPalette = value)
     }
@@ -134,6 +169,10 @@ private class FakeSettingsRepository : SettingsRepository {
 
     override suspend fun setBottomSections(sections: List<BottomSection>) {
         mutableSettings.value = mutableSettings.value.copy(bottomSections = sections)
+    }
+
+    override suspend fun setHomeSections(sections: List<HomeSection>) {
+        mutableSettings.value = mutableSettings.value.copy(homeSections = sections)
     }
 
     override suspend fun addPreset(

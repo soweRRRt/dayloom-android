@@ -1,6 +1,7 @@
 package com.sowerrrt.dayloom
 
 import android.os.Build
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.clickable
@@ -53,6 +54,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.os.LocaleListCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -68,8 +70,10 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTheme
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.model.AccentPalette
+import com.sowerrrt.dayloom.core.model.AppLanguage
 import com.sowerrrt.dayloom.core.model.AppSettings
 import com.sowerrrt.dayloom.core.model.BottomSection
+import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
 import com.sowerrrt.dayloom.feature.habits.HabitsScreen
@@ -88,6 +92,9 @@ fun DayloomApp(
     val rootState by rootViewModel.uiState.collectAsStateWithLifecycle()
     val updateState by updateViewModel.state.collectAsStateWithLifecycle()
     val settings = rootState.settings
+    LaunchedEffect(settings?.appLanguage) {
+        settings?.appLanguage?.let(::applyAppLanguage)
+    }
     DayloomTheme(
         themeMode = settings?.themeMode ?: ThemeMode.SYSTEM,
         accentPalette = settings?.accentPalette ?: AccentPalette.VIOLET,
@@ -293,6 +300,7 @@ private fun DayloomShell(
                     DayloomNavHost(
                         navController = navController,
                         startRoute = startRoute,
+                        homeSections = settings.homeSections,
                         updateViewModel = updateViewModel,
                         modifier = Modifier.weight(1f),
                     )
@@ -305,6 +313,7 @@ private fun DayloomShell(
                     DayloomNavHost(
                         navController = navController,
                         startRoute = startRoute,
+                        homeSections = settings.homeSections,
                         updateViewModel = updateViewModel,
                         modifier = Modifier.padding(innerPadding),
                     )
@@ -349,12 +358,14 @@ internal fun UpdateAvailableDialog(
 private fun DayloomNavHost(
     navController: NavHostController,
     startRoute: String,
+    homeSections: List<HomeSection>,
     updateViewModel: UpdateViewModel,
     modifier: Modifier = Modifier,
 ) {
     NavHost(navController = navController, startDestination = startRoute, modifier = modifier) {
         composable(Routes.HOME) {
             HomeScreen(
+                sections = homeSections,
                 onOpenHabits = { navController.navigateSingleTop(Routes.HABITS) },
                 onOpenPlanner = { navController.navigateSingleTop(Routes.PLANNER) },
                 onOpenLists = { navController.navigateSingleTop(Routes.LISTS) },
@@ -373,9 +384,29 @@ private fun DayloomNavHost(
         }
         composable(Routes.WISHLIST) { WishlistScreen(onBack = navController::popBackStack) }
         composable(Routes.VAULT) { VaultScreen(onBack = navController::popBackStack) }
-        composable(Routes.SETTINGS) { SettingsScreen(updateViewModel::checkManually) }
+        composable(Routes.SETTINGS) {
+            SettingsScreen(
+                onCheckUpdates = updateViewModel::checkManually,
+                onApplyLanguage = ::applyAppLanguage,
+            )
+        }
     }
 }
+
+internal fun applyAppLanguage(language: AppLanguage) {
+    val requested = LocaleListCompat.forLanguageTags(language.languageTags)
+    if (AppCompatDelegate.getApplicationLocales().toLanguageTags() != requested.toLanguageTags()) {
+        AppCompatDelegate.setApplicationLocales(requested)
+    }
+}
+
+internal val AppLanguage.languageTags: String
+    get() =
+        when (this) {
+            AppLanguage.SYSTEM -> ""
+            AppLanguage.RUSSIAN -> "ru"
+            AppLanguage.ENGLISH -> "en"
+        }
 
 @Composable
 private fun DayloomBottomBar(

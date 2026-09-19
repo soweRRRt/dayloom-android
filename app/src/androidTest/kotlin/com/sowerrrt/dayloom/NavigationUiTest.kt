@@ -1,9 +1,11 @@
 package com.sowerrrt.dayloom
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -253,6 +255,39 @@ class NavigationUiTest {
             .performScrollToNode(hasTestTag("bottom_section_home"))
         composeRule.onNodeWithTag("bottom_section_home").assertExists()
         composeRule.onNodeWithTag("bottom_section_more").assertExists()
+    }
+
+    @Test
+    fun languageCanSwitchToRussianAndSurviveRecreation() {
+        composeRule.onNodeWithTag("primary_nav_more").performClick()
+        composeRule.onNodeWithTag("more_settings").performClick()
+        composeRule.onNodeWithTag("language_system").assertExists()
+        composeRule.onNodeWithTag("language_english").assertExists()
+        composeRule.onNodeWithTag("language_russian").performClick()
+        composeRule.waitUntilSelected {
+            composeRule.onNodeWithTag("language_russian").assertIsSelected()
+            composeRule.onNodeWithText("Настройки").assertExists()
+        }
+
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitUntilSelected {
+            composeRule.onNodeWithTag("language_russian").assertIsSelected()
+            composeRule.onNodeWithText("Настройки").assertExists()
+        }
+    }
+
+    @Test
+    fun homeDashboardCardCanBeHiddenFromSettings() {
+        composeRule.onNodeWithTag("primary_nav_more").performClick()
+        composeRule.onNodeWithTag("more_settings").performClick()
+        composeRule
+            .onNodeWithTag("settings_list")
+            .performScrollToNode(hasTestTag("home_section_wishlist"))
+        composeRule.onNodeWithTag("home_section_wishlist").performClick()
+
+        composeRule.onNodeWithTag("primary_nav_home").performClick()
+        composeRule.onAllNodesWithTag("home_card_wishlist").assertCountEquals(0)
+        composeRule.onNodeWithTag("home_card_habits").assertExists()
     }
 
     @Test

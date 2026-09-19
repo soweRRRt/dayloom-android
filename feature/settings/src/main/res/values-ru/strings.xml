@@ -5,6 +5,11 @@
     <string name="settings_theme_system">Системная</string>
     <string name="settings_theme_light">Светлая</string>
     <string name="settings_theme_dark">Тёмная</string>
+    <string name="settings_language">Язык</string>
+    <string name="settings_language_description">Выберите язык интерфейса независимо от языка устройства.</string>
+    <string name="settings_language_system">Как в системе</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_english">English</string>
     <string name="settings_accent">Акцентная палитра</string>
     <string name="settings_accent_violet">Фиолетовое плетение</string>
     <string name="settings_accent_ocean">Океанская нить</string>
@@ -21,6 +26,11 @@
     <string name="settings_bottom_more">Ещё</string>
     <string name="settings_move_left">Переместить левее</string>
     <string name="settings_move_right">Переместить правее</string>
+    <string name="settings_home_dashboard">Карточки на Главной</string>
+    <string name="settings_home_dashboard_description">Выберите нужные карточки обзора и расположите их в удобном для вас порядке.</string>
+    <string name="settings_home_wishlist">Желания</string>
+    <string name="settings_move_up">Переместить выше</string>
+    <string name="settings_move_down">Переместить ниже</string>
     <string name="settings_updates">Обновления</string>
     <string name="settings_security">Защита приложения</string>
     <string name="settings_lock_whole_app">Блокировать весь Dayloom</string>

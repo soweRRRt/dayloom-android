@@ -5,6 +5,11 @@
     <string name="settings_theme_system">System</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_description">Choose the interface language independently of the device language.</string>
+    <string name="settings_language_system">System</string>
+    <string name="settings_language_russian">Русский</string>
+    <string name="settings_language_english">English</string>
     <string name="settings_accent">Accent palette</string>
     <string name="settings_accent_violet">Violet weave</string>
     <string name="settings_accent_ocean">Ocean thread</string>
@@ -21,6 +26,11 @@
     <string name="settings_bottom_more">More</string>
     <string name="settings_move_left">Move left</string>
     <string name="settings_move_right">Move right</string>
+    <string name="settings_home_dashboard">Home dashboard</string>
+    <string name="settings_home_dashboard_description">Choose which overview cards appear on Home and arrange them in the order that works for you.</string>
+    <string name="settings_home_wishlist">Wishes</string>
+    <string name="settings_move_up">Move up</string>
+    <string name="settings_move_down">Move down</string>
     <string name="settings_updates">Updates</string>
     <string name="settings_security">App protection</string>
     <string name="settings_lock_whole_app">Lock all of Dayloom</string>

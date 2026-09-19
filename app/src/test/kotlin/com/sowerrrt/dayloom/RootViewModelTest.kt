@@ -2,8 +2,10 @@ package com.sowerrrt.dayloom
 
 import app.cash.turbine.test
 import com.sowerrrt.dayloom.core.model.AccentPalette
+import com.sowerrrt.dayloom.core.model.AppLanguage
 import com.sowerrrt.dayloom.core.model.AppSettings
 import com.sowerrrt.dayloom.core.model.BottomSection
+import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
@@ -67,6 +69,13 @@ class RootViewModelTest {
                 assertTrue(unlocked.isAppUnlocked)
             }
         }
+
+    @Test
+    fun `supported app languages map to locale tags`() {
+        assertEquals("", AppLanguage.SYSTEM.languageTags)
+        assertEquals("ru", AppLanguage.RUSSIAN.languageTags)
+        assertEquals("en", AppLanguage.ENGLISH.languageTags)
+    }
 }
 
 private class FakeRootSettingsRepository : SettingsRepository {
@@ -76,6 +85,8 @@ private class FakeRootSettingsRepository : SettingsRepository {
     override suspend fun setThemeMode(value: ThemeMode) {
         mutableSettings.value = mutableSettings.value.copy(themeMode = value)
     }
+
+    override suspend fun setAppLanguage(value: AppLanguage) = Unit
 
     override suspend fun setAccentPalette(value: AccentPalette) {
         mutableSettings.value = mutableSettings.value.copy(accentPalette = value)
@@ -96,6 +107,8 @@ private class FakeRootSettingsRepository : SettingsRepository {
     override suspend fun setBottomSections(sections: List<BottomSection>) {
         mutableSettings.value = mutableSettings.value.copy(bottomSections = sections)
     }
+
+    override suspend fun setHomeSections(sections: List<HomeSection>) = Unit
 
     override suspend fun addPreset(
         type: PresetType,

@@ -1,11 +1,13 @@
 package com.sowerrrt.dayloom.feature.lists
 
 import com.sowerrrt.dayloom.core.model.AccentPalette
+import com.sowerrrt.dayloom.core.model.AppLanguage
 import com.sowerrrt.dayloom.core.model.AppSettings
 import com.sowerrrt.dayloom.core.model.BottomSection
 import com.sowerrrt.dayloom.core.model.DayList
 import com.sowerrrt.dayloom.core.model.DayListItem
 import com.sowerrrt.dayloom.core.model.EntityId
+import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.ListKind
 import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.StartDestination
@@ -192,6 +194,8 @@ private class FakeSettingsRepository : SettingsRepository {
 
     override suspend fun setThemeMode(value: ThemeMode) = Unit
 
+    override suspend fun setAppLanguage(value: AppLanguage) = Unit
+
     override suspend fun setAccentPalette(value: AccentPalette) = Unit
 
     override suspend fun setStartDestination(value: StartDestination) = Unit
@@ -201,6 +205,8 @@ private class FakeSettingsRepository : SettingsRepository {
     override suspend fun setWholeAppLock(enabled: Boolean) = Unit
 
     override suspend fun setBottomSections(sections: List<BottomSection>) = Unit
+
+    override suspend fun setHomeSections(sections: List<HomeSection>) = Unit
 
     override suspend fun addPreset(
         type: PresetType,
