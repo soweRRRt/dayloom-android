@@ -43,6 +43,7 @@ import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -81,6 +82,7 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.PlanItem
+import com.sowerrrt.dayloom.core.model.PlanPreset
 import com.sowerrrt.dayloom.core.ui.ErrorState
 import com.sowerrrt.dayloom.core.ui.LoadingState
 import kotlinx.coroutines.Dispatchers
@@ -144,6 +146,17 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                         imageTarget = plan
                         imagePicker.launch("image/*")
                     },
+                    onUsePreset = { preset ->
+                        if (
+                            preset.reminderMinutesOfDay != null &&
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                            PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        viewModel.createFromPreset(preset)
+                    },
                     modifier = Modifier.weight(1f),
                 )
         }
@@ -206,6 +219,7 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PlannerContent(
     state: PlannerUiState,
@@ -219,6 +233,7 @@ private fun PlannerContent(
     onEditPlan: (PlanItem) -> Unit,
     onDeletePlan: (PlanItem) -> Unit,
     onChoosePlanImage: (PlanItem) -> Unit,
+    onUsePreset: (PlanPreset) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val locale = currentLocale()
@@ -262,6 +277,29 @@ private fun PlannerContent(
                     habitCount = state.selectedHabits.size,
                     planCount = state.selectedPlans.size,
                 )
+            }
+            if (state.presets.isNotEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs)) {
+                        Text(
+                            stringResource(R.string.planner_quick_add),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                            verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                        ) {
+                            state.presets.forEach { preset ->
+                                AssistChip(
+                                    onClick = { onUsePreset(preset) },
+                                    label = { Text(preset.title) },
+                                    leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                                    modifier = Modifier.testTag("quick_plan_preset_${preset.title}"),
+                                )
+                            }
+                        }
+                    }
+                }
             }
             item { SectionTitle(stringResource(R.string.planner_habits_section), MaterialTheme.colorScheme.primary) }
             if (state.selectedHabits.isEmpty()) {
@@ -620,9 +658,9 @@ private fun PlanEditorDialog(
     hasImageError: Boolean,
     onChooseImage: (PlanItem) -> Unit,
     onRemoveImage: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
-    presets: Set<String>,
-    onSavePreset: (String) -> Unit,
-    onRemovePreset: (String) -> Unit,
+    presets: List<PlanPreset>,
+    onSavePreset: (String, Int?) -> Unit,
+    onRemovePreset: (PlanPreset) -> Unit,
     onSave: (String, Int?) -> Unit,
 ) {
     var title by remember(plan?.id) { mutableStateOf(plan?.title.orEmpty()) }
@@ -650,19 +688,23 @@ private fun PlanEditorDialog(
                         horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
                         verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
                     ) {
-                        presets.sorted().forEach { preset ->
+                        presets.forEach { preset ->
                             InputChip(
                                 selected = false,
-                                onClick = { title = preset },
-                                label = { Text(preset) },
+                                onClick = {
+                                    title = preset.title
+                                    reminderMinutesOfDay = preset.reminderMinutesOfDay
+                                },
+                                label = { Text(preset.title) },
                                 trailingIcon = {
                                     Icon(
                                         Icons.Rounded.Close,
-                                        contentDescription = stringResource(R.string.planner_remove_preset, preset),
+                                        contentDescription =
+                                            stringResource(R.string.planner_remove_preset, preset.title),
                                         modifier = Modifier.size(18.dp).clickable { onRemovePreset(preset) },
                                     )
                                 },
-                                modifier = Modifier.testTag("plan_preset_$preset"),
+                                modifier = Modifier.testTag("plan_preset_${preset.title}"),
                             )
                         }
                     }
@@ -676,8 +718,8 @@ private fun PlanEditorDialog(
                     modifier = Modifier.fillMaxWidth().testTag("plan_name_input"),
                 )
                 TextButton(
-                    onClick = { onSavePreset(title) },
-                    enabled = title.isNotBlank() && title !in presets,
+                    onClick = { onSavePreset(title, reminderMinutesOfDay) },
+                    enabled = title.isNotBlank(),
                     modifier = Modifier.testTag("save_plan_preset"),
                 ) {
                     Text(stringResource(R.string.planner_save_preset))

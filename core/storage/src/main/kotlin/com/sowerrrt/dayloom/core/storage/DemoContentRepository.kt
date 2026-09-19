@@ -4,6 +4,9 @@ import com.sowerrrt.dayloom.core.model.ListKind
 import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.model.WishPriority
+import com.sowerrrt.dayloom.core.model.toHabitPresetOrNull
+import com.sowerrrt.dayloom.core.model.toListItemPresetOrNull
+import com.sowerrrt.dayloom.core.model.toPlanPresetOrNull
 import kotlinx.coroutines.flow.first
 
 data class DemoContent(
@@ -24,6 +27,8 @@ data class DemoHabit(
     val image: DemoImage? = null,
     val targetAmount: String = "",
     val targetUnit: String = "",
+    val repeatEveryDays: Int? = null,
+    val scheduledMonthDays: Set<Int> = emptySet(),
 )
 
 data class DemoPlan(
@@ -139,6 +144,8 @@ class LocalDemoContentRepository(
                         title = demo.title,
                         scheduledWeekdays = demo.scheduledWeekdays,
                         startEpochDay = todayEpochDay - 30,
+                        repeatEveryDays = demo.repeatEveryDays,
+                        scheduledMonthDays = demo.scheduledMonthDays,
                         reminderMinutesOfDay = demo.reminderMinutesOfDay,
                         targetAmount = demo.targetAmount,
                         targetUnit = demo.targetUnit,
@@ -146,8 +153,16 @@ class LocalDemoContentRepository(
                 habit = current.last { it.title == demo.title }
                 demo.completedDayOffsets
                     .map { todayEpochDay + it }
-                    .filter { day -> Weekday.fromEpochDay(day) in demo.scheduledWeekdays }
-                    .distinct()
+                    .filter { day ->
+                        when {
+                            demo.scheduledMonthDays.isNotEmpty() ->
+                                java.time.LocalDate
+                                    .ofEpochDay(day)
+                                    .dayOfMonth in demo.scheduledMonthDays
+                            demo.repeatEveryDays != null -> (day - (todayEpochDay - 30)) % demo.repeatEveryDays == 0L
+                            else -> Weekday.fromEpochDay(day) in demo.scheduledWeekdays
+                        }
+                    }.distinct()
                     .forEach { day -> current = habitsRepository.toggleCompletion(habit.id, day) }
                 entitiesAdded++
             }
@@ -161,6 +176,8 @@ class LocalDemoContentRepository(
                         id = habit.id,
                         title = habit.title,
                         scheduledWeekdays = habit.scheduledWeekdays,
+                        repeatEveryDays = habit.repeatEveryDays,
+                        scheduledMonthDays = habit.scheduledMonthDays,
                         reminderMinutesOfDay = habit.reminderMinutesOfDay,
                         targetAmount = demo.targetAmount,
                         targetUnit = demo.targetUnit,
@@ -282,15 +299,31 @@ class LocalDemoContentRepository(
             )
         var added = 0
         groups.forEach { (type, examples, existing) ->
-            examples.map(String::trim).filter(String::isNotEmpty).distinct().forEach { title ->
-                if (title !in existing) {
-                    repository.addPreset(type, title)
+            val existingTitles = existing.mapNotNull { presetTitle(type, it) }.map(String::lowercase).toSet()
+            examples.map(String::trim).filter(String::isNotEmpty).distinct().forEach { value ->
+                val title = presetTitle(type, value)
+                if (title != null && title.lowercase() !in existingTitles) {
+                    repository.addPreset(type, value)
+                    added++
+                } else if (title != null && value !in existing && title in existing) {
+                    repository.removePreset(type, title)
+                    repository.addPreset(type, value)
                     added++
                 }
             }
         }
         return added
     }
+
+    private fun presetTitle(
+        type: PresetType,
+        value: String,
+    ): String? =
+        when (type) {
+            PresetType.HABIT -> value.toHabitPresetOrNull()?.title
+            PresetType.PLAN -> value.toPlanPresetOrNull()?.title
+            PresetType.LIST_ITEM -> value.toListItemPresetOrNull()?.title
+        }
 
     private data class GoalSeedResult(
         val goalsAdded: Int,

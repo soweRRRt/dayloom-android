@@ -68,6 +68,33 @@ class ListsViewModelTest {
             runCurrent()
             assertEquals(1, viewModel.uiState.value.completedItems)
         }
+
+    @Test
+    fun `full item preset adds quantity and note in one action`() =
+        runTest(dispatcher) {
+            val repository = FakeListsRepository()
+            val viewModel = ListsViewModel(repository, FakeSettingsRepository())
+            runCurrent()
+            viewModel.createList("Groceries", ListKind.SHOPPING)
+            runCurrent()
+            viewModel.saveItemPreset("Coffee", "1 pack", "Whole beans")
+            runCurrent()
+
+            viewModel.addItemFromPreset(
+                EntityId("list-1"),
+                viewModel.uiState.value.itemPresets
+                    .single(),
+            )
+            runCurrent()
+
+            val item =
+                viewModel.uiState.value.selectedList
+                    ?.items
+                    ?.single()
+            assertEquals("Coffee", item?.title)
+            assertEquals("1 pack", item?.quantity)
+            assertEquals("Whole beans", item?.note)
+        }
 }
 
 private class FakeListsRepository : ListsRepository {
@@ -178,12 +205,26 @@ private class FakeSettingsRepository : SettingsRepository {
     override suspend fun addPreset(
         type: PresetType,
         title: String,
-    ) = Unit
+    ) {
+        state.value =
+            when (type) {
+                PresetType.HABIT -> state.value.copy(habitPresets = state.value.habitPresets + title)
+                PresetType.PLAN -> state.value.copy(planPresets = state.value.planPresets + title)
+                PresetType.LIST_ITEM -> state.value.copy(listItemPresets = state.value.listItemPresets + title)
+            }
+    }
 
     override suspend fun removePreset(
         type: PresetType,
         title: String,
-    ) = Unit
+    ) {
+        state.value =
+            when (type) {
+                PresetType.HABIT -> state.value.copy(habitPresets = state.value.habitPresets - title)
+                PresetType.PLAN -> state.value.copy(planPresets = state.value.planPresets - title)
+                PresetType.LIST_ITEM -> state.value.copy(listItemPresets = state.value.listItemPresets - title)
+            }
+    }
 
     override suspend fun markUpdateChecked(epochMillis: Long) = Unit
 }

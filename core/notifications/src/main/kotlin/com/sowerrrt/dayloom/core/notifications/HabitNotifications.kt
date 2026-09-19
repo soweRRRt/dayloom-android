@@ -12,8 +12,15 @@ fun List<Habit>.activeHabitReminders(
     val today = Instant.ofEpochMilli(nowEpochMillis).atZone(zoneId).toLocalDate()
     return mapNotNull { habit ->
         val minutes = habit.reminderMinutesOfDay ?: return@mapNotNull null
+        val intervalDays = habit.repeatEveryDays
+        val searchDays =
+            when {
+                habit.scheduledMonthDays.isNotEmpty() -> 370
+                intervalDays != null -> intervalDays + 1
+                else -> 8
+            }
         val nextTrigger =
-            (0..7).firstNotNullOfOrNull { offset ->
+            (0..searchDays).firstNotNullOfOrNull { offset ->
                 val date = today.plusDays(offset.toLong())
                 val epochDay = date.toEpochDay()
                 if (!habit.isScheduledOn(epochDay) || epochDay in habit.completedEpochDays) {
@@ -32,10 +39,19 @@ fun List<Habit>.activeHabitReminders(
             triggerAtEpochMillis = nextTrigger,
             title = habit.title,
             weeklyRepeat =
-                WeeklyNotificationRepeat(
-                    isoWeekdays = habit.scheduledWeekdays.mapTo(mutableSetOf()) { it.ordinal + 1 },
-                    minutesOfDay = minutes,
-                ),
+                if (habit.repeatEveryDays == null && habit.scheduledMonthDays.isEmpty()) {
+                    WeeklyNotificationRepeat(
+                        isoWeekdays = habit.scheduledWeekdays.mapTo(mutableSetOf()) { it.ordinal + 1 },
+                        minutesOfDay = minutes,
+                    )
+                } else {
+                    null
+                },
+            intervalRepeat = habit.repeatEveryDays?.let { IntervalNotificationRepeat(it, minutes) },
+            monthlyRepeat =
+                habit.scheduledMonthDays
+                    .takeIf(Set<Int>::isNotEmpty)
+                    ?.let { MonthlyNotificationRepeat(it, minutes) },
         )
     }
 }

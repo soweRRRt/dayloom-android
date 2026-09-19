@@ -16,6 +16,15 @@
     <string name="habits_save">Сохранить</string>
     <string name="habits_cancel">Отмена</string>
     <string name="habits_schedule">Повторять</string>
+    <string name="habits_schedule_weekdays">По дням недели</string>
+    <string name="habits_schedule_interval">Каждые N дней</string>
+    <string name="habits_schedule_month_days">По числам месяца</string>
+    <string name="habits_interval_days">Интервал в днях</string>
+    <string name="habits_interval_description">Первое выполнение — сегодня. Введите число от 1 до 3650.</string>
+    <string name="habits_every_n_days">Каждые %1$d дней</string>
+    <string name="habits_month_days">Числа месяца</string>
+    <string name="habits_month_days_description">Введите одно или несколько чисел от 1 до 31 через запятую. Несуществующие даты пропускаются.</string>
+    <string name="habits_on_month_days">Числа месяца: %1$s</string>
     <string name="habits_every_day">Каждый день</string>
     <string name="habits_reminder">Точное время (необязательно)</string>
     <string name="habits_reminder_description">Выбранное время показывается в привычке и одновременно создаёт локальное напоминание. Энергосбережение может немного задержать доставку.</string>
@@ -44,7 +53,8 @@
     <string name="habits_error_description">Dayloom не удалось прочитать или сохранить привычки. Существующие данные не удалены.</string>
     <string name="habits_retry">Попробовать снова</string>
     <string name="habits_presets">Быстрые пресеты</string>
-    <string name="habits_save_preset">Сохранить название как пресет</string>
+    <string name="habits_quick_add">Быстро добавить из пресета</string>
+    <string name="habits_save_preset">Сохранить настройки как пресет</string>
     <string name="habits_remove_preset">Удалить пресет «%1$s»</string>
     <string name="habits_target">Количество (необязательно)</string>
     <string name="habits_target_description">Значение и единицу можно написать свободно.</string>

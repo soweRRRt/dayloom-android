@@ -1,6 +1,7 @@
 package com.sowerrrt.dayloom
 
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -8,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import org.junit.Rule
 import org.junit.Test
@@ -44,14 +46,27 @@ class NavigationUiTest {
     }
 
     @Test
-    fun habitPresetCanBeSaved() {
+    fun fullHabitPresetCanBeSavedAndUsedInOneTap() {
         val title = "Preset ${System.currentTimeMillis()}"
         composeRule.onNodeWithTag("primary_nav_habits").performClick()
         composeRule.onNodeWithTag("create_habit").performClick()
         composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("habit_target_amount").performScrollTo().performTextInput("12")
+        composeRule.onNodeWithTag("habit_target_unit").performScrollTo().performTextInput("times")
         composeRule.onNodeWithTag("save_habit_preset").performClick()
 
         composeRule.onNodeWithTag("habit_preset_$title").assertExists()
+        composeRule.onNodeWithTag("habit_target_amount").performTextClearance()
+        composeRule.onNodeWithTag("habit_target_unit").performTextClearance()
+        composeRule.onNodeWithTag("habit_preset_$title").performClick()
+        composeRule.onNodeWithTag("habit_target_amount").assertTextContains("12")
+        composeRule.onNodeWithTag("habit_target_unit").assertTextContains("times")
+        composeRule.onNodeWithText("Cancel").performClick()
+        composeRule.onNodeWithTag("quick_habit_preset_$title").performClick()
+        composeRule
+            .onNodeWithTag("habits_list")
+            .performScrollToNode(hasTestTag("habit_toggle_$title"))
+        composeRule.onNodeWithTag("habit_toggle_$title").assertExists()
     }
 
     @Test
@@ -59,6 +74,38 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("primary_nav_habits").performClick()
         composeRule.onNodeWithTag("create_habit").performClick()
         composeRule.onNodeWithTag("set_habit_reminder").assertExists()
+    }
+
+    @Test
+    fun habitCanRepeatEveryTenDays() {
+        val title = "Interval habit ${System.currentTimeMillis()}"
+        composeRule.onNodeWithTag("primary_nav_habits").performClick()
+        composeRule.onNodeWithTag("create_habit").performClick()
+        composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("habit_schedule_interval").performScrollTo().performClick()
+        composeRule.onNodeWithTag("habit_repeat_interval").performTextInput("10")
+        composeRule.onNodeWithTag("save_habit").performClick()
+
+        composeRule
+            .onNodeWithTag("habits_list")
+            .performScrollToNode(hasTestTag("habit_toggle_$title"))
+        composeRule.onNodeWithText("Every 10 days").assertExists()
+    }
+
+    @Test
+    fun habitCanRepeatOnSeveralMonthDays() {
+        val title = "Monthly habit ${System.currentTimeMillis()}"
+        composeRule.onNodeWithTag("primary_nav_habits").performClick()
+        composeRule.onNodeWithTag("create_habit").performClick()
+        composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("habit_schedule_month_days").performScrollTo().performClick()
+        composeRule.onNodeWithTag("habit_month_days").performTextInput("3, 15")
+        composeRule.onNodeWithTag("save_habit").performClick()
+
+        composeRule
+            .onNodeWithTag("habits_list")
+            .performScrollToNode(hasTestTag("habit_toggle_$title"))
+        composeRule.onNodeWithText("On day 3, 15 of each month").assertExists()
     }
 
     @Test

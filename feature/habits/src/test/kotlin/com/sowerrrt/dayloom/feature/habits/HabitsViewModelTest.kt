@@ -56,7 +56,7 @@ class HabitsViewModelTest {
                 assertTrue(awaitItem().isLoading)
                 assertFalse(awaitItem().isLoading)
 
-                viewModel.createHabit("Drink water", Weekday.entries.toSet(), 9 * 60)
+                viewModel.createHabit("Drink water", Weekday.entries.toSet(), null, emptySet(), 9 * 60)
                 val created = awaitItem()
                 assertEquals("Drink water", created.habits.single().title)
                 assertEquals(9 * 60, created.habits.single().reminderMinutesOfDay)
@@ -94,6 +94,46 @@ class HabitsViewModelTest {
             )
             assertEquals(1, attachments.deleted.size)
         }
+
+    @Test
+    fun `full preset can create a configured habit in one action`() =
+        runTest(dispatcher) {
+            val repository = FakeHabitsRepository()
+            val viewModel =
+                HabitsViewModel(
+                    repository,
+                    FakeNotificationScheduler(),
+                    FakeAttachmentRepository(),
+                    FakeSettingsRepository(),
+                )
+            runCurrent()
+
+            viewModel.savePreset(
+                title = "Walk",
+                scheduledWeekdays = setOf(Weekday.MONDAY, Weekday.FRIDAY),
+                repeatEveryDays = 10,
+                scheduledMonthDays = emptySet(),
+                reminderMinutesOfDay = 8 * 60 + 30,
+                targetAmount = "10000",
+                targetUnit = "steps",
+            )
+            runCurrent()
+            val preset =
+                viewModel.uiState.value.presets
+                    .single()
+
+            viewModel.createFromPreset(preset)
+            runCurrent()
+
+            val habit =
+                viewModel.uiState.value.habits
+                    .single()
+            assertEquals(setOf(Weekday.MONDAY, Weekday.FRIDAY), habit.scheduledWeekdays)
+            assertEquals(10, habit.repeatEveryDays)
+            assertEquals(8 * 60 + 30, habit.reminderMinutesOfDay)
+            assertEquals("10000", habit.targetAmount)
+            assertEquals("steps", habit.targetUnit)
+        }
 }
 
 private class FakeHabitsRepository : HabitsRepository {
@@ -108,6 +148,8 @@ private class FakeHabitsRepository : HabitsRepository {
         reminderMinutesOfDay: Int?,
         targetAmount: String,
         targetUnit: String,
+        repeatEveryDays: Int?,
+        scheduledMonthDays: Set<Int>,
     ): List<Habit> {
         habits =
             habits +
@@ -117,6 +159,8 @@ private class FakeHabitsRepository : HabitsRepository {
                 createdAtEpochMillis = 1L,
                 startEpochDay = startEpochDay,
                 scheduledWeekdays = scheduledWeekdays,
+                repeatEveryDays = repeatEveryDays,
+                scheduledMonthDays = scheduledMonthDays,
                 reminderMinutesOfDay = reminderMinutesOfDay,
                 targetAmount = targetAmount,
                 targetUnit = targetUnit,
@@ -131,6 +175,8 @@ private class FakeHabitsRepository : HabitsRepository {
         reminderMinutesOfDay: Int?,
         targetAmount: String,
         targetUnit: String,
+        repeatEveryDays: Int?,
+        scheduledMonthDays: Set<Int>,
     ): List<Habit> {
         habits =
             habits.map {
@@ -138,6 +184,8 @@ private class FakeHabitsRepository : HabitsRepository {
                     it.copy(
                         title = title,
                         scheduledWeekdays = scheduledWeekdays,
+                        repeatEveryDays = repeatEveryDays,
+                        scheduledMonthDays = scheduledMonthDays,
                         reminderMinutesOfDay = reminderMinutesOfDay,
                         targetAmount = targetAmount,
                         targetUnit = targetUnit,
@@ -217,12 +265,26 @@ private class FakeSettingsRepository : SettingsRepository {
     override suspend fun addPreset(
         type: PresetType,
         title: String,
-    ) = Unit
+    ) {
+        state.value =
+            when (type) {
+                PresetType.HABIT -> state.value.copy(habitPresets = state.value.habitPresets + title)
+                PresetType.PLAN -> state.value.copy(planPresets = state.value.planPresets + title)
+                PresetType.LIST_ITEM -> state.value.copy(listItemPresets = state.value.listItemPresets + title)
+            }
+    }
 
     override suspend fun removePreset(
         type: PresetType,
         title: String,
-    ) = Unit
+    ) {
+        state.value =
+            when (type) {
+                PresetType.HABIT -> state.value.copy(habitPresets = state.value.habitPresets - title)
+                PresetType.PLAN -> state.value.copy(planPresets = state.value.planPresets - title)
+                PresetType.LIST_ITEM -> state.value.copy(listItemPresets = state.value.listItemPresets - title)
+            }
+    }
 
     override suspend fun markUpdateChecked(epochMillis: Long) = Unit
 }

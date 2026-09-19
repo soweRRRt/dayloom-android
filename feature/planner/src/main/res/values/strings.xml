@@ -41,6 +41,7 @@
     <string name="planner_error_description">Dayloom could not read or save the calendar. Existing data was not discarded.</string>
     <string name="planner_retry">Try again</string>
     <string name="planner_presets">Quick presets</string>
-    <string name="planner_save_preset">Save name as preset</string>
+    <string name="planner_quick_add">Quick add to the selected day</string>
+    <string name="planner_save_preset">Save settings as preset</string>
     <string name="planner_remove_preset">Remove preset %1$s</string>
 </resources>

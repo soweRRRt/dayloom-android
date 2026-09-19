@@ -61,11 +61,15 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.model.AccentPalette
 import com.sowerrrt.dayloom.core.model.BottomSection
+import com.sowerrrt.dayloom.core.model.HabitPreset
+import com.sowerrrt.dayloom.core.model.ListItemPreset
 import com.sowerrrt.dayloom.core.model.ListKind
+import com.sowerrrt.dayloom.core.model.PlanPreset
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
 import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.model.WishPriority
+import com.sowerrrt.dayloom.core.model.toStorageValue
 import com.sowerrrt.dayloom.core.storage.DemoContent
 import com.sowerrrt.dayloom.core.storage.DemoGoal
 import com.sowerrrt.dayloom.core.storage.DemoHabit
@@ -412,6 +416,17 @@ private fun rememberDemoContent(): DemoContent =
                     targetAmount = "10",
                     targetUnit = stringResource(R.string.settings_example_unit_minutes),
                 ),
+                DemoHabit(
+                    title = stringResource(R.string.settings_example_habit_plants),
+                    scheduledWeekdays = emptySet(),
+                    repeatEveryDays = 10,
+                    reminderMinutesOfDay = 5 * 60,
+                ),
+                DemoHabit(
+                    title = stringResource(R.string.settings_example_habit_budget),
+                    scheduledWeekdays = emptySet(),
+                    scheduledMonthDays = setOf(3, 15),
+                ),
             ),
         plans =
             listOf(
@@ -486,21 +501,52 @@ private fun rememberDemoContent(): DemoContent =
             ),
         habitPresets =
             listOf(
-                stringResource(R.string.settings_example_habit_water),
-                stringResource(R.string.settings_example_habit_reading),
-                stringResource(R.string.settings_example_habit_stretch),
+                HabitPreset(
+                    title = stringResource(R.string.settings_example_habit_water),
+                    targetAmount = "8",
+                    targetUnit = stringResource(R.string.settings_example_unit_glasses),
+                ).toStorageValue(),
+                HabitPreset(
+                    title = stringResource(R.string.settings_example_habit_reading),
+                    targetAmount = "20",
+                    targetUnit = stringResource(R.string.settings_example_unit_minutes),
+                ).toStorageValue(),
+                HabitPreset(
+                    title = stringResource(R.string.settings_example_habit_stretch),
+                    reminderMinutesOfDay = 8 * 60 + 30,
+                    targetAmount = "10",
+                    targetUnit = stringResource(R.string.settings_example_unit_minutes),
+                ).toStorageValue(),
+                HabitPreset(
+                    title = stringResource(R.string.settings_example_habit_plants),
+                    scheduledWeekdays = emptySet(),
+                    repeatEveryDays = 10,
+                    reminderMinutesOfDay = 5 * 60,
+                ).toStorageValue(),
+                HabitPreset(
+                    title = stringResource(R.string.settings_example_habit_budget),
+                    scheduledWeekdays = emptySet(),
+                    scheduledMonthDays = setOf(3, 15),
+                ).toStorageValue(),
             ),
         planPresets =
             listOf(
-                stringResource(R.string.settings_example_plan_review),
-                stringResource(R.string.settings_example_plan_groceries),
-                stringResource(R.string.settings_example_plan_call),
+                PlanPreset(stringResource(R.string.settings_example_plan_review)).toStorageValue(),
+                PlanPreset(stringResource(R.string.settings_example_plan_groceries)).toStorageValue(),
+                PlanPreset(
+                    stringResource(R.string.settings_example_plan_call),
+                    reminderMinutesOfDay = 19 * 60,
+                ).toStorageValue(),
             ),
         listItemPresets =
             listOf(
-                stringResource(R.string.settings_example_item_milk),
-                stringResource(R.string.settings_example_item_coffee),
-                stringResource(R.string.settings_example_item_charger),
+                ListItemPreset(stringResource(R.string.settings_example_item_milk), quantity = "2").toStorageValue(),
+                ListItemPreset(
+                    stringResource(R.string.settings_example_item_coffee),
+                    quantity = "1",
+                    note = stringResource(R.string.settings_example_item_coffee_note),
+                ).toStorageValue(),
+                ListItemPreset(stringResource(R.string.settings_example_item_charger)).toStorageValue(),
             ),
     )
 

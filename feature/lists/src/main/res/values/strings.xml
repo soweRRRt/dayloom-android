@@ -43,6 +43,7 @@
     <string name="lists_note_label">Note (optional)</string>
     <string name="lists_delete">Delete</string>
     <string name="lists_item_presets">Quick presets</string>
-    <string name="lists_save_preset">Save name as preset</string>
+    <string name="lists_quick_add">Quick add from a preset</string>
+    <string name="lists_save_preset">Save fields as preset</string>
     <string name="lists_remove_preset">Remove preset %1$s</string>
 </resources>

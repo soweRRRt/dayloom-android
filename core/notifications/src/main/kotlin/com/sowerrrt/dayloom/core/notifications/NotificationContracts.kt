@@ -17,6 +17,8 @@ data class ScheduledNotification(
     val triggerAtEpochMillis: Long,
     val title: String,
     val weeklyRepeat: WeeklyNotificationRepeat? = null,
+    val intervalRepeat: IntervalNotificationRepeat? = null,
+    val monthlyRepeat: MonthlyNotificationRepeat? = null,
 )
 
 @JvmInline
@@ -35,6 +37,26 @@ data class WeeklyNotificationRepeat(
 ) {
     init {
         require(isoWeekdays.isNotEmpty() && isoWeekdays.all { it in 1..7 })
+        require(minutesOfDay in 0 until 24 * 60)
+    }
+}
+
+data class IntervalNotificationRepeat(
+    val days: Int,
+    val minutesOfDay: Int,
+) {
+    init {
+        require(days > 0)
+        require(minutesOfDay in 0 until 24 * 60)
+    }
+}
+
+data class MonthlyNotificationRepeat(
+    val daysOfMonth: Set<Int>,
+    val minutesOfDay: Int,
+) {
+    init {
+        require(daysOfMonth.isNotEmpty() && daysOfMonth.all { it in 1..31 })
         require(minutesOfDay in 0 until 24 * 60)
     }
 }

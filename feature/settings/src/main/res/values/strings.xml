@@ -47,6 +47,8 @@
     <string name="settings_example_habit_reading">Read for 20 minutes</string>
     <string name="settings_example_habit_walk">Evening walk</string>
     <string name="settings_example_habit_stretch">Morning stretch</string>
+    <string name="settings_example_habit_plants">Water the plants</string>
+    <string name="settings_example_habit_budget">Review the budget</string>
     <string name="settings_example_unit_glasses">glasses</string>
     <string name="settings_example_unit_minutes">minutes</string>
     <string name="settings_example_unit_steps">steps</string>

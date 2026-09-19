@@ -5,8 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
+import com.sowerrrt.dayloom.core.model.HabitPreset
 import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.Weekday
+import com.sowerrrt.dayloom.core.model.toHabitPresetOrNull
+import com.sowerrrt.dayloom.core.model.toStorageValue
 import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
 import com.sowerrrt.dayloom.core.notifications.NotificationScope
 import com.sowerrrt.dayloom.core.notifications.activeHabitReminders
@@ -32,7 +35,7 @@ data class HabitsUiState(
     val imagePaths: Map<EntityId, String> = emptyMap(),
     val isChangingImage: Boolean = false,
     val hasImageError: Boolean = false,
-    val presets: Set<String> = emptySet(),
+    val presets: List<HabitPreset> = emptyList(),
 ) {
     val completedToday: Int
         get() = habits.count { todayEpochDay in it.completedEpochDays }
@@ -72,7 +75,11 @@ class HabitsViewModel
                                 hasError = false,
                                 reminderSchedulingFailed = reminderResult.isFailure,
                                 imagePaths = imagePaths(habits),
-                                presets = presets,
+                                presets =
+                                    presets
+                                        .mapNotNull(
+                                            String::toHabitPresetOrNull,
+                                        ).sortedBy { it.title.lowercase() },
                             )
                         }
                     }.onFailure {
@@ -84,20 +91,29 @@ class HabitsViewModel
         fun createHabit(
             title: String,
             scheduledWeekdays: Set<Weekday>,
+            repeatEveryDays: Int?,
+            scheduledMonthDays: Set<Int>,
             reminderMinutesOfDay: Int?,
             targetAmount: String = "",
             targetUnit: String = "",
         ) {
-            if (title.isBlank() || scheduledWeekdays.isEmpty()) return
+            if (
+                title.isBlank() ||
+                (repeatEveryDays == null && scheduledMonthDays.isEmpty() && scheduledWeekdays.isEmpty())
+            ) {
+                return
+            }
             val today = LocalDate.now().toEpochDay()
             updateHabits {
                 repository.createHabit(
                     title,
                     scheduledWeekdays,
                     today,
-                    reminderMinutesOfDay,
-                    targetAmount,
-                    targetUnit,
+                    repeatEveryDays = repeatEveryDays,
+                    scheduledMonthDays = scheduledMonthDays,
+                    reminderMinutesOfDay = reminderMinutesOfDay,
+                    targetAmount = targetAmount,
+                    targetUnit = targetUnit,
                 )
             }
         }
@@ -106,30 +122,90 @@ class HabitsViewModel
             id: EntityId,
             title: String,
             scheduledWeekdays: Set<Weekday>,
+            repeatEveryDays: Int?,
+            scheduledMonthDays: Set<Int>,
             reminderMinutesOfDay: Int?,
             targetAmount: String = "",
             targetUnit: String = "",
         ) {
-            if (title.isBlank() || scheduledWeekdays.isEmpty()) return
+            if (
+                title.isBlank() ||
+                (repeatEveryDays == null && scheduledMonthDays.isEmpty() && scheduledWeekdays.isEmpty())
+            ) {
+                return
+            }
             updateHabits {
-                repository.updateHabit(id, title, scheduledWeekdays, reminderMinutesOfDay, targetAmount, targetUnit)
+                repository.updateHabit(
+                    id = id,
+                    title = title,
+                    scheduledWeekdays = scheduledWeekdays,
+                    repeatEveryDays = repeatEveryDays,
+                    scheduledMonthDays = scheduledMonthDays,
+                    reminderMinutesOfDay = reminderMinutesOfDay,
+                    targetAmount = targetAmount,
+                    targetUnit = targetUnit,
+                )
             }
         }
 
-        fun savePreset(title: String) {
+        fun savePreset(
+            title: String,
+            scheduledWeekdays: Set<Weekday>,
+            repeatEveryDays: Int?,
+            scheduledMonthDays: Set<Int>,
+            reminderMinutesOfDay: Int?,
+            targetAmount: String,
+            targetUnit: String,
+        ) {
             val normalized = title.trim()
-            if (normalized.isEmpty()) return
+            if (
+                normalized.isEmpty() ||
+                (repeatEveryDays == null && scheduledMonthDays.isEmpty() && scheduledWeekdays.isEmpty())
+            ) {
+                return
+            }
+            val preset =
+                HabitPreset(
+                    title = normalized,
+                    scheduledWeekdays = scheduledWeekdays,
+                    repeatEveryDays = repeatEveryDays,
+                    scheduledMonthDays = scheduledMonthDays,
+                    reminderMinutesOfDay = reminderMinutesOfDay,
+                    targetAmount = targetAmount.trim(),
+                    targetUnit = targetUnit.trim(),
+                )
             viewModelScope.launch {
-                settingsRepository.addPreset(PresetType.HABIT, normalized)
-                mutableUiState.update { it.copy(presets = it.presets + normalized) }
+                removeStoredHabitPresets(normalized)
+                settingsRepository.addPreset(PresetType.HABIT, preset.toStorageValue())
+                mutableUiState.update {
+                    it.copy(
+                        presets =
+                            (it.presets.filterNot { existing -> existing.title.equals(normalized, true) } + preset)
+                                .sortedBy { saved -> saved.title.lowercase() },
+                    )
+                }
             }
         }
 
-        fun removePreset(title: String) {
+        fun removePreset(preset: HabitPreset) {
             viewModelScope.launch {
-                settingsRepository.removePreset(PresetType.HABIT, title)
-                mutableUiState.update { it.copy(presets = it.presets - title) }
+                removeStoredHabitPresets(preset.title)
+                mutableUiState.update {
+                    it.copy(presets = it.presets.filterNot { saved -> saved.title.equals(preset.title, true) })
+                }
             }
+        }
+
+        fun createFromPreset(preset: HabitPreset) {
+            createHabit(
+                preset.title,
+                preset.scheduledWeekdays,
+                preset.repeatEveryDays,
+                preset.scheduledMonthDays,
+                preset.reminderMinutesOfDay,
+                preset.targetAmount,
+                preset.targetUnit,
+            )
         }
 
         fun toggleCompletion(id: EntityId) {
@@ -241,4 +317,12 @@ class HabitsViewModel
                 .mapNotNull { habit ->
                     habit.image?.let(attachmentRepository::localPath)?.let { habit.id to it }
                 }.toMap()
+
+        private suspend fun removeStoredHabitPresets(title: String) {
+            settingsRepository.settings
+                .first()
+                .habitPresets
+                .filter { it.toHabitPresetOrNull()?.title?.equals(title, true) == true }
+                .forEach { settingsRepository.removePreset(PresetType.HABIT, it) }
+        }
     }

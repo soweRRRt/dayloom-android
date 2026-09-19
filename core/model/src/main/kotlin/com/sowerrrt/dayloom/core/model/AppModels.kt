@@ -94,6 +94,8 @@ data class Habit(
     val createdAtEpochMillis: Long,
     val startEpochDay: Long = 0L,
     val scheduledWeekdays: Set<Weekday> = Weekday.entries.toSet(),
+    val repeatEveryDays: Int? = null,
+    val scheduledMonthDays: Set<Int> = emptySet(),
     val reminderMinutesOfDay: Int? = null,
     val completedEpochDays: Set<Long> = emptySet(),
     val image: AttachmentRef? = null,
@@ -123,8 +125,18 @@ enum class Weekday {
     }
 }
 
-fun Habit.isScheduledOn(epochDay: Long): Boolean =
-    !archived && epochDay >= startEpochDay && Weekday.fromEpochDay(epochDay) in scheduledWeekdays
+fun Habit.isScheduledOn(epochDay: Long): Boolean {
+    if (archived || epochDay < startEpochDay) return false
+    if (scheduledMonthDays.isNotEmpty()) {
+        return LocalDate.ofEpochDay(epochDay).dayOfMonth in scheduledMonthDays
+    }
+    val interval = repeatEveryDays
+    return if (interval != null && interval > 0) {
+        (epochDay - startEpochDay) % interval == 0L
+    } else {
+        Weekday.fromEpochDay(epochDay) in scheduledWeekdays
+    }
+}
 
 fun Habit.currentStreak(asOfEpochDay: Long): Int {
     var day = asOfEpochDay

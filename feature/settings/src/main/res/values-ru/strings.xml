@@ -47,6 +47,8 @@
     <string name="settings_example_habit_reading">Читать 20 минут</string>
     <string name="settings_example_habit_walk">Вечерняя прогулка</string>
     <string name="settings_example_habit_stretch">Утренняя разминка</string>
+    <string name="settings_example_habit_plants">Полить растения</string>
+    <string name="settings_example_habit_budget">Проверить бюджет</string>
     <string name="settings_example_unit_glasses">стаканов</string>
     <string name="settings_example_unit_minutes">минут</string>
     <string name="settings_example_unit_steps">шагов</string>

@@ -6,8 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.PlanItem
+import com.sowerrrt.dayloom.core.model.PlanPreset
 import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.isScheduledOn
+import com.sowerrrt.dayloom.core.model.toPlanPresetOrNull
+import com.sowerrrt.dayloom.core.model.toStorageValue
 import com.sowerrrt.dayloom.core.notifications.NotificationId
 import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
 import com.sowerrrt.dayloom.core.notifications.NotificationScope
@@ -43,7 +46,7 @@ data class PlannerUiState(
     val planImagePaths: Map<EntityId, String> = emptyMap(),
     val isChangingImage: Boolean = false,
     val hasImageError: Boolean = false,
-    val presets: Set<String> = emptySet(),
+    val presets: List<PlanPreset> = emptyList(),
 ) {
     val selectedHabits: List<Habit>
         get() = habits.filter { it.isScheduledOn(selectedEpochDay) }
@@ -101,7 +104,7 @@ class PlannerViewModel
                             reminderSchedulingFailed =
                                 planReminderResult.isFailure || habitReminderResult.isFailure,
                             planImagePaths = imagePaths(plans),
-                            presets = presets,
+                            presets = presets.mapNotNull(String::toPlanPresetOrNull).sortedBy { it.title.lowercase() },
                         )
                     }
                 }.onFailure {
@@ -157,20 +160,37 @@ class PlannerViewModel
             updatePlans { plannerRepository.updatePlan(id, title, day, reminderMinutesOfDay) }
         }
 
-        fun savePreset(title: String) {
+        fun savePreset(
+            title: String,
+            reminderMinutesOfDay: Int?,
+        ) {
             val normalized = title.trim()
             if (normalized.isEmpty()) return
+            val preset = PlanPreset(normalized, reminderMinutesOfDay)
             viewModelScope.launch {
-                settingsRepository.addPreset(PresetType.PLAN, normalized)
-                mutableUiState.update { it.copy(presets = it.presets + normalized) }
+                removeStoredPlanPresets(normalized)
+                settingsRepository.addPreset(PresetType.PLAN, preset.toStorageValue())
+                mutableUiState.update {
+                    it.copy(
+                        presets =
+                            (it.presets.filterNot { existing -> existing.title.equals(normalized, true) } + preset)
+                                .sortedBy { saved -> saved.title.lowercase() },
+                    )
+                }
             }
         }
 
-        fun removePreset(title: String) {
+        fun removePreset(preset: PlanPreset) {
             viewModelScope.launch {
-                settingsRepository.removePreset(PresetType.PLAN, title)
-                mutableUiState.update { it.copy(presets = it.presets - title) }
+                removeStoredPlanPresets(preset.title)
+                mutableUiState.update {
+                    it.copy(presets = it.presets.filterNot { saved -> saved.title.equals(preset.title, true) })
+                }
             }
+        }
+
+        fun createFromPreset(preset: PlanPreset) {
+            createPlan(preset.title, preset.reminderMinutesOfDay)
         }
 
         fun togglePlan(id: EntityId) {
@@ -301,6 +321,14 @@ class PlannerViewModel
                 .mapNotNull { plan ->
                     plan.image?.let(attachmentRepository::localPath)?.let { plan.id to it }
                 }.toMap()
+
+        private suspend fun removeStoredPlanPresets(title: String) {
+            settingsRepository.settings
+                .first()
+                .planPresets
+                .filter { it.toPlanPresetOrNull()?.title?.equals(title, true) == true }
+                .forEach { settingsRepository.removePreset(PresetType.PLAN, it) }
+        }
     }
 
 internal fun List<PlanItem>.activeReminders(

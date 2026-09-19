@@ -64,6 +64,7 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.model.DayList
 import com.sowerrrt.dayloom.core.model.DayListItem
+import com.sowerrrt.dayloom.core.model.ListItemPreset
 import com.sowerrrt.dayloom.core.model.ListKind
 import com.sowerrrt.dayloom.core.ui.ErrorState
 import com.sowerrrt.dayloom.core.ui.LoadingState
@@ -135,6 +136,8 @@ fun ListsScreen(viewModel: ListsViewModel = hiltViewModel()) {
                 else ->
                     ListDetails(
                         list = selectedList,
+                        presets = state.itemPresets,
+                        onUsePreset = { viewModel.addItemFromPreset(selectedList.id, it) },
                         onToggle = { viewModel.toggleItem(selectedList.id, it.id) },
                         onEdit = {
                             editingItem = it
@@ -327,9 +330,12 @@ private fun ListOverviewCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ListDetails(
     list: DayList,
+    presets: List<ListItemPreset>,
+    onUsePreset: (ListItemPreset) -> Unit,
     onToggle: (DayListItem) -> Unit,
     onEdit: (DayListItem) -> Unit,
     onDelete: (DayListItem) -> Unit,
@@ -361,6 +367,29 @@ private fun ListDetails(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )
+                }
+            }
+        }
+        if (presets.isNotEmpty()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs)) {
+                    Text(
+                        stringResource(R.string.lists_quick_add),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    ) {
+                        presets.forEach { preset ->
+                            AssistChip(
+                                onClick = { onUsePreset(preset) },
+                                label = { Text(preset.title) },
+                                leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                                modifier = Modifier.testTag("quick_list_item_preset_${preset.title}"),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -553,9 +582,9 @@ private fun ListEditorDialog(
 @Composable
 private fun ItemEditorDialog(
     item: DayListItem?,
-    presets: Set<String>,
-    onSavePreset: (String) -> Unit,
-    onRemovePreset: (String) -> Unit,
+    presets: List<ListItemPreset>,
+    onSavePreset: (String, String, String) -> Unit,
+    onRemovePreset: (ListItemPreset) -> Unit,
     onDismiss: () -> Unit,
     onSave: (String, String, String) -> Unit,
 ) {
@@ -578,19 +607,24 @@ private fun ItemEditorDialog(
                         horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
                         verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
                     ) {
-                        presets.sorted().forEach { preset ->
+                        presets.forEach { preset ->
                             InputChip(
                                 selected = false,
-                                onClick = { title = preset },
-                                label = { Text(preset) },
+                                onClick = {
+                                    title = preset.title
+                                    quantity = preset.quantity
+                                    note = preset.note
+                                },
+                                label = { Text(preset.title) },
                                 trailingIcon = {
                                     Icon(
                                         Icons.Rounded.Close,
-                                        contentDescription = stringResource(R.string.lists_remove_preset, preset),
+                                        contentDescription =
+                                            stringResource(R.string.lists_remove_preset, preset.title),
                                         modifier = Modifier.size(18.dp).clickable { onRemovePreset(preset) },
                                     )
                                 },
-                                modifier = Modifier.testTag("list_item_preset_$preset"),
+                                modifier = Modifier.testTag("list_item_preset_${preset.title}"),
                             )
                         }
                     }
@@ -603,8 +637,8 @@ private fun ItemEditorDialog(
                     singleLine = true,
                 )
                 TextButton(
-                    onClick = { onSavePreset(title) },
-                    enabled = title.isNotBlank() && title !in presets,
+                    onClick = { onSavePreset(title, quantity, note) },
+                    enabled = title.isNotBlank(),
                     modifier = Modifier.testTag("save_list_item_preset"),
                 ) {
                     Text(stringResource(R.string.lists_save_preset))

@@ -110,7 +110,7 @@ class DataStoreSettingsRepository(
         type: PresetType,
         title: String,
     ) {
-        val normalized = title.trim().take(80)
+        val normalized = title.trim().take(1_024)
         if (normalized.isEmpty()) return
         dataStore.edit { preferences ->
             val key = Keys.presetKey(type)

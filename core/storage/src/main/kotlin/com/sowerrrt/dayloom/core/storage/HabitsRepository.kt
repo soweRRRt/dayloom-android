@@ -25,6 +25,8 @@ interface HabitsRepository {
         reminderMinutesOfDay: Int? = null,
         targetAmount: String = "",
         targetUnit: String = "",
+        repeatEveryDays: Int? = null,
+        scheduledMonthDays: Set<Int> = emptySet(),
     ): List<Habit>
 
     suspend fun updateHabit(
@@ -34,6 +36,8 @@ interface HabitsRepository {
         reminderMinutesOfDay: Int? = null,
         targetAmount: String = "",
         targetUnit: String = "",
+        repeatEveryDays: Int? = null,
+        scheduledMonthDays: Set<Int> = emptySet(),
     ): List<Habit>
 
     suspend fun archiveHabit(id: EntityId): List<Habit>
@@ -107,10 +111,12 @@ class FileHabitsRepository(
         reminderMinutesOfDay: Int?,
         targetAmount: String,
         targetUnit: String,
+        repeatEveryDays: Int?,
+        scheduledMonthDays: Set<Int>,
     ): List<Habit> {
         val normalizedTitle = title.trim()
         val target = normalizeTarget(targetAmount, targetUnit)
-        validate(normalizedTitle, scheduledWeekdays, reminderMinutesOfDay)
+        validate(normalizedTitle, scheduledWeekdays, repeatEveryDays, scheduledMonthDays, reminderMinutesOfDay)
         return store
             .update { snapshot ->
                 snapshot.copy(
@@ -122,6 +128,8 @@ class FileHabitsRepository(
                                 createdAtEpochMillis = clock(),
                                 startEpochDay = startEpochDay,
                                 scheduledWeekdays = scheduledWeekdays,
+                                repeatEveryDays = repeatEveryDays,
+                                scheduledMonthDays = scheduledMonthDays,
                                 reminderMinutesOfDay = reminderMinutesOfDay,
                                 targetAmount = target.first,
                                 targetUnit = target.second,
@@ -137,14 +145,18 @@ class FileHabitsRepository(
         reminderMinutesOfDay: Int?,
         targetAmount: String,
         targetUnit: String,
+        repeatEveryDays: Int?,
+        scheduledMonthDays: Set<Int>,
     ): List<Habit> {
         val normalizedTitle = title.trim()
         val target = normalizeTarget(targetAmount, targetUnit)
-        validate(normalizedTitle, scheduledWeekdays, reminderMinutesOfDay)
+        validate(normalizedTitle, scheduledWeekdays, repeatEveryDays, scheduledMonthDays, reminderMinutesOfDay)
         return updateExisting(id) { habit ->
             habit.copy(
                 title = normalizedTitle,
                 scheduledWeekdays = scheduledWeekdays,
+                repeatEveryDays = repeatEveryDays,
+                scheduledMonthDays = scheduledMonthDays,
                 reminderMinutesOfDay = reminderMinutesOfDay,
                 targetAmount = target.first,
                 targetUnit = target.second,
@@ -185,11 +197,22 @@ class FileHabitsRepository(
     private fun validate(
         title: String,
         scheduledWeekdays: Set<Weekday>,
+        repeatEveryDays: Int?,
+        scheduledMonthDays: Set<Int>,
         reminderMinutesOfDay: Int?,
     ) {
         require(title.isNotEmpty()) { "Habit title must not be blank" }
         require(title.length <= MAX_TITLE_LENGTH) { "Habit title is too long" }
-        require(scheduledWeekdays.isNotEmpty()) { "Habit schedule must contain at least one day" }
+        require(repeatEveryDays != null || scheduledMonthDays.isNotEmpty() || scheduledWeekdays.isNotEmpty()) {
+            "Habit schedule must contain at least one day"
+        }
+        require(repeatEveryDays == null || repeatEveryDays in 1..MAX_REPEAT_INTERVAL_DAYS) {
+            "Habit repeat interval is out of range"
+        }
+        require(repeatEveryDays == null || scheduledMonthDays.isEmpty()) {
+            "Habit cannot use interval and month days together"
+        }
+        require(scheduledMonthDays.all { it in 1..31 }) { "Habit month days are out of range" }
         require(reminderMinutesOfDay == null || reminderMinutesOfDay in 0 until 24 * 60) {
             "Habit reminder must be within a day"
         }
@@ -217,5 +240,6 @@ class FileHabitsRepository(
         const val MAX_TITLE_LENGTH = 80
         const val MAX_TARGET_AMOUNT_LENGTH = 24
         const val MAX_TARGET_UNIT_LENGTH = 24
+        const val MAX_REPEAT_INTERVAL_DAYS = 3650
     }
 }

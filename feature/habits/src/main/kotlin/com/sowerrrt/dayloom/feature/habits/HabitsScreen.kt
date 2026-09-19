@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -65,6 +67,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -76,6 +79,7 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
+import com.sowerrrt.dayloom.core.model.HabitPreset
 import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.model.bestStreak
 import com.sowerrrt.dayloom.core.model.currentStreak
@@ -118,9 +122,21 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                 )
             state.habits.isEmpty() ->
                 EmptyHabits(
+                    presets = state.presets,
                     onCreate = {
                         editingHabit = null
                         showCreateDialog = true
+                    },
+                    onUsePreset = { preset ->
+                        if (
+                            preset.reminderMinutesOfDay != null &&
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                            PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        viewModel.createFromPreset(preset)
                     },
                     modifier = Modifier.weight(1f),
                 )
@@ -141,6 +157,17 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                         editingHabit = null
                         showCreateDialog = true
                     },
+                    onUsePreset = { preset ->
+                        if (
+                            preset.reminderMinutesOfDay != null &&
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                            PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        viewModel.createFromPreset(preset)
+                    },
                     modifier = Modifier.weight(1f),
                 )
         }
@@ -160,7 +187,7 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
             presets = state.presets,
             onSavePreset = viewModel::savePreset,
             onRemovePreset = viewModel::removePreset,
-            onSave = { title, weekdays, reminderMinutesOfDay, targetAmount, targetUnit ->
+            onSave = { title, weekdays, repeatEveryDays, monthDays, reminderMinutesOfDay, targetAmount, targetUnit ->
                 val habit = editingHabit
                 if (
                     reminderMinutesOfDay != null &&
@@ -171,12 +198,22 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
                 if (habit == null) {
-                    viewModel.createHabit(title, weekdays, reminderMinutesOfDay, targetAmount, targetUnit)
+                    viewModel.createHabit(
+                        title,
+                        weekdays,
+                        repeatEveryDays,
+                        monthDays,
+                        reminderMinutesOfDay,
+                        targetAmount,
+                        targetUnit,
+                    )
                 } else {
                     viewModel.updateHabit(
                         habit.id,
                         title,
                         weekdays,
+                        repeatEveryDays,
+                        monthDays,
                         reminderMinutesOfDay,
                         targetAmount,
                         targetUnit,
@@ -209,9 +246,12 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EmptyHabits(
+    presets: List<HabitPreset>,
     onCreate: () -> Unit,
+    onUsePreset: (HabitPreset) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -252,11 +292,31 @@ private fun EmptyHabits(
                     onClick = onCreate,
                     modifier = Modifier.testTag("create_habit"),
                 )
+                if (presets.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.habits_quick_add),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    ) {
+                        presets.forEach { preset ->
+                            AssistChip(
+                                onClick = { onUsePreset(preset) },
+                                label = { Text(preset.title) },
+                                leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                                modifier = Modifier.testTag("quick_habit_preset_${preset.title}"),
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HabitsList(
     state: HabitsUiState,
@@ -265,11 +325,12 @@ private fun HabitsList(
     onArchive: (Habit) -> Unit,
     onChooseImage: (Habit) -> Unit,
     onCreate: () -> Unit,
+    onUsePreset: (HabitPreset) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier.fillMaxSize()) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().testTag("habits_list"),
             contentPadding =
                 PaddingValues(
                     start = DayloomSpacing.md,
@@ -291,6 +352,29 @@ private fun HabitsList(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = DayloomSpacing.sm),
                 )
+            }
+            if (state.presets.isNotEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs)) {
+                        Text(
+                            stringResource(R.string.habits_quick_add),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                            verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                        ) {
+                            state.presets.forEach { preset ->
+                                AssistChip(
+                                    onClick = { onUsePreset(preset) },
+                                    label = { Text(preset.title) },
+                                    leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                                    modifier = Modifier.testTag("quick_habit_preset_${preset.title}"),
+                                )
+                            }
+                        }
+                    }
+                }
             }
             if (state.reminderSchedulingFailed) {
                 item {
@@ -390,7 +474,7 @@ private fun HabitRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    text = scheduleLabel(habit.scheduledWeekdays),
+                    text = scheduleLabel(habit),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -469,16 +553,37 @@ private fun HabitEditorDialog(
     hasImageError: Boolean,
     onChooseImage: (Habit) -> Unit,
     onRemoveImage: (EntityId) -> Unit,
-    presets: Set<String>,
-    onSavePreset: (String) -> Unit,
-    onRemovePreset: (String) -> Unit,
-    onSave: (String, Set<Weekday>, Int?, String, String) -> Unit,
+    presets: List<HabitPreset>,
+    onSavePreset: (String, Set<Weekday>, Int?, Set<Int>, Int?, String, String) -> Unit,
+    onRemovePreset: (HabitPreset) -> Unit,
+    onSave: (String, Set<Weekday>, Int?, Set<Int>, Int?, String, String) -> Unit,
 ) {
     var title by remember(habit?.id) { mutableStateOf(habit?.title.orEmpty()) }
     var selectedDays by
         remember(habit?.id) {
             mutableStateOf(habit?.scheduledWeekdays ?: Weekday.entries.toSet())
         }
+    var scheduleMode by remember(habit?.id) {
+        mutableStateOf(
+            when {
+                habit?.scheduledMonthDays?.isNotEmpty() == true -> HabitScheduleMode.MONTH_DAYS
+                habit?.repeatEveryDays != null -> HabitScheduleMode.INTERVAL
+                else -> HabitScheduleMode.WEEKDAYS
+            },
+        )
+    }
+    var repeatEveryDaysText by remember(habit?.id) {
+        mutableStateOf(habit?.repeatEveryDays?.toString().orEmpty())
+    }
+    var scheduledMonthDaysText by remember(habit?.id) {
+        mutableStateOf(
+            habit
+                ?.scheduledMonthDays
+                ?.sorted()
+                ?.joinToString(", ")
+                .orEmpty(),
+        )
+    }
     var reminderMinutesOfDay by remember(habit?.id) { mutableStateOf(habit?.reminderMinutesOfDay) }
     var targetAmount by remember(habit?.id) { mutableStateOf(habit?.targetAmount.orEmpty()) }
     var targetUnit by remember(habit?.id) { mutableStateOf(habit?.targetUnit.orEmpty()) }
@@ -504,19 +609,34 @@ private fun HabitEditorDialog(
                         horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
                         verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
                     ) {
-                        presets.sorted().forEach { preset ->
+                        presets.forEach { preset ->
                             InputChip(
                                 selected = false,
-                                onClick = { title = preset },
-                                label = { Text(preset) },
+                                onClick = {
+                                    title = preset.title
+                                    selectedDays = preset.scheduledWeekdays
+                                    scheduleMode =
+                                        when {
+                                            preset.scheduledMonthDays.isNotEmpty() -> HabitScheduleMode.MONTH_DAYS
+                                            preset.repeatEveryDays != null -> HabitScheduleMode.INTERVAL
+                                            else -> HabitScheduleMode.WEEKDAYS
+                                        }
+                                    repeatEveryDaysText = preset.repeatEveryDays?.toString().orEmpty()
+                                    scheduledMonthDaysText = preset.scheduledMonthDays.sorted().joinToString(", ")
+                                    reminderMinutesOfDay = preset.reminderMinutesOfDay
+                                    targetAmount = preset.targetAmount
+                                    targetUnit = preset.targetUnit
+                                },
+                                label = { Text(preset.title) },
                                 trailingIcon = {
                                     Icon(
                                         Icons.Rounded.Close,
-                                        contentDescription = stringResource(R.string.habits_remove_preset, preset),
+                                        contentDescription =
+                                            stringResource(R.string.habits_remove_preset, preset.title),
                                         modifier = Modifier.size(18.dp).clickable { onRemovePreset(preset) },
                                     )
                                 },
-                                modifier = Modifier.testTag("habit_preset_$preset"),
+                                modifier = Modifier.testTag("habit_preset_${preset.title}"),
                             )
                         }
                     }
@@ -530,8 +650,25 @@ private fun HabitEditorDialog(
                     singleLine = true,
                 )
                 TextButton(
-                    onClick = { onSavePreset(title) },
-                    enabled = title.isNotBlank() && title !in presets,
+                    onClick = {
+                        onSavePreset(
+                            title,
+                            selectedDays,
+                            repeatEveryDaysText.toIntOrNull().takeIf {
+                                scheduleMode == HabitScheduleMode.INTERVAL
+                            },
+                            parseMonthDays(scheduledMonthDaysText)
+                                .takeIf {
+                                    scheduleMode == HabitScheduleMode.MONTH_DAYS
+                                }.orEmpty(),
+                            reminderMinutesOfDay,
+                            targetAmount,
+                            targetUnit,
+                        )
+                    },
+                    enabled =
+                        title.isNotBlank() &&
+                            scheduleIsValid(scheduleMode, selectedDays, repeatEveryDaysText, scheduledMonthDaysText),
                     modifier = Modifier.testTag("save_habit_preset"),
                 ) {
                     Text(stringResource(R.string.habits_save_preset))
@@ -587,20 +724,74 @@ private fun HabitEditorDialog(
                     horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
                     verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
                 ) {
-                    Weekday.entries.forEach { weekday ->
-                        FilterChip(
-                            selected = weekday in selectedDays,
-                            onClick = {
-                                selectedDays =
-                                    if (weekday in selectedDays) {
-                                        selectedDays - weekday
-                                    } else {
-                                        selectedDays + weekday
-                                    }
-                            },
-                            label = { Text(weekdayShortLabel(weekday)) },
-                            modifier = Modifier.testTag("habit_day_${weekday.name.lowercase()}"),
+                    FilterChip(
+                        selected = scheduleMode == HabitScheduleMode.WEEKDAYS,
+                        onClick = { scheduleMode = HabitScheduleMode.WEEKDAYS },
+                        label = { Text(stringResource(R.string.habits_schedule_weekdays)) },
+                        modifier = Modifier.testTag("habit_schedule_weekdays"),
+                    )
+                    FilterChip(
+                        selected = scheduleMode == HabitScheduleMode.INTERVAL,
+                        onClick = { scheduleMode = HabitScheduleMode.INTERVAL },
+                        label = { Text(stringResource(R.string.habits_schedule_interval)) },
+                        modifier = Modifier.testTag("habit_schedule_interval"),
+                    )
+                    FilterChip(
+                        selected = scheduleMode == HabitScheduleMode.MONTH_DAYS,
+                        onClick = { scheduleMode = HabitScheduleMode.MONTH_DAYS },
+                        label = { Text(stringResource(R.string.habits_schedule_month_days)) },
+                        modifier = Modifier.testTag("habit_schedule_month_days"),
+                    )
+                }
+                when (scheduleMode) {
+                    HabitScheduleMode.INTERVAL -> {
+                        OutlinedTextField(
+                            value = repeatEveryDaysText,
+                            onValueChange = { repeatEveryDaysText = it.filter(Char::isDigit).take(4) },
+                            label = { Text(stringResource(R.string.habits_interval_days)) },
+                            supportingText = { Text(stringResource(R.string.habits_interval_description)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().testTag("habit_repeat_interval"),
                         )
+                    }
+                    HabitScheduleMode.MONTH_DAYS -> {
+                        OutlinedTextField(
+                            value = scheduledMonthDaysText,
+                            onValueChange = { value ->
+                                scheduledMonthDaysText =
+                                    value.filter { it.isDigit() || it == ',' || it == ';' || it.isWhitespace() }.take(
+                                        96,
+                                    )
+                            },
+                            label = { Text(stringResource(R.string.habits_month_days)) },
+                            supportingText = { Text(stringResource(R.string.habits_month_days_description)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().testTag("habit_month_days"),
+                        )
+                    }
+                    HabitScheduleMode.WEEKDAYS -> {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                            verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                        ) {
+                            Weekday.entries.forEach { weekday ->
+                                FilterChip(
+                                    selected = weekday in selectedDays,
+                                    onClick = {
+                                        selectedDays =
+                                            if (weekday in selectedDays) {
+                                                selectedDays - weekday
+                                            } else {
+                                                selectedDays + weekday
+                                            }
+                                    },
+                                    label = { Text(weekdayShortLabel(weekday)) },
+                                    modifier = Modifier.testTag("habit_day_${weekday.name.lowercase()}"),
+                                )
+                            }
+                        }
                     }
                 }
                 Text(stringResource(R.string.habits_target), style = MaterialTheme.typography.titleMedium)
@@ -686,8 +877,25 @@ private fun HabitEditorDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(title, selectedDays, reminderMinutesOfDay, targetAmount, targetUnit) },
-                enabled = title.isNotBlank() && selectedDays.isNotEmpty(),
+                onClick = {
+                    onSave(
+                        title,
+                        selectedDays,
+                        repeatEveryDaysText.toIntOrNull().takeIf {
+                            scheduleMode == HabitScheduleMode.INTERVAL
+                        },
+                        parseMonthDays(scheduledMonthDaysText)
+                            .takeIf {
+                                scheduleMode == HabitScheduleMode.MONTH_DAYS
+                            }.orEmpty(),
+                        reminderMinutesOfDay,
+                        targetAmount,
+                        targetUnit,
+                    )
+                },
+                enabled =
+                    title.isNotBlank() &&
+                        scheduleIsValid(scheduleMode, selectedDays, repeatEveryDaysText, scheduledMonthDaysText),
                 modifier = Modifier.testTag("save_habit"),
             ) {
                 Text(
@@ -724,7 +932,17 @@ private fun LocalHabitImage(
 }
 
 @Composable
-private fun scheduleLabel(days: Set<Weekday>): String {
+private fun scheduleLabel(habit: Habit): String {
+    if (habit.scheduledMonthDays.isNotEmpty()) {
+        return stringResource(
+            R.string.habits_on_month_days,
+            habit.scheduledMonthDays.sorted().joinToString(", "),
+        )
+    }
+    habit.repeatEveryDays?.let { interval ->
+        return stringResource(R.string.habits_every_n_days, interval)
+    }
+    val days = habit.scheduledWeekdays
     if (days.size == Weekday.entries.size) {
         return stringResource(R.string.habits_every_day)
     }
@@ -734,6 +952,30 @@ private fun scheduleLabel(days: Set<Weekday>): String {
         result = listOf(result, weekdayShortLabel(weekday)).filter(String::isNotEmpty).joinToString(" · ")
     }
     return result
+}
+
+private fun scheduleIsValid(
+    scheduleMode: HabitScheduleMode,
+    selectedDays: Set<Weekday>,
+    repeatEveryDaysText: String,
+    scheduledMonthDaysText: String,
+): Boolean =
+    when (scheduleMode) {
+        HabitScheduleMode.WEEKDAYS -> selectedDays.isNotEmpty()
+        HabitScheduleMode.INTERVAL -> repeatEveryDaysText.toIntOrNull() in 1..MAX_REPEAT_INTERVAL_DAYS
+        HabitScheduleMode.MONTH_DAYS -> parseMonthDays(scheduledMonthDaysText).isNotEmpty()
+    }
+
+private fun parseMonthDays(value: String): Set<Int> =
+    value
+        .split(Regex("[,;\\s]+"))
+        .mapNotNull(String::toIntOrNull)
+        .filterTo(sortedSetOf()) { it in 1..31 }
+
+private enum class HabitScheduleMode {
+    WEEKDAYS,
+    INTERVAL,
+    MONTH_DAYS,
 }
 
 @Composable
@@ -760,4 +1002,5 @@ private fun formatReminderTime(
 
 private const val MAX_TITLE_LENGTH = 80
 private const val MAX_TARGET_LENGTH = 24
+private const val MAX_REPEAT_INTERVAL_DAYS = 3650
 private const val DEFAULT_REMINDER_MINUTES = 9 * 60

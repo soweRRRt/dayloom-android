@@ -43,6 +43,7 @@
     <string name="lists_note_label">Заметка (необязательно)</string>
     <string name="lists_delete">Удалить</string>
     <string name="lists_item_presets">Быстрые пресеты</string>
-    <string name="lists_save_preset">Сохранить название как пресет</string>
+    <string name="lists_quick_add">Быстро добавить из пресета</string>
+    <string name="lists_save_preset">Сохранить поля как пресет</string>
     <string name="lists_remove_preset">Удалить пресет «%1$s»</string>
 </resources>

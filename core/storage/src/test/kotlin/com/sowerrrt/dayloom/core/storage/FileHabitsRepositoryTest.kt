@@ -56,6 +56,38 @@ class FileHabitsRepositoryTest {
         }
 
     @Test
+    fun `interval schedule survives repository recreation`() =
+        runTest {
+            val directory = temporaryFolder.newFolder("interval")
+            FileHabitsRepository(directory).createHabit(
+                title = "Water plants",
+                scheduledWeekdays = emptySet(),
+                startEpochDay = TEST_EPOCH_DAY,
+                repeatEveryDays = 10,
+                reminderMinutesOfDay = 5 * 60,
+            )
+
+            val restored = FileHabitsRepository(directory).loadHabits().single()
+
+            assertEquals(10, restored.repeatEveryDays)
+            assertEquals(5 * 60, restored.reminderMinutesOfDay)
+        }
+
+    @Test
+    fun `monthly schedule survives repository recreation`() =
+        runTest {
+            val directory = temporaryFolder.newFolder("monthly")
+            FileHabitsRepository(directory).createHabit(
+                title = "Review budget",
+                scheduledWeekdays = emptySet(),
+                startEpochDay = TEST_EPOCH_DAY,
+                scheduledMonthDays = setOf(3, 15),
+            )
+
+            assertEquals(setOf(3, 15), FileHabitsRepository(directory).loadHabits().single().scheduledMonthDays)
+        }
+
+    @Test
     fun `toggling a completed day removes it`() =
         runTest {
             val id = EntityId("habit-2")

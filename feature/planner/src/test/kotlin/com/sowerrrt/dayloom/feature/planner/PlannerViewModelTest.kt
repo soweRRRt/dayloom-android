@@ -138,6 +138,35 @@ class PlannerViewModelTest {
         }
 
     @Test
+    fun `full preset creates a plan for selected date in one action`() =
+        runTest(dispatcher) {
+            val selectedDay = LocalDate.now().plusDays(2).toEpochDay()
+            val plannerRepository = FakePlannerRepository()
+            val viewModel =
+                PlannerViewModel(
+                    FakeHabitsRepository(LocalDate.now().toEpochDay()),
+                    plannerRepository,
+                    FakeNotificationScheduler(),
+                    FakeAttachmentRepository(),
+                    FakeSettingsRepository(),
+                )
+            runCurrent()
+            viewModel.selectDate(selectedDay)
+            viewModel.savePreset("Call family", 19 * 60)
+            runCurrent()
+
+            viewModel.createFromPreset(
+                viewModel.uiState.value.presets
+                    .single(),
+            )
+            runCurrent()
+
+            val plan = plannerRepository.loadPlans().single()
+            assertEquals(selectedDay, plan.dateEpochDay)
+            assertEquals(19 * 60, plan.reminderMinutesOfDay)
+        }
+
+    @Test
     fun `only future incomplete plans become reminders`() {
         val zone = ZoneId.of("UTC")
         val today = LocalDate.of(2030, 1, 2)
@@ -189,6 +218,8 @@ private class FakeHabitsRepository(
         reminderMinutesOfDay: Int?,
         targetAmount: String,
         targetUnit: String,
+        repeatEveryDays: Int?,
+        scheduledMonthDays: Set<Int>,
     ): List<Habit> = error("Not needed")
 
     override suspend fun updateHabit(
@@ -198,6 +229,8 @@ private class FakeHabitsRepository(
         reminderMinutesOfDay: Int?,
         targetAmount: String,
         targetUnit: String,
+        repeatEveryDays: Int?,
+        scheduledMonthDays: Set<Int>,
     ): List<Habit> = error("Not needed")
 
     override suspend fun archiveHabit(id: EntityId): List<Habit> = error("Not needed")
@@ -303,12 +336,26 @@ private class FakeSettingsRepository : SettingsRepository {
     override suspend fun addPreset(
         type: PresetType,
         title: String,
-    ) = Unit
+    ) {
+        state.value =
+            when (type) {
+                PresetType.HABIT -> state.value.copy(habitPresets = state.value.habitPresets + title)
+                PresetType.PLAN -> state.value.copy(planPresets = state.value.planPresets + title)
+                PresetType.LIST_ITEM -> state.value.copy(listItemPresets = state.value.listItemPresets + title)
+            }
+    }
 
     override suspend fun removePreset(
         type: PresetType,
         title: String,
-    ) = Unit
+    ) {
+        state.value =
+            when (type) {
+                PresetType.HABIT -> state.value.copy(habitPresets = state.value.habitPresets - title)
+                PresetType.PLAN -> state.value.copy(planPresets = state.value.planPresets - title)
+                PresetType.LIST_ITEM -> state.value.copy(listItemPresets = state.value.listItemPresets - title)
+            }
+    }
 
     override suspend fun markUpdateChecked(epochMillis: Long) = Unit
 }

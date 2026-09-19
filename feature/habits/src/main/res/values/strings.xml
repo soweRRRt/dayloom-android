@@ -16,6 +16,15 @@
     <string name="habits_save">Save</string>
     <string name="habits_cancel">Cancel</string>
     <string name="habits_schedule">Repeat on</string>
+    <string name="habits_schedule_weekdays">Weekdays</string>
+    <string name="habits_schedule_interval">Every N days</string>
+    <string name="habits_schedule_month_days">Days of month</string>
+    <string name="habits_interval_days">Interval in days</string>
+    <string name="habits_interval_description">The first occurrence is today. Enter a number from 1 to 3650.</string>
+    <string name="habits_every_n_days">Every %1$d days</string>
+    <string name="habits_month_days">Month days</string>
+    <string name="habits_month_days_description">Enter one or more numbers from 1 to 31, separated by commas. Missing dates are skipped.</string>
+    <string name="habits_on_month_days">On day %1$s of each month</string>
     <string name="habits_every_day">Every day</string>
     <string name="habits_reminder">Exact time (optional)</string>
     <string name="habits_reminder_description">The selected time is shown with the habit and also schedules a local reminder. Battery saving may delay delivery slightly.</string>
@@ -44,7 +53,8 @@
     <string name="habits_error_description">Dayloom could not read or save your habits. Your existing data was not discarded.</string>
     <string name="habits_retry">Try again</string>
     <string name="habits_presets">Quick presets</string>
-    <string name="habits_save_preset">Save name as preset</string>
+    <string name="habits_quick_add">Quick add from a preset</string>
+    <string name="habits_save_preset">Save settings as preset</string>
     <string name="habits_remove_preset">Remove preset %1$s</string>
     <string name="habits_target">Amount (optional)</string>
     <string name="habits_target_description">Use any value and unit that makes sense to you.</string>

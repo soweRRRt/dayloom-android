@@ -5,8 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.DayList
 import com.sowerrrt.dayloom.core.model.DayListItem
 import com.sowerrrt.dayloom.core.model.EntityId
+import com.sowerrrt.dayloom.core.model.ListItemPreset
 import com.sowerrrt.dayloom.core.model.ListKind
 import com.sowerrrt.dayloom.core.model.PresetType
+import com.sowerrrt.dayloom.core.model.toListItemPresetOrNull
+import com.sowerrrt.dayloom.core.model.toStorageValue
 import com.sowerrrt.dayloom.core.storage.ListsRepository
 import com.sowerrrt.dayloom.core.storage.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,7 +26,7 @@ data class ListsUiState(
     val selectedListId: EntityId? = null,
     val isLoading: Boolean = true,
     val hasError: Boolean = false,
-    val itemPresets: Set<String> = emptySet(),
+    val itemPresets: List<ListItemPreset> = emptyList(),
 ) {
     val selectedList: DayList?
         get() = lists.firstOrNull { it.id == selectedListId }
@@ -53,8 +56,12 @@ class ListsViewModel
             viewModelScope.launch {
                 mutableUiState.update { it.copy(isLoading = true, hasError = false) }
                 runCatching { repository.loadLists() to settingsRepository.settings.first().listItemPresets }
-                    .onSuccess { (lists, presets) -> applyLists(lists, presets) }
-                    .onFailure { mutableUiState.update { state -> state.copy(isLoading = false, hasError = true) } }
+                    .onSuccess { (lists, presets) ->
+                        applyLists(
+                            lists,
+                            presets.mapNotNull(String::toListItemPresetOrNull).sortedBy { it.title.lowercase() },
+                        )
+                    }.onFailure { mutableUiState.update { state -> state.copy(isLoading = false, hasError = true) } }
             }
         }
 
@@ -142,20 +149,41 @@ class ListsViewModel
             updateLists(operation = { repository.moveItem(listId, itemId, offset) })
         }
 
-        fun saveItemPreset(title: String) {
+        fun saveItemPreset(
+            title: String,
+            quantity: String,
+            note: String,
+        ) {
             val normalized = title.trim()
             if (normalized.isEmpty()) return
+            val preset = ListItemPreset(normalized, quantity.trim(), note.trim())
             viewModelScope.launch {
-                settingsRepository.addPreset(PresetType.LIST_ITEM, normalized)
-                mutableUiState.update { it.copy(itemPresets = it.itemPresets + normalized) }
+                removeStoredItemPresets(normalized)
+                settingsRepository.addPreset(PresetType.LIST_ITEM, preset.toStorageValue())
+                mutableUiState.update {
+                    it.copy(
+                        itemPresets =
+                            (it.itemPresets.filterNot { existing -> existing.title.equals(normalized, true) } + preset)
+                                .sortedBy { saved -> saved.title.lowercase() },
+                    )
+                }
             }
         }
 
-        fun removeItemPreset(title: String) {
+        fun removeItemPreset(preset: ListItemPreset) {
             viewModelScope.launch {
-                settingsRepository.removePreset(PresetType.LIST_ITEM, title)
-                mutableUiState.update { it.copy(itemPresets = it.itemPresets - title) }
+                removeStoredItemPresets(preset.title)
+                mutableUiState.update {
+                    it.copy(itemPresets = it.itemPresets.filterNot { saved -> saved.title.equals(preset.title, true) })
+                }
             }
+        }
+
+        fun addItemFromPreset(
+            listId: EntityId,
+            preset: ListItemPreset,
+        ) {
+            addItem(listId, preset.title, preset.quantity, preset.note)
         }
 
         private fun updateLists(
@@ -179,7 +207,7 @@ class ListsViewModel
 
         private fun applyLists(
             lists: List<DayList>,
-            presets: Set<String> = mutableUiState.value.itemPresets,
+            presets: List<ListItemPreset> = mutableUiState.value.itemPresets,
         ) {
             mutableUiState.update { state ->
                 state.copy(
@@ -190,5 +218,13 @@ class ListsViewModel
                     itemPresets = presets,
                 )
             }
+        }
+
+        private suspend fun removeStoredItemPresets(title: String) {
+            settingsRepository.settings
+                .first()
+                .listItemPresets
+                .filter { it.toListItemPresetOrNull()?.title?.equals(title, true) == true }
+                .forEach { settingsRepository.removePreset(PresetType.LIST_ITEM, it) }
         }
     }

@@ -46,4 +46,62 @@ class HabitNotificationsTest {
 
         assertEquals(Instant.parse("2026-09-26T09:00:00Z").toEpochMilli(), next)
     }
+
+    @Test
+    fun `interval habit reminder keeps its exact time`() {
+        val start = LocalDate.of(2026, 9, 19)
+        val now = start.atTime(4, 0).toInstant(ZoneOffset.UTC).toEpochMilli()
+        val habit =
+            Habit(
+                id = EntityId("interval-habit"),
+                title = "Water plants",
+                createdAtEpochMillis = 1L,
+                startEpochDay = start.toEpochDay(),
+                scheduledWeekdays = emptySet(),
+                repeatEveryDays = 10,
+                reminderMinutesOfDay = 5 * 60,
+            )
+
+        val reminder = listOf(habit).activeHabitReminders(now, ZoneOffset.UTC).single()
+
+        assertEquals(start.atTime(5, 0).toInstant(ZoneOffset.UTC).toEpochMilli(), reminder.triggerAtEpochMillis)
+        assertEquals(10, reminder.intervalRepeat?.days)
+        assertEquals(5 * 60, reminder.intervalRepeat?.minutesOfDay)
+        assertEquals(null, reminder.weeklyRepeat)
+        assertEquals(
+            Instant.parse("2026-09-29T05:00:00Z").toEpochMilli(),
+            nextIntervalTrigger(reminder.triggerAtEpochMillis, 10, 5 * 60, ZoneOffset.UTC),
+        )
+    }
+
+    @Test
+    fun `monthly trigger advances to the next configured month day`() {
+        val current = Instant.parse("2026-09-15T05:00:00Z").toEpochMilli()
+
+        val next = nextMonthlyTrigger(current, setOf(3, 15), 5 * 60, ZoneOffset.UTC)
+
+        assertEquals(Instant.parse("2026-10-03T05:00:00Z").toEpochMilli(), next)
+    }
+
+    @Test
+    fun `monthly habit reminder exposes its repeat rule`() {
+        val today = LocalDate.of(2026, 9, 2)
+        val now = today.atTime(12, 0).toInstant(ZoneOffset.UTC).toEpochMilli()
+        val habit =
+            Habit(
+                id = EntityId("monthly-habit"),
+                title = "Review budget",
+                createdAtEpochMillis = 1L,
+                startEpochDay = today.minusDays(10).toEpochDay(),
+                scheduledWeekdays = emptySet(),
+                scheduledMonthDays = setOf(3, 15),
+                reminderMinutesOfDay = 5 * 60,
+            )
+
+        val reminder = listOf(habit).activeHabitReminders(now, ZoneOffset.UTC).single()
+
+        assertEquals(Instant.parse("2026-09-03T05:00:00Z").toEpochMilli(), reminder.triggerAtEpochMillis)
+        assertEquals(setOf(3, 15), reminder.monthlyRepeat?.daysOfMonth)
+        assertEquals(5 * 60, reminder.monthlyRepeat?.minutesOfDay)
+    }
 }
