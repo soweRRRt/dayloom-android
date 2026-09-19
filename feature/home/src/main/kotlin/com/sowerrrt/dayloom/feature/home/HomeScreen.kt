@@ -27,6 +27,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,6 +38,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTheme
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
@@ -48,13 +52,37 @@ fun HomeScreen(
     onOpenPlanner: () -> Unit,
     onOpenLists: () -> Unit,
     onOpenWishlist: () -> Unit,
+    viewModel: HomeViewModel = hiltViewModel(),
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { viewModel.refresh() }
+    HomeContent(
+        state = state,
+        onOpenHabits = onOpenHabits,
+        onOpenPlanner = onOpenPlanner,
+        onOpenLists = onOpenLists,
+        onOpenWishlist = onOpenWishlist,
+    )
+}
+
+@Composable
+private fun HomeContent(
+    state: HomeUiState,
+    onOpenHabits: () -> Unit,
+    onOpenPlanner: () -> Unit,
+    onOpenLists: () -> Unit,
+    onOpenWishlist: () -> Unit,
 ) {
     val cards =
         listOf(
             HomeCardData(
                 stringResource(R.string.home_habits_title),
                 stringResource(R.string.home_habits_body),
-                stringResource(R.string.home_habits_metric),
+                if (state.habitsToday == 0) {
+                    stringResource(R.string.home_habits_metric)
+                } else {
+                    stringResource(R.string.home_habits_metric_value, state.habitsCompletedToday, state.habitsToday)
+                },
                 Icons.Rounded.AutoAwesome,
                 MaterialTheme.colorScheme.primary,
                 onOpenHabits,
@@ -62,7 +90,11 @@ fun HomeScreen(
             HomeCardData(
                 stringResource(R.string.home_plan_title),
                 stringResource(R.string.home_plan_body),
-                stringResource(R.string.home_plan_metric),
+                if (state.plansToday == 0) {
+                    stringResource(R.string.home_plan_metric)
+                } else {
+                    stringResource(R.string.home_plan_metric_value, state.plansCompletedToday, state.plansToday)
+                },
                 Icons.Rounded.CalendarMonth,
                 MaterialTheme.colorScheme.secondary,
                 onOpenPlanner,
@@ -70,7 +102,11 @@ fun HomeScreen(
             HomeCardData(
                 stringResource(R.string.home_lists_title),
                 stringResource(R.string.home_lists_body),
-                stringResource(R.string.home_lists_metric),
+                if (state.listCount == 0) {
+                    stringResource(R.string.home_lists_metric)
+                } else {
+                    stringResource(R.string.home_lists_metric_value, state.listCount, state.openListItems)
+                },
                 Icons.Rounded.Checklist,
                 MaterialTheme.colorScheme.tertiary,
                 onOpenLists,
@@ -185,6 +221,6 @@ private fun HomeScreenPreview() {
         themeMode = ThemeMode.SYSTEM,
         accentPalette = AccentPalette.VIOLET,
     ) {
-        HomeScreen({}, {}, {}, {})
+        HomeContent(HomeUiState(), {}, {}, {}, {})
     }
 }

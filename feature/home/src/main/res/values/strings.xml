@@ -6,12 +6,15 @@
     <string name="home_habits_title">Habits</string>
     <string name="home_habits_body">Start with one small, repeatable action.</string>
     <string name="home_habits_metric">No habits yet</string>
+    <string name="home_habits_metric_value">Done today: %1$d/%2$d</string>
     <string name="home_plan_title">Plan</string>
     <string name="home_plan_body">Give your next important task a place.</string>
     <string name="home_plan_metric">Your day is clear</string>
+    <string name="home_plan_metric_value">Completed today: %1$d/%2$d</string>
     <string name="home_lists_title">Lists</string>
     <string name="home_lists_body">Collect what you want to remember.</string>
     <string name="home_lists_metric">Ready for your first list</string>
+    <string name="home_lists_metric_value">Lists: %1$d · Open items: %2$d</string>
     <string name="home_wishes_title">Wishes</string>
     <string name="home_wishes_body">Turn a future purchase into a visible goal.</string>
     <string name="home_wishes_metric">No goals yet</string>

@@ -6,12 +6,15 @@
     <string name="home_habits_title">Привычки</string>
     <string name="home_habits_body">Начните с одного небольшого повторяемого действия.</string>
     <string name="home_habits_metric">Привычек пока нет</string>
+    <string name="home_habits_metric_value">Сегодня выполнено: %1$d/%2$d</string>
     <string name="home_plan_title">План</string>
     <string name="home_plan_body">Найдите место для следующего важного дела.</string>
     <string name="home_plan_metric">День пока свободен</string>
+    <string name="home_plan_metric_value">Сегодня выполнено: %1$d/%2$d</string>
     <string name="home_lists_title">Списки</string>
     <string name="home_lists_body">Соберите всё, что хотите запомнить.</string>
     <string name="home_lists_metric">Можно создать первый список</string>
+    <string name="home_lists_metric_value">Списков: %1$d · Открытых пунктов: %2$d</string>
     <string name="home_wishes_title">Желания</string>
     <string name="home_wishes_body">Превратите будущую покупку в наглядную цель.</string>
     <string name="home_wishes_metric">Целей пока нет</string>

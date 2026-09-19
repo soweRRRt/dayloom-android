@@ -142,3 +142,37 @@ data class PlanItem(
 data class PlannerSnapshot(
     val plans: List<PlanItem> = emptyList(),
 )
+
+@Serializable
+enum class ListKind {
+    GENERAL,
+    SHOPPING,
+    PACKING,
+    IDEAS,
+}
+
+@Serializable
+data class DayListItem(
+    val id: EntityId,
+    val title: String,
+    val quantity: String = "",
+    val note: String = "",
+    val completed: Boolean = false,
+    val order: Int,
+    val createdAtEpochMillis: Long,
+)
+
+@Serializable
+data class DayList(
+    val id: EntityId,
+    val title: String,
+    val kind: ListKind = ListKind.GENERAL,
+    val items: List<DayListItem> = emptyList(),
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long = createdAtEpochMillis,
+)
+
+@Serializable
+data class ListsSnapshot(
+    val lists: List<DayList> = emptyList(),
+)

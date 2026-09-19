@@ -76,6 +76,33 @@ class NavigationUiTest {
     }
 
     @Test
+    fun listAndItemCanBeCreatedCompletedAndRestored() {
+        val suffix = System.currentTimeMillis()
+        val listTitle = "Groceries $suffix"
+        val itemTitle = "Oat milk $suffix"
+
+        composeRule.onNodeWithTag("primary_nav_lists").performClick()
+        composeRule.onNodeWithTag("create_list").performClick()
+        composeRule.onNodeWithTag("list_name_input").performTextInput(listTitle)
+        composeRule.onNodeWithTag("list_kind_shopping").performClick()
+        composeRule.onNodeWithTag("save_list").performClick()
+        composeRule.onNodeWithTag("list_details").assertExists()
+
+        composeRule.onNodeWithTag("create_list_item").performClick()
+        composeRule.onNodeWithTag("list_item_name_input").performTextInput(itemTitle)
+        composeRule.onNodeWithTag("list_item_quantity_input").performTextInput("2 cartons")
+        composeRule.onNodeWithTag("list_item_note_input").performTextInput("Unsweetened")
+        composeRule.onNodeWithTag("save_list_item").performClick()
+        composeRule.onNodeWithTag("list_item_$itemTitle").assertExists()
+        composeRule.onNodeWithTag("list_item_toggle_$itemTitle").performClick()
+
+        composeRule.activityRule.scenario.recreate()
+        composeRule.onNodeWithTag("list_item_$itemTitle").assertExists()
+        composeRule.onNodeWithText("Quantity: 2 cartons").assertExists()
+        composeRule.onNodeWithText("Unsweetened").assertExists()
+    }
+
+    @Test
     fun themeAndStartScreenSelectionsSurviveRecreation() {
         composeRule.onNodeWithText("More").performClick()
         composeRule.onNodeWithText("Settings").performClick()
