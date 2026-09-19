@@ -176,3 +176,42 @@ data class DayList(
 data class ListsSnapshot(
     val lists: List<DayList> = emptyList(),
 )
+
+@Serializable
+enum class WishPriority {
+    LOW,
+    MEDIUM,
+    HIGH,
+}
+
+@Serializable
+data class WishContribution(
+    val id: EntityId,
+    val amountMinor: Long,
+    val note: String = "",
+    val createdAtEpochMillis: Long,
+)
+
+@Serializable
+data class WishGoal(
+    val id: EntityId,
+    val title: String,
+    val targetMinor: Long,
+    val currencyCode: String,
+    val priority: WishPriority = WishPriority.MEDIUM,
+    val note: String = "",
+    val contributions: List<WishContribution> = emptyList(),
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long = createdAtEpochMillis,
+)
+
+val WishGoal.savedMinor: Long
+    get() = contributions.sumOf(WishContribution::amountMinor)
+
+val WishGoal.isCompleted: Boolean
+    get() = savedMinor >= targetMinor
+
+@Serializable
+data class WishlistSnapshot(
+    val goals: List<WishGoal> = emptyList(),
+)

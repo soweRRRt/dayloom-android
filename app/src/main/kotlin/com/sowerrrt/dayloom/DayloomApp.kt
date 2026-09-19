@@ -232,7 +232,7 @@ private fun DayloomNavHost(
                 onSettings = { navController.navigate(Routes.SETTINGS) },
             )
         }
-        composable(Routes.WISHLIST) { WishlistScreen() }
+        composable(Routes.WISHLIST) { WishlistScreen(onBack = navController::popBackStack) }
         composable(Routes.VAULT) { VaultScreen(onVaultSetup) }
         composable(Routes.SETTINGS) { SettingsScreen(updateViewModel::checkManually) }
     }
@@ -345,8 +345,14 @@ private fun MoreScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyLarge,
             )
-            items.forEach { (label, icon, action) ->
-                DayloomCard(Modifier.fillMaxWidth().clickable(onClick = action)) {
+            items.forEachIndexed { index, (label, icon, action) ->
+                val testTag = listOf("more_wishlist", "more_vault", "more_settings")[index]
+                DayloomCard(
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(testTag)
+                        .clickable(onClick = action),
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,

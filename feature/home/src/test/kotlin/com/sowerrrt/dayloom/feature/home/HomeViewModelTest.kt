@@ -7,9 +7,13 @@ import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.ListKind
 import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.model.Weekday
+import com.sowerrrt.dayloom.core.model.WishContribution
+import com.sowerrrt.dayloom.core.model.WishGoal
+import com.sowerrrt.dayloom.core.model.WishPriority
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.ListsRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
+import com.sowerrrt.dayloom.core.storage.WishlistRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -84,6 +88,23 @@ class HomeViewModelTest {
                     habitsRepository = ReadOnlyHabitsRepository(habits),
                     plannerRepository = ReadOnlyPlannerRepository(plans),
                     listsRepository = ReadOnlyListsRepository(lists),
+                    wishlistRepository =
+                        ReadOnlyWishlistRepository(
+                            listOf(
+                                WishGoal(
+                                    id = EntityId("wish-1"),
+                                    title = "Camera",
+                                    targetMinor = 10_000,
+                                    currencyCode = "EUR",
+                                    priority = WishPriority.HIGH,
+                                    contributions =
+                                        listOf(
+                                            WishContribution(EntityId("saving-1"), 10_000, createdAtEpochMillis = 2L),
+                                        ),
+                                    createdAtEpochMillis = 1L,
+                                ),
+                            ),
+                        ),
                 )
 
             runCurrent()
@@ -94,6 +115,8 @@ class HomeViewModelTest {
             assertEquals(1, viewModel.uiState.value.plansCompletedToday)
             assertEquals(1, viewModel.uiState.value.listCount)
             assertEquals(1, viewModel.uiState.value.openListItems)
+            assertEquals(1, viewModel.uiState.value.wishCount)
+            assertEquals(1, viewModel.uiState.value.completedWishCount)
         }
 }
 
@@ -191,4 +214,40 @@ private class ReadOnlyListsRepository(
         itemId: EntityId,
         offset: Int,
     ): List<DayList> = error("Read-only fake")
+}
+
+private class ReadOnlyWishlistRepository(
+    private val goals: List<WishGoal>,
+) : WishlistRepository {
+    override suspend fun loadGoals(): List<WishGoal> = goals
+
+    override suspend fun createGoal(
+        title: String,
+        targetMinor: Long,
+        currencyCode: String,
+        priority: WishPriority,
+        note: String,
+    ): List<WishGoal> = error("Read-only fake")
+
+    override suspend fun updateGoal(
+        id: EntityId,
+        title: String,
+        targetMinor: Long,
+        currencyCode: String,
+        priority: WishPriority,
+        note: String,
+    ): List<WishGoal> = error("Read-only fake")
+
+    override suspend fun deleteGoal(id: EntityId): List<WishGoal> = error("Read-only fake")
+
+    override suspend fun addContribution(
+        goalId: EntityId,
+        amountMinor: Long,
+        note: String,
+    ): List<WishGoal> = error("Read-only fake")
+
+    override suspend fun deleteContribution(
+        goalId: EntityId,
+        contributionId: EntityId,
+    ): List<WishGoal> = error("Read-only fake")
 }

@@ -114,7 +114,11 @@ private fun HomeContent(
             HomeCardData(
                 stringResource(R.string.home_wishes_title),
                 stringResource(R.string.home_wishes_body),
-                stringResource(R.string.home_wishes_metric),
+                if (state.wishCount == 0) {
+                    stringResource(R.string.home_wishes_metric)
+                } else {
+                    stringResource(R.string.home_wishes_metric_value, state.completedWishCount, state.wishCount)
+                },
                 Icons.Rounded.Savings,
                 MaterialTheme.colorScheme.primary,
                 onOpenWishlist,

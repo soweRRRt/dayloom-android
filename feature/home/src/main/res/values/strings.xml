@@ -18,4 +18,5 @@
     <string name="home_wishes_title">Wishes</string>
     <string name="home_wishes_body">Turn a future purchase into a visible goal.</string>
     <string name="home_wishes_metric">No goals yet</string>
+    <string name="home_wishes_metric_value">Reached: %1$d/%2$d goals</string>
 </resources>

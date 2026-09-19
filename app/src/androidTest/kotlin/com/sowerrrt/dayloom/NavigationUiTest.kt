@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import org.junit.Rule
@@ -100,6 +101,32 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("list_item_$itemTitle").assertExists()
         composeRule.onNodeWithText("Quantity: 2 cartons").assertExists()
         composeRule.onNodeWithText("Unsweetened").assertExists()
+    }
+
+    @Test
+    fun wishAndSavingsCanBeCreatedAndRestored() {
+        val suffix = System.currentTimeMillis()
+        val title = "Camera $suffix"
+
+        composeRule.onNodeWithTag("primary_nav_more").performClick()
+        composeRule.onNodeWithTag("more_wishlist").performClick()
+        composeRule.onNodeWithTag("create_wish").performClick()
+        composeRule.onNodeWithTag("wish_title_input").performTextInput(title)
+        composeRule.onNodeWithTag("wish_target_input").performTextInput("2500")
+        composeRule.onNodeWithTag("wish_currency_usd").performClick()
+        composeRule.onNodeWithTag("wish_priority_high").performScrollTo().performClick()
+        composeRule.onNodeWithTag("save_wish").performClick()
+        composeRule.onNodeWithTag("wish_details").assertExists()
+
+        composeRule.onNodeWithTag("add_contribution").performClick()
+        composeRule.onNodeWithTag("contribution_amount_input").performTextInput("125.50")
+        composeRule.onNodeWithTag("contribution_note_input").performTextInput("First step")
+        composeRule.onNodeWithTag("save_contribution").performClick()
+        composeRule.onNodeWithTag("contribution_12550").assertExists()
+        composeRule.onNodeWithText("First step").assertExists()
+
+        composeRule.activityRule.scenario.recreate()
+        composeRule.onNodeWithTag("contribution_12550").assertExists()
     }
 
     @Test
