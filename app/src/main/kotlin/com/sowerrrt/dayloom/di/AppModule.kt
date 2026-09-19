@@ -5,6 +5,8 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
+import com.sowerrrt.dayloom.core.notifications.WorkManagerNotificationScheduler
 import com.sowerrrt.dayloom.core.security.AndroidKeystoreVaultCipher
 import com.sowerrrt.dayloom.core.security.VaultCipher
 import com.sowerrrt.dayloom.core.storage.AttachmentRepository
@@ -64,6 +66,12 @@ object AppModule {
     fun providePlannerRepository(
         @ApplicationContext context: Context,
     ): PlannerRepository = FilePlannerRepository(context.filesDir)
+
+    @Provides
+    @Singleton
+    fun provideNotificationScheduler(
+        @ApplicationContext context: Context,
+    ): NotificationScheduler = WorkManagerNotificationScheduler(context)
 
     @Provides
     @Singleton

@@ -20,6 +20,7 @@ android {
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:designsystem"))
+    implementation(project(":core:notifications"))
     implementation(project(":core:storage"))
     implementation(project(":core:ui"))
     implementation(platform(libs.androidx.compose.bom))

@@ -14,9 +14,7 @@ value class NotificationId(
 data class ScheduledNotification(
     val id: NotificationId,
     val triggerAtEpochMillis: Long,
-    val titleResourceName: String,
-    val bodyResourceName: String,
-    val deepLinkRoute: String?,
+    val title: String,
 )
 
 interface NotificationScheduler {
@@ -24,5 +22,5 @@ interface NotificationScheduler {
 
     suspend fun cancel(id: NotificationId): Result<Unit>
 
-    suspend fun rescheduleAll(): Result<Unit>
+    suspend fun rescheduleAll(notifications: List<ScheduledNotification>): Result<Unit>
 }

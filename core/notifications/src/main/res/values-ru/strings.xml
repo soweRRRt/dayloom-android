@@ -1,0 +1,5 @@
+<resources>
+    <string name="notification_channel_plans">Напоминания о планах</string>
+    <string name="notification_channel_plans_description">Напоминания о планах, сохранённых в Dayloom</string>
+    <string name="notification_plan_body">Пора вернуться к плану в Dayloom.</string>
+</resources>

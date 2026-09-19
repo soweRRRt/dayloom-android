@@ -21,6 +21,7 @@ data class DemoPlan(
     val title: String,
     val dayOffset: Int,
     val completed: Boolean = false,
+    val reminderMinutesOfDay: Int? = null,
 )
 
 data class DemoList(
@@ -128,7 +129,12 @@ class LocalDemoContentRepository(
         val existingTitles = plannerRepository.loadPlans().map { it.title }.toSet()
         val missing = plans.filterNot { it.title in existingTitles }
         missing.forEach { demo ->
-            val created = plannerRepository.createPlan(demo.title, todayEpochDay + demo.dayOffset)
+            val created =
+                plannerRepository.createPlan(
+                    demo.title,
+                    todayEpochDay + demo.dayOffset,
+                    demo.reminderMinutesOfDay,
+                )
             if (demo.completed) {
                 val plan = created.last { it.title == demo.title }
                 plannerRepository.toggleCompletion(plan.id)

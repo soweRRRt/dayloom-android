@@ -137,6 +137,7 @@ data class PlanItem(
     val dateEpochDay: Long,
     val createdAtEpochMillis: Long,
     val completed: Boolean = false,
+    val reminderMinutesOfDay: Int? = null,
 )
 
 @Serializable

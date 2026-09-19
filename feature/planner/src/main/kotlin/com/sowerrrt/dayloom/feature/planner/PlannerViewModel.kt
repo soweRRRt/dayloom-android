@@ -6,6 +6,9 @@ import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.model.isScheduledOn
+import com.sowerrrt.dayloom.core.notifications.NotificationId
+import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
+import com.sowerrrt.dayloom.core.notifications.ScheduledNotification
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,6 +21,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneId
 import javax.inject.Inject
 
 data class PlannerUiState(
@@ -28,6 +32,7 @@ data class PlannerUiState(
     val todayEpochDay: Long = LocalDate.now().toEpochDay(),
     val isLoading: Boolean = true,
     val hasError: Boolean = false,
+    val reminderSchedulingFailed: Boolean = false,
 ) {
     val selectedHabits: List<Habit>
         get() = habits.filter { it.isScheduledOn(selectedEpochDay) }
@@ -46,6 +51,7 @@ class PlannerViewModel
     constructor(
         private val habitsRepository: HabitsRepository,
         private val plannerRepository: PlannerRepository,
+        private val notificationScheduler: NotificationScheduler,
     ) : ViewModel() {
         private val mutableUiState = MutableStateFlow(PlannerUiState())
         val uiState: StateFlow<PlannerUiState> = mutableUiState.asStateFlow()
@@ -64,6 +70,7 @@ class PlannerViewModel
                         habits.await() to plans.await()
                     }
                 }.onSuccess { (habits, plans) ->
+                    val reminderResult = notificationScheduler.rescheduleAll(plans.activeReminders())
                     mutableUiState.update {
                         it.copy(
                             habits = habits,
@@ -71,6 +78,7 @@ class PlannerViewModel
                             todayEpochDay = LocalDate.now().toEpochDay(),
                             isLoading = false,
                             hasError = false,
+                            reminderSchedulingFailed = reminderResult.isFailure,
                         )
                     }
                 }.onFailure {
@@ -107,19 +115,23 @@ class PlannerViewModel
             }
         }
 
-        fun createPlan(title: String) {
+        fun createPlan(
+            title: String,
+            reminderMinutesOfDay: Int?,
+        ) {
             if (title.isBlank()) return
             val day = mutableUiState.value.selectedEpochDay
-            updatePlans { plannerRepository.createPlan(title, day) }
+            updatePlans { plannerRepository.createPlan(title, day, reminderMinutesOfDay) }
         }
 
         fun updatePlan(
             id: EntityId,
             title: String,
+            reminderMinutesOfDay: Int?,
         ) {
             if (title.isBlank()) return
             val day = mutableUiState.value.selectedEpochDay
-            updatePlans { plannerRepository.updatePlan(id, title, day) }
+            updatePlans { plannerRepository.updatePlan(id, title, day, reminderMinutesOfDay) }
         }
 
         fun togglePlan(id: EntityId) {
@@ -147,10 +159,41 @@ class PlannerViewModel
             viewModelScope.launch {
                 runCatching { operation() }
                     .onSuccess { plans ->
-                        mutableUiState.update { it.copy(plans = plans, hasError = false) }
+                        val reminderResult = notificationScheduler.rescheduleAll(plans.activeReminders())
+                        mutableUiState.update {
+                            it.copy(
+                                plans = plans,
+                                hasError = false,
+                                reminderSchedulingFailed = reminderResult.isFailure,
+                            )
+                        }
                     }.onFailure {
                         mutableUiState.update { it.copy(hasError = true) }
                     }
             }
+        }
+    }
+
+internal fun List<PlanItem>.activeReminders(
+    nowEpochMillis: Long = System.currentTimeMillis(),
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): List<ScheduledNotification> =
+    mapNotNull { plan ->
+        val minutes = plan.reminderMinutesOfDay ?: return@mapNotNull null
+        val trigger =
+            LocalDate
+                .ofEpochDay(plan.dateEpochDay)
+                .atStartOfDay(zoneId)
+                .plusMinutes(minutes.toLong())
+                .toInstant()
+                .toEpochMilli()
+        if (plan.completed || trigger <= nowEpochMillis) {
+            null
+        } else {
+            ScheduledNotification(
+                id = NotificationId("plan:${plan.id.value}"),
+                triggerAtEpochMillis = trigger,
+                title = plan.title,
+            )
         }
     }

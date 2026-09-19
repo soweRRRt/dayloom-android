@@ -24,13 +24,14 @@ class FilePlannerRepositoryTest {
                     idFactory = { id },
                 )
 
-            repository.createPlan("  Call the dentist  ", TEST_EPOCH_DAY)
+            repository.createPlan("  Call the dentist  ", TEST_EPOCH_DAY, 9 * 60 + 30)
             repository.toggleCompletion(id)
-            repository.updatePlan(id, "Dentist appointment", TEST_EPOCH_DAY + 1)
+            repository.updatePlan(id, "Dentist appointment", TEST_EPOCH_DAY + 1, 14 * 60)
 
             val restored = FilePlannerRepository(directory).loadPlans().single()
             assertEquals("Dentist appointment", restored.title)
             assertEquals(TEST_EPOCH_DAY + 1, restored.dateEpochDay)
+            assertEquals(14 * 60, restored.reminderMinutesOfDay)
             assertTrue(restored.completed)
         }
 
@@ -46,6 +47,20 @@ class FilePlannerRepositoryTest {
             repository.createPlan("Temporary", TEST_EPOCH_DAY)
 
             assertTrue(repository.deletePlan(id).isEmpty())
+        }
+
+    @Test
+    fun `reminder must be within the selected day`() =
+        runTest {
+            val repository = FilePlannerRepository(temporaryFolder.newFolder("invalid-reminder"))
+
+            var failure: Throwable? = null
+            try {
+                repository.createPlan("Invalid", TEST_EPOCH_DAY, 24 * 60)
+            } catch (error: Throwable) {
+                failure = error
+            }
+            assertTrue(failure is IllegalArgumentException)
         }
 
     private companion object {

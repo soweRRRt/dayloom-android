@@ -77,6 +77,13 @@ class NavigationUiTest {
     }
 
     @Test
+    fun planEditorOffersLocalReminderTime() {
+        composeRule.onNodeWithTag("primary_nav_planner").performClick()
+        composeRule.onNodeWithTag("create_plan").performClick()
+        composeRule.onNodeWithTag("set_plan_reminder").assertExists()
+    }
+
+    @Test
     fun listAndItemCanBeCreatedCompletedAndRestored() {
         val suffix = System.currentTimeMillis()
         val listTitle = "Groceries $suffix"

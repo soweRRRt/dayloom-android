@@ -20,6 +20,11 @@
     <string name="planner_create_title">Новый план</string>
     <string name="planner_edit_title">Редактирование плана</string>
     <string name="planner_name_label">Что планируем?</string>
+    <string name="planner_reminder">Напоминание</string>
+    <string name="planner_reminder_description">Выберите время. Android может попросить разрешение и доставить уведомление немного позже из-за энергосбережения.</string>
+    <string name="planner_add_reminder">Добавить время</string>
+    <string name="planner_remove_reminder">Убрать</string>
+    <string name="planner_reminder_error">План сохранён, но системное напоминание не удалось запланировать.</string>
     <string name="planner_save">Сохранить</string>
     <string name="planner_cancel">Отмена</string>
     <string name="planner_edit">Изменить план</string>

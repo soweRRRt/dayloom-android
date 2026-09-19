@@ -1,0 +1,5 @@
+<resources>
+    <string name="notification_channel_plans">Plan reminders</string>
+    <string name="notification_channel_plans_description">Reminders for plans saved in Dayloom</string>
+    <string name="notification_plan_body">A plan in Dayloom is ready for your attention.</string>
+</resources>

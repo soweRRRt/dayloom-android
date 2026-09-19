@@ -153,12 +153,14 @@ private class ReadOnlyPlannerRepository(
     override suspend fun createPlan(
         title: String,
         dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
     ): List<PlanItem> = error("Read-only fake")
 
     override suspend fun updatePlan(
         id: EntityId,
         title: String,
         dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
     ): List<PlanItem> = error("Read-only fake")
 
     override suspend fun toggleCompletion(id: EntityId): List<PlanItem> = error("Read-only fake")

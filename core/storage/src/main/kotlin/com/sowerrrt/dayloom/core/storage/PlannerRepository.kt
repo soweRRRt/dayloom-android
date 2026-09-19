@@ -11,12 +11,14 @@ interface PlannerRepository {
     suspend fun createPlan(
         title: String,
         dateEpochDay: Long,
+        reminderMinutesOfDay: Int? = null,
     ): List<PlanItem>
 
     suspend fun updatePlan(
         id: EntityId,
         title: String,
         dateEpochDay: Long,
+        reminderMinutesOfDay: Int? = null,
     ): List<PlanItem>
 
     suspend fun toggleCompletion(id: EntityId): List<PlanItem>
@@ -43,8 +45,10 @@ class FilePlannerRepository(
     override suspend fun createPlan(
         title: String,
         dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
     ): List<PlanItem> {
         val normalizedTitle = normalize(title)
+        validateReminder(reminderMinutesOfDay)
         return store
             .update { snapshot ->
                 snapshot.copy(
@@ -55,6 +59,7 @@ class FilePlannerRepository(
                                 title = normalizedTitle,
                                 dateEpochDay = dateEpochDay,
                                 createdAtEpochMillis = clock(),
+                                reminderMinutesOfDay = reminderMinutesOfDay,
                             ),
                 )
             }.sortedPlans()
@@ -64,9 +69,17 @@ class FilePlannerRepository(
         id: EntityId,
         title: String,
         dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
     ): List<PlanItem> {
         val normalizedTitle = normalize(title)
-        return updateExisting(id) { it.copy(title = normalizedTitle, dateEpochDay = dateEpochDay) }
+        validateReminder(reminderMinutesOfDay)
+        return updateExisting(id) {
+            it.copy(
+                title = normalizedTitle,
+                dateEpochDay = dateEpochDay,
+                reminderMinutesOfDay = reminderMinutesOfDay,
+            )
+        }
     }
 
     override suspend fun toggleCompletion(id: EntityId): List<PlanItem> =
@@ -94,10 +107,17 @@ class FilePlannerRepository(
         return normalized
     }
 
+    private fun validateReminder(reminderMinutesOfDay: Int?) {
+        require(reminderMinutesOfDay == null || reminderMinutesOfDay in 0 until MINUTES_PER_DAY) {
+            "Reminder time must be within a day"
+        }
+    }
+
     private fun PlannerSnapshot.sortedPlans(): List<PlanItem> =
         plans.sortedWith(compareBy(PlanItem::dateEpochDay, PlanItem::createdAtEpochMillis))
 
     private companion object {
         const val MAX_TITLE_LENGTH = 120
+        const val MINUTES_PER_DAY = 24 * 60
     }
 }

@@ -39,6 +39,7 @@
     <string name="settings_example_plan_groceries">Buy groceries</string>
     <string name="settings_example_plan_call">Call family</string>
     <string name="settings_example_plan_dentist">Dentist appointment</string>
+    <string name="settings_example_plan_evening_review">Prepare tomorrow’s plan</string>
     <string name="settings_example_list_groceries">Weekly groceries</string>
     <string name="settings_example_list_trip">Trip packing</string>
     <string name="settings_example_list_ideas">Ideas</string>

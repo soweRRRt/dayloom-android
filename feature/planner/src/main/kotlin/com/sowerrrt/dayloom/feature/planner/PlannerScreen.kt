@@ -1,5 +1,11 @@
 package com.sowerrrt.dayloom.feature.planner
 
+import android.Manifest
+import android.app.TimePickerDialog
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,12 +31,14 @@ import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,11 +54,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
@@ -72,6 +82,9 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
     var showPlanDialog by rememberSaveable { mutableStateOf(false) }
     var editingPlan by remember { mutableStateOf<PlanItem?>(null) }
     var pendingDelete by remember { mutableStateOf<PlanItem?>(null) }
+    val context = LocalContext.current
+    val notificationPermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     LaunchedEffect(Unit) { viewModel.refresh() }
 
@@ -115,9 +128,21 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
             plan = editingPlan,
             selectedEpochDay = state.selectedEpochDay,
             onDismiss = { showPlanDialog = false },
-            onSave = { title ->
+            onSave = { title, reminderMinutesOfDay ->
                 val plan = editingPlan
-                if (plan == null) viewModel.createPlan(title) else viewModel.updatePlan(plan.id, title)
+                if (
+                    reminderMinutesOfDay != null &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                if (plan == null) {
+                    viewModel.createPlan(title, reminderMinutesOfDay)
+                } else {
+                    viewModel.updatePlan(plan.id, title, reminderMinutesOfDay)
+                }
                 showPlanDialog = false
             },
         )
@@ -172,6 +197,16 @@ private fun PlannerContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyLarge,
                 )
+            }
+            if (state.reminderSchedulingFailed) {
+                item {
+                    DayloomCard(Modifier.fillMaxWidth().testTag("reminder_error")) {
+                        Text(
+                            stringResource(R.string.planner_reminder_error),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
             }
             item {
                 MonthCalendar(
@@ -453,12 +488,32 @@ private fun PlanRow(
                         },
                 )
             }
-            Text(
-                plan.title,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium,
-                textDecoration = if (plan.completed) TextDecoration.LineThrough else null,
-            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    plan.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    textDecoration = if (plan.completed) TextDecoration.LineThrough else null,
+                )
+                plan.reminderMinutesOfDay?.let { reminderMinutes ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                        modifier = Modifier.testTag("plan_reminder_${plan.title}"),
+                    ) {
+                        Icon(
+                            Icons.Rounded.NotificationsActive,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.secondary,
+                        )
+                        Text(
+                            formatReminderTime(reminderMinutes, currentLocale()),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.secondary,
+                        )
+                    }
+                }
+            }
             IconButton(onClick = onEdit) {
                 Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.planner_edit))
             }
@@ -474,10 +529,12 @@ private fun PlanEditorDialog(
     plan: PlanItem?,
     selectedEpochDay: Long,
     onDismiss: () -> Unit,
-    onSave: (String) -> Unit,
+    onSave: (String, Int?) -> Unit,
 ) {
     var title by remember(plan?.id) { mutableStateOf(plan?.title.orEmpty()) }
+    var reminderMinutesOfDay by remember(plan?.id) { mutableStateOf(plan?.reminderMinutesOfDay) }
     val locale = currentLocale()
+    val context = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null) },
@@ -498,11 +555,53 @@ private fun PlanEditorDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("plan_name_input"),
                 )
+                Text(stringResource(R.string.planner_reminder), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.planner_reminder_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val initial = reminderMinutesOfDay ?: DEFAULT_REMINDER_MINUTES
+                            TimePickerDialog(
+                                context,
+                                { _, hour, minute -> reminderMinutesOfDay = hour * 60 + minute },
+                                initial / 60,
+                                initial % 60,
+                                true,
+                            ).show()
+                        },
+                        modifier = Modifier.testTag("set_plan_reminder"),
+                    ) {
+                        Icon(Icons.Rounded.NotificationsActive, contentDescription = null)
+                        Text(
+                            if (reminderMinutesOfDay == null) {
+                                stringResource(R.string.planner_add_reminder)
+                            } else {
+                                formatReminderTime(requireNotNull(reminderMinutesOfDay), locale)
+                            },
+                            modifier = Modifier.padding(start = DayloomSpacing.xs),
+                        )
+                    }
+                    if (reminderMinutesOfDay != null) {
+                        TextButton(
+                            onClick = { reminderMinutesOfDay = null },
+                            modifier = Modifier.testTag("clear_plan_reminder"),
+                        ) {
+                            Text(stringResource(R.string.planner_remove_reminder))
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(title) },
+                onClick = { onSave(title, reminderMinutesOfDay) },
                 enabled = title.isNotBlank(),
                 modifier = Modifier.testTag("save_plan"),
             ) {
@@ -528,3 +627,9 @@ private fun monthLabel(
         .replaceFirstChar { it.titlecase(locale) }
 
 private const val MAX_PLAN_TITLE_LENGTH = 120
+private const val DEFAULT_REMINDER_MINUTES = 9 * 60
+
+private fun formatReminderTime(
+    minutesOfDay: Int,
+    locale: Locale,
+): String = String.format(locale, "%02d:%02d", minutesOfDay / 60, minutesOfDay % 60)

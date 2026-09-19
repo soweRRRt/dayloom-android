@@ -263,6 +263,11 @@ private fun rememberDemoContent(): DemoContent =
                 DemoPlan(stringResource(R.string.settings_example_plan_groceries), 0),
                 DemoPlan(stringResource(R.string.settings_example_plan_call), 1),
                 DemoPlan(stringResource(R.string.settings_example_plan_dentist), 3),
+                DemoPlan(
+                    stringResource(R.string.settings_example_plan_evening_review),
+                    1,
+                    reminderMinutesOfDay = 18 * 60,
+                ),
             ),
         lists =
             listOf(

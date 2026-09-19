@@ -4,6 +4,9 @@ import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.model.Weekday
+import com.sowerrrt.dayloom.core.notifications.NotificationId
+import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
+import com.sowerrrt.dayloom.core.notifications.ScheduledNotification
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
 import kotlinx.coroutines.Dispatchers
@@ -16,9 +19,11 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
+import java.time.ZoneId
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlannerViewModelTest {
@@ -36,7 +41,8 @@ class PlannerViewModelTest {
             val selectedDay = LocalDate.now().toEpochDay()
             val habitsRepository = FakeHabitsRepository(selectedDay)
             val plannerRepository = FakePlannerRepository()
-            val viewModel = PlannerViewModel(habitsRepository, plannerRepository)
+            val scheduler = FakeNotificationScheduler()
+            val viewModel = PlannerViewModel(habitsRepository, plannerRepository, scheduler)
 
             runCurrent()
             assertFalse(viewModel.uiState.value.isLoading)
@@ -47,22 +53,27 @@ class PlannerViewModelTest {
                     .title,
             )
 
-            viewModel.createPlan("Call the doctor")
+            viewModel.selectDate(selectedDay + 1)
+            viewModel.createPlan("Call the doctor", 18 * 60)
             runCurrent()
             val created =
-                viewModel.uiState.value.selectedPlans
+                viewModel.uiState.value.plans
                     .single()
             assertEquals("Call the doctor", created.title)
+            assertEquals(18 * 60, created.reminderMinutesOfDay)
+            assertEquals("Call the doctor", scheduler.notifications.single().title)
 
             viewModel.togglePlan(created.id)
             runCurrent()
             assertEquals(
                 true,
-                viewModel.uiState.value.selectedPlans
+                viewModel.uiState.value.plans
                     .single()
                     .completed,
             )
+            assertTrue(scheduler.notifications.isEmpty())
 
+            viewModel.selectDate(selectedDay)
             viewModel.toggleHabit(habitsRepository.habit.id)
             runCurrent()
             assertEquals(
@@ -72,6 +83,36 @@ class PlannerViewModelTest {
                     .completedEpochDays,
             )
         }
+
+    @Test
+    fun `only future incomplete plans become reminders`() {
+        val zone = ZoneId.of("UTC")
+        val today = LocalDate.of(2030, 1, 2)
+        val now =
+            today
+                .atTime(12, 0)
+                .atZone(zone)
+                .toInstant()
+                .toEpochMilli()
+        val plans =
+            listOf(
+                PlanItem(EntityId("past"), "Past", today.toEpochDay(), 1L, reminderMinutesOfDay = 9 * 60),
+                PlanItem(EntityId("future"), "Future", today.toEpochDay(), 2L, reminderMinutesOfDay = 18 * 60),
+                PlanItem(
+                    EntityId("done"),
+                    "Done",
+                    today.plusDays(1).toEpochDay(),
+                    3L,
+                    completed = true,
+                    reminderMinutesOfDay = 10 * 60,
+                ),
+            )
+
+        val reminder = plans.activeReminders(now, zone).single()
+
+        assertEquals(NotificationId("plan:future"), reminder.id)
+        assertEquals("Future", reminder.title)
+    }
 }
 
 private class FakeHabitsRepository(
@@ -119,6 +160,7 @@ private class FakePlannerRepository : PlannerRepository {
     override suspend fun createPlan(
         title: String,
         dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
     ): List<PlanItem> {
         plans =
             plans +
@@ -127,6 +169,7 @@ private class FakePlannerRepository : PlannerRepository {
                 title = title,
                 dateEpochDay = dateEpochDay,
                 createdAtEpochMillis = 1L,
+                reminderMinutesOfDay = reminderMinutesOfDay,
             )
         return plans
     }
@@ -135,6 +178,7 @@ private class FakePlannerRepository : PlannerRepository {
         id: EntityId,
         title: String,
         dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
     ): List<PlanItem> = error("Not needed")
 
     override suspend fun toggleCompletion(id: EntityId): List<PlanItem> {
@@ -143,4 +187,17 @@ private class FakePlannerRepository : PlannerRepository {
     }
 
     override suspend fun deletePlan(id: EntityId): List<PlanItem> = error("Not needed")
+}
+
+private class FakeNotificationScheduler : NotificationScheduler {
+    var notifications = emptyList<ScheduledNotification>()
+
+    override suspend fun schedule(notification: ScheduledNotification): Result<Unit> = Result.success(Unit)
+
+    override suspend fun cancel(id: NotificationId): Result<Unit> = Result.success(Unit)
+
+    override suspend fun rescheduleAll(notifications: List<ScheduledNotification>): Result<Unit> {
+        this.notifications = notifications
+        return Result.success(Unit)
+    }
 }
