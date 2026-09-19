@@ -1,14 +1,14 @@
 package com.sowerrrt.dayloom
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.fragment.app.FragmentActivity
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     private val rootViewModel: RootViewModel by viewModels()
     private val updateViewModel: UpdateViewModel by viewModels()
 

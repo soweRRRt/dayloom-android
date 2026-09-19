@@ -16,7 +16,4 @@
     <string name="update_later">Позже</string>
     <string name="update_up_to_date">У вас уже установлена последняя стабильная версия.</string>
     <string name="update_unavailable">Сейчас не удалось проверить обновления. Приложение по-прежнему полностью работает без сети.</string>
-    <string name="vault_notice_title">Безопасность прежде всего</string>
-    <string name="vault_notice_body">Настройка хранилища появится только вместе с шифрованием через Android Keystore и биометрической разблокировкой. Эта версия не сохраняет пароли.</string>
-    <string name="action_understood">Понятно</string>
 </resources>

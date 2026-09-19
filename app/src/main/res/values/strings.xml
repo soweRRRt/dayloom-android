@@ -16,7 +16,4 @@
     <string name="update_later">Later</string>
     <string name="update_up_to_date">You already have the latest stable version.</string>
     <string name="update_unavailable">Could not check right now. Your app remains fully available offline.</string>
-    <string name="vault_notice_title">Security comes first</string>
-    <string name="vault_notice_body">Vault setup will be enabled only when authenticated Android Keystore encryption and biometric unlock are complete. This preview never stores a password.</string>
-    <string name="action_understood">Understood</string>
 </resources>

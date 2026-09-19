@@ -5,7 +5,10 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.sowerrrt.dayloom.core.security.AndroidKeystoreVaultCipher
+import com.sowerrrt.dayloom.core.security.VaultCipher
 import com.sowerrrt.dayloom.core.storage.DataStoreSettingsRepository
+import com.sowerrrt.dayloom.core.storage.EncryptedFileVaultRepository
 import com.sowerrrt.dayloom.core.storage.FileHabitsRepository
 import com.sowerrrt.dayloom.core.storage.FileListsRepository
 import com.sowerrrt.dayloom.core.storage.FilePlannerRepository
@@ -14,6 +17,7 @@ import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.ListsRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
 import com.sowerrrt.dayloom.core.storage.SettingsRepository
+import com.sowerrrt.dayloom.core.storage.VaultRepository
 import com.sowerrrt.dayloom.core.storage.WishlistRepository
 import com.sowerrrt.dayloom.core.updates.GitHubUpdateSource
 import com.sowerrrt.dayloom.core.updates.UpdateSource
@@ -64,6 +68,17 @@ object AppModule {
     fun provideWishlistRepository(
         @ApplicationContext context: Context,
     ): WishlistRepository = FileWishlistRepository(context.filesDir)
+
+    @Provides
+    @Singleton
+    fun provideVaultCipher(): VaultCipher = AndroidKeystoreVaultCipher()
+
+    @Provides
+    @Singleton
+    fun provideVaultRepository(
+        @ApplicationContext context: Context,
+        cipher: VaultCipher,
+    ): VaultRepository = EncryptedFileVaultRepository(context.filesDir, cipher)
 
     @Provides
     @Singleton

@@ -215,3 +215,22 @@ val WishGoal.isCompleted: Boolean
 data class WishlistSnapshot(
     val goals: List<WishGoal> = emptyList(),
 )
+
+@Serializable
+data class VaultEntry(
+    val id: EntityId,
+    val title: String,
+    val username: String = "",
+    val password: String,
+    val website: String = "",
+    val note: String = "",
+    val category: String = "",
+    val favorite: Boolean = false,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long = createdAtEpochMillis,
+)
+
+@Serializable
+data class VaultSnapshot(
+    val entries: List<VaultEntry> = emptyList(),
+)

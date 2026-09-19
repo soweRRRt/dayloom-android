@@ -38,9 +38,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -117,7 +115,6 @@ private fun DayloomShell(
     val currentRoute = currentEntry?.destination?.route
     val upToDateMessage = stringResource(R.string.update_up_to_date)
     val unavailableMessage = stringResource(R.string.update_unavailable)
-    var showVaultNotice by remember { mutableStateOf(false) }
 
     LaunchedEffect(updateState.feedback) {
         when (updateState.feedback) {
@@ -141,7 +138,6 @@ private fun DayloomShell(
                         navController = navController,
                         startRoute = startRoute,
                         updateViewModel = updateViewModel,
-                        onVaultSetup = { showVaultNotice = true },
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -154,7 +150,6 @@ private fun DayloomShell(
                         navController = navController,
                         startRoute = startRoute,
                         updateViewModel = updateViewModel,
-                        onVaultSetup = { showVaultNotice = true },
                         modifier = Modifier.padding(innerPadding),
                     )
                 }
@@ -171,17 +166,6 @@ private fun DayloomShell(
                 updateViewModel.dismissAvailable()
             },
             onLater = updateViewModel::dismissAvailable,
-        )
-    }
-
-    if (showVaultNotice) {
-        AlertDialog(
-            onDismissRequest = { showVaultNotice = false },
-            title = { Text(stringResource(R.string.vault_notice_title)) },
-            text = { Text(stringResource(R.string.vault_notice_body)) },
-            confirmButton = {
-                TextButton(onClick = { showVaultNotice = false }) { Text(stringResource(R.string.action_understood)) }
-            },
         )
     }
 }
@@ -210,7 +194,6 @@ private fun DayloomNavHost(
     navController: NavHostController,
     startRoute: String,
     updateViewModel: UpdateViewModel,
-    onVaultSetup: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     NavHost(navController = navController, startDestination = startRoute, modifier = modifier) {
@@ -233,7 +216,7 @@ private fun DayloomNavHost(
             )
         }
         composable(Routes.WISHLIST) { WishlistScreen(onBack = navController::popBackStack) }
-        composable(Routes.VAULT) { VaultScreen(onVaultSetup) }
+        composable(Routes.VAULT) { VaultScreen(onBack = navController::popBackStack) }
         composable(Routes.SETTINGS) { SettingsScreen(updateViewModel::checkManually) }
     }
 }

@@ -31,12 +31,12 @@ interface AppLockManager {
     suspend fun unlock(): UnlockResult
 }
 
-/**
- * Contract for a future authenticated Android Keystore implementation.
- * No plaintext or placeholder encryption implementation is provided intentionally.
- */
 interface VaultCipher {
+    suspend fun ensureKey(): Result<Unit>
+
     suspend fun encrypt(plaintext: ByteArray): Result<ByteArray>
 
     suspend fun decrypt(ciphertext: ByteArray): Result<ByteArray>
+
+    suspend fun destroyKey(): Result<Unit>
 }

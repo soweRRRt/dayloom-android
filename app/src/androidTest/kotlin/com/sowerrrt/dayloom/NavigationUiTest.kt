@@ -130,6 +130,14 @@ class NavigationUiTest {
     }
 
     @Test
+    fun vaultOpensInLockedState() {
+        composeRule.onNodeWithTag("primary_nav_more").performClick()
+        composeRule.onNodeWithTag("more_vault").performClick()
+        composeRule.onNodeWithTag("vault_screen").assertExists()
+        composeRule.onNodeWithTag("vault_locked").assertExists()
+    }
+
+    @Test
     fun themeAndStartScreenSelectionsSurviveRecreation() {
         composeRule.onNodeWithText("More").performClick()
         composeRule.onNodeWithText("Settings").performClick()
