@@ -1,0 +1,100 @@
+# Dayloom
+
+Dayloom — локальное Android-приложение, которое объединяет привычки, планирование, списки, желания и защищённое хранилище в одном спокойном интерфейсе. Репозиторий содержит production-ready фундамент первого этапа: рабочий shell, дизайн-систему, хранение настроек и модульную основу для следующих итераций.
+
+> Статус: Phase 1 / foundation. Разделы продукта показывают осмысленные preview/empty states; полноценная бизнес-логика привычек, планировщика, списков, вишлиста и Vault будет добавляться отдельно.
+
+## Возможности этапа 1
+
+- Kotlin, Jetpack Compose, Material 3 и собственные семантические токены.
+- Адаптивная навигация: bottom bar на телефоне, navigation rail на широком экране.
+- Главная, Привычки, План, Списки и меню «Ещё» с Желаниями, Паролями и Настройками.
+- Светлая, тёмная и системная темы; четыре акцентные палитры.
+- Выбор стартового раздела и сохранение настроек через Preferences DataStore.
+- Русская и английская локализация.
+- Версионируемое JSON-хранилище с последовательной и атомарной записью, резервной копией, восстановлением и миграциями.
+- Контракты безопасности и экран заблокированного Vault без хранения фиктивных или незашифрованных секретов.
+- Необязательная проверка GitHub Releases не чаще раза в 24 часа с корректным SemVer и ручным запуском.
+- Unit-, Compose UI- и Macrobenchmark-тесты.
+
+Приложение не использует аккаунт, сервер, аналитику, рекламу или базу данных. Разрешение `INTERNET` нужно только изолированному провайдеру проверки обновлений.
+
+## Сборка
+
+Требования:
+
+- JDK 21 (исходный байткод приложения — Java 17);
+- Android SDK Platform 36;
+- Android SDK Build Tools 35.0.0.
+
+После чистого checkout создайте обычный `local.properties` с путём к Android SDK либо задайте `ANDROID_HOME`, затем выполните:
+
+```bash
+./gradlew --no-daemon ktlintCheck testDebugUnitTest lintDebug assembleDebug
+```
+
+В Windows PowerShell используйте `./gradlew.bat`. Готовый APK появится в `app/build/outputs/apk/debug/app-debug.apk`.
+
+Версии инструментов намеренно зафиксированы на совместимом стеке AGP 8.13.2 / Gradle 8.14.3 / compileSdk 36. Более новые AndroidX/Compose/Hilt-релизы, которым требуется AGP 9 или API 37, должны обновляться вместе со всем стеком, а не по одному.
+
+## Архитектура
+
+Проект разделён на composition root `app`, общие модули `core:*` и независимые UI-модули `feature:*`. Поток состояния однонаправленный; настройки представлены immutable-моделью и `Flow`. Основные данные модулей будут храниться в отдельных приватных версионируемых файлах, без Room/SQLite.
+
+Подробности и границы модулей описаны в [docs/architecture.md](docs/architecture.md).
+
+## Тесты и производительность
+
+```bash
+# Локальные unit-тесты всех вариантов
+./gradlew testDebugUnitTest
+
+# Компиляция instrumented UI tests
+./gradlew :app:assembleDebugAndroidTest
+
+# Компиляция Macrobenchmark APK
+./gradlew :benchmark:assembleBenchmark
+```
+
+Instrumented UI tests проверяют навигацию, сохранение темы/стартового экрана и диалог обновления. Macrobenchmark измеряет cold start и переход между основными вкладками. Для их выполнения нужен физический Android-девайс или эмулятор; проект не заявляет целевой FPS без измерений на конкретном устройстве. Главный экран также имеет Compose Preview для RU/EN и light/dark.
+
+## Приватность и данные
+
+- Все пользовательские данные предназначены для приватного каталога приложения.
+- JSON-файлы имеют `schemaVersion`; запись проходит через temp-файл, `fsync`, backup и atomic move.
+- Повреждение и ошибка миграции возвращаются явно, без тихого сброса данных.
+- Вложения адресуются стабильным ID, а не абсолютным путём.
+- Vault пока содержит только контракты Android Keystore/Biometric и безопасный locked state. Реальные пароли на этом этапе не принимаются и не сохраняются.
+- Автообновление лишь открывает HTTPS-страницу конкретного GitHub Release; приложение не скачивает APK и не запрашивает установку из неизвестных источников.
+
+## CI и релизы
+
+`CI` запускается для pull request, push в `main` и вручную. Он валидирует Gradle Wrapper, выполняет ktlint, unit tests, Android Lint, debug-сборку и публикует debug APK как временный artifact. Actions закреплены на commit SHA, permissions минимальны, параллельные устаревшие прогоны отменяются.
+
+`Release` запускается тегом `vX.Y.Z` или вручную. Версия без `v` обязана точно совпасть с `versionName` в `app/build.gradle.kts`. Workflow публикует GitHub Release только после проверок, сборки APK/AAB и проверки подписи. При отсутствии signing secrets job завершается с понятной ошибкой; неподписанные артефакты не публикуются.
+
+Необходимые repository secrets:
+
+- `DAYLOOM_KEYSTORE_BASE64` — release keystore целиком в Base64;
+- `DAYLOOM_KEYSTORE_PASSWORD` — пароль keystore;
+- `DAYLOOM_KEY_ALIAS` — alias ключа;
+- `DAYLOOM_KEY_PASSWORD` — пароль ключа.
+
+Владелец создаёт production keystore локально и один раз:
+
+```bash
+keytool -genkeypair -v -keystore dayloom-release.jks -alias dayloom -keyalg RSA -keysize 4096 -validity 10000
+```
+
+Храните keystore и пароли в менеджере секретов и отдельной резервной копии: потерянный signing key невозможно восстановить из репозитория. Не коммитьте `.jks`. Для GitHub Secret закодируйте файл локально (`base64 -w 0 dayloom-release.jks` в GNU/Linux; на Windows можно использовать `[Convert]::ToBase64String([IO.File]::ReadAllBytes('dayloom-release.jks'))`). Значение Base64 не является шифрованием и тоже должно оставаться секретом.
+
+Для релиза обновите `versionCode`/`versionName`, влейте изменения в `main`, затем создайте и отправьте соответствующий тег:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+## Лицензия
+
+Apache License 2.0 — см. [LICENSE](LICENSE).
