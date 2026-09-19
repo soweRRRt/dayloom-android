@@ -64,3 +64,17 @@ data class HomeSectionPreference(
 data class HomeLayout(
     val sections: List<HomeSectionPreference> = emptyList(),
 )
+
+@Serializable
+data class Habit(
+    val id: EntityId,
+    val title: String,
+    val createdAtEpochMillis: Long,
+    val completedEpochDays: Set<Long> = emptySet(),
+    val archived: Boolean = false,
+)
+
+@Serializable
+data class HabitsSnapshot(
+    val habits: List<Habit> = emptyList(),
+)

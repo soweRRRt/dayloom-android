@@ -2,6 +2,18 @@
     <string name="habits_title">Привычки</string>
     <string name="habits_description">Создавайте комфортные ритуалы и наблюдайте, как постоянство меняет ваши дни.</string>
     <string name="habits_empty_title">Первый ритм начинается здесь</string>
-    <string name="habits_empty_description">Здесь появятся привычки, серии выполнений и гибкие цели в одном спокойном пространстве.</string>
+    <string name="habits_empty_description">Создайте простую ежедневную привычку и отмечайте её, когда она становится частью вашего дня.</string>
     <string name="habits_action">Создать привычку</string>
+    <string name="habits_today_progress">Сегодня выполнено: %1$d из %2$d</string>
+    <string name="habits_completed_today">Сегодня выполнено</string>
+    <string name="habits_tap_to_complete">Нажмите, чтобы выполнить сегодня</string>
+    <string name="habits_mark_complete">Отметить «%1$s» выполненной</string>
+    <string name="habits_mark_incomplete">Снять выполнение «%1$s»</string>
+    <string name="habits_create_title">Новая привычка</string>
+    <string name="habits_name_label">Название привычки</string>
+    <string name="habits_create_confirm">Создать</string>
+    <string name="habits_cancel">Отмена</string>
+    <string name="habits_error_title">Привычки недоступны</string>
+    <string name="habits_error_description">Dayloom не удалось прочитать или сохранить привычки. Существующие данные не удалены.</string>
+    <string name="habits_retry">Попробовать снова</string>
 </resources>

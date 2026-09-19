@@ -2,6 +2,18 @@
     <string name="habits_title">Habits</string>
     <string name="habits_description">Build gentle routines and see how consistency shapes your days.</string>
     <string name="habits_empty_title">Your first rhythm starts here</string>
-    <string name="habits_empty_description">Soon you will be able to track habits, streaks, and flexible goals in one calm view.</string>
+    <string name="habits_empty_description">Create a simple daily habit and mark it complete when it becomes part of your day.</string>
     <string name="habits_action">Create a habit</string>
+    <string name="habits_today_progress">%1$d of %2$d completed today</string>
+    <string name="habits_completed_today">Completed today</string>
+    <string name="habits_tap_to_complete">Tap to complete today</string>
+    <string name="habits_mark_complete">Mark %1$s complete</string>
+    <string name="habits_mark_incomplete">Mark %1$s incomplete</string>
+    <string name="habits_create_title">New habit</string>
+    <string name="habits_name_label">Habit name</string>
+    <string name="habits_create_confirm">Create</string>
+    <string name="habits_cancel">Cancel</string>
+    <string name="habits_error_title">Habits are unavailable</string>
+    <string name="habits_error_description">Dayloom could not read or save your habits. Your existing data was not discarded.</string>
+    <string name="habits_retry">Try again</string>
 </resources>
