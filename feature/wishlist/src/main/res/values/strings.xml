@@ -14,6 +14,11 @@
     <string name="wishlist_saved_of_target">%1$s saved of %2$s</string>
     <string name="wishlist_percent">%1$d%%</string>
     <string name="wishlist_add_contribution">Add savings</string>
+    <string name="wishlist_add_image">Add photo</string>
+    <string name="wishlist_change_image">Replace photo</string>
+    <string name="wishlist_remove_image">Remove photo</string>
+    <string name="wishlist_goal_image">Cover for “%1$s”</string>
+    <string name="wishlist_image_error">Couldn’t save the image. Choose a file up to 10 MB.</string>
     <string name="wishlist_history">Savings history</string>
     <string name="wishlist_no_contributions">No savings yet. Add the first step toward this goal.</string>
     <string name="wishlist_contribution_value">+ %1$s</string>

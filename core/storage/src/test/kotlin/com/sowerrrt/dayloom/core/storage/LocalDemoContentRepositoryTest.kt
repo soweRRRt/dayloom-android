@@ -1,5 +1,8 @@
 package com.sowerrrt.dayloom.core.storage
 
+import android.net.Uri
+import com.sowerrrt.dayloom.core.model.AttachmentRef
+import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.ListKind
 import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.model.WishPriority
@@ -77,6 +80,47 @@ class LocalDemoContentRepositoryTest {
             assertEquals(setOf("User habit", "Daily", "Weekdays"), habits.loadHabits().map { it.title }.toSet())
         }
 
+    @Test
+    fun `missing demo image is attached to existing example only once`() =
+        runTest {
+            val directory = temporaryFolder.newFolder()
+            val wishlist = FileWishlistRepository(directory)
+            val attachments = FakeAttachmentRepository()
+            wishlist.createGoal("Laptop", 100_000, "USD", WishPriority.HIGH, "")
+            val repository =
+                LocalDemoContentRepository(
+                    FileHabitsRepository(directory),
+                    FilePlannerRepository(directory),
+                    FileListsRepository(directory),
+                    wishlist,
+                    attachments,
+                    DemoImageSource { DemoImageAsset("laptop.png", "image/png", byteArrayOf(1, 2, 3)) },
+                )
+            val content =
+                testContent().copy(
+                    habits = emptyList(),
+                    plans = emptyList(),
+                    lists = emptyList(),
+                    goals = listOf(testContent().goals.single().copy(image = DemoImage.LAPTOP)),
+                )
+
+            val first = repository.seedMissing(content, 20_000)
+            val second = repository.seedMissing(content, 20_000)
+
+            assertEquals(0, first.goalsAdded)
+            assertEquals(1, first.imagesAdded)
+            assertEquals(0, second.totalAdded)
+            assertEquals(1, attachments.imports)
+            assertEquals(
+                "laptop.png",
+                wishlist
+                    .loadGoals()
+                    .single()
+                    .image
+                    ?.displayName,
+            )
+        }
+
     private fun testContent() =
         DemoContent(
             habits =
@@ -104,4 +148,27 @@ class LocalDemoContentRepositoryTest {
                     ),
                 ),
         )
+}
+
+private class FakeAttachmentRepository : AttachmentRepository {
+    var imports = 0
+
+    override suspend fun importImage(uri: Uri): AttachmentRef = error("Not needed")
+
+    override suspend fun importImage(
+        displayName: String,
+        mimeType: String,
+        bytes: ByteArray,
+    ): AttachmentRef {
+        imports++
+        return AttachmentRef(
+            EntityId("00000000-0000-0000-0000-000000000099"),
+            displayName,
+            mimeType,
+        )
+    }
+
+    override suspend fun delete(attachment: AttachmentRef): Boolean = true
+
+    override fun localPath(attachment: AttachmentRef): String? = null
 }

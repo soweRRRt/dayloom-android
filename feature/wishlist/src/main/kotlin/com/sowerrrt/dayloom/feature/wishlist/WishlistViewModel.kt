@@ -1,11 +1,13 @@
 package com.sowerrrt.dayloom.feature.wishlist
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.WishGoal
 import com.sowerrrt.dayloom.core.model.WishPriority
 import com.sowerrrt.dayloom.core.model.isCompleted
+import com.sowerrrt.dayloom.core.storage.AttachmentRepository
 import com.sowerrrt.dayloom.core.storage.WishlistRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +22,9 @@ data class WishlistUiState(
     val selectedGoalId: EntityId? = null,
     val isLoading: Boolean = true,
     val hasError: Boolean = false,
+    val imagePaths: Map<EntityId, String> = emptyMap(),
+    val isChangingImage: Boolean = false,
+    val hasImageError: Boolean = false,
 ) {
     val selectedGoal: WishGoal?
         get() = goals.firstOrNull { it.id == selectedGoalId }
@@ -33,6 +38,7 @@ class WishlistViewModel
     @Inject
     constructor(
         private val repository: WishlistRepository,
+        private val attachmentRepository: AttachmentRepository,
     ) : ViewModel() {
         private val mutableUiState = MutableStateFlow(WishlistUiState())
         val uiState: StateFlow<WishlistUiState> = mutableUiState.asStateFlow()
@@ -87,10 +93,67 @@ class WishlistViewModel
         }
 
         fun deleteGoal(id: EntityId) {
+            val attachment =
+                mutableUiState.value.goals
+                    .firstOrNull { it.id == id }
+                    ?.image
             updateGoals(
-                operation = { repository.deleteGoal(id) },
+                operation = {
+                    repository.deleteGoal(id).also {
+                        if (attachment != null) attachmentRepository.delete(attachment)
+                    }
+                },
                 selectedId = { null },
             )
+        }
+
+        fun setImage(
+            goalId: EntityId,
+            uri: Uri,
+        ) {
+            if (mutableUiState.value.isChangingImage) return
+            viewModelScope.launch {
+                mutableUiState.update { it.copy(isChangingImage = true, hasImageError = false) }
+                val previous =
+                    mutableUiState.value.goals
+                        .firstOrNull { it.id == goalId }
+                        ?.image
+                runCatching {
+                    val imported = attachmentRepository.importImage(uri)
+                    try {
+                        repository.setImage(goalId, imported).also {
+                            if (previous != null) attachmentRepository.delete(previous)
+                        }
+                    } catch (error: Throwable) {
+                        attachmentRepository.delete(imported)
+                        throw error
+                    }
+                }.onSuccess(::applyGoals)
+                    .onFailure {
+                        mutableUiState.update { state ->
+                            state.copy(isChangingImage = false, hasImageError = true)
+                        }
+                    }
+            }
+        }
+
+        fun removeImage(goalId: EntityId) {
+            if (mutableUiState.value.isChangingImage) return
+            viewModelScope.launch {
+                val previous =
+                    mutableUiState.value.goals
+                        .firstOrNull { it.id == goalId }
+                        ?.image ?: return@launch
+                mutableUiState.update { it.copy(isChangingImage = true, hasImageError = false) }
+                runCatching {
+                    repository.setImage(goalId, null).also { attachmentRepository.delete(previous) }
+                }.onSuccess(::applyGoals)
+                    .onFailure {
+                        mutableUiState.update { state ->
+                            state.copy(isChangingImage = false, hasImageError = true)
+                        }
+                    }
+            }
         }
 
         fun addContribution(
@@ -119,6 +182,7 @@ class WishlistViewModel
                             it.copy(
                                 goals = goals,
                                 selectedGoalId = selectedId(goals),
+                                imagePaths = imagePaths(goals),
                                 isLoading = false,
                                 hasError = false,
                             )
@@ -132,9 +196,18 @@ class WishlistViewModel
                 state.copy(
                     goals = goals,
                     selectedGoalId = state.selectedGoalId?.takeIf { id -> goals.any { it.id == id } },
+                    imagePaths = imagePaths(goals),
                     isLoading = false,
                     hasError = false,
+                    isChangingImage = false,
+                    hasImageError = false,
                 )
             }
         }
+
+        private fun imagePaths(goals: List<WishGoal>): Map<EntityId, String> =
+            goals
+                .mapNotNull { goal ->
+                    goal.image?.let(attachmentRepository::localPath)?.let { goal.id to it }
+                }.toMap()
     }

@@ -1,5 +1,10 @@
 package com.sowerrrt.dayloom.feature.wishlist
 
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,10 +16,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -23,6 +30,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Payments
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -32,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,11 +48,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -62,6 +77,8 @@ import com.sowerrrt.dayloom.core.model.isCompleted
 import com.sowerrrt.dayloom.core.model.savedMinor
 import com.sowerrrt.dayloom.core.ui.ErrorState
 import com.sowerrrt.dayloom.core.ui.LoadingState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.text.NumberFormat
@@ -77,9 +94,13 @@ fun WishlistScreen(
     var showContributionEditor by rememberSaveable { mutableStateOf(false) }
     var pendingGoalDelete by remember { mutableStateOf<WishGoal?>(null) }
     var pendingContributionDelete by remember { mutableStateOf<WishContribution?>(null) }
+    val selectedGoal = state.selectedGoal
+    val imagePicker =
+        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri != null && selectedGoal != null) viewModel.setImage(selectedGoal.id, uri)
+        }
 
     LaunchedEffect(Unit) { viewModel.refresh() }
-    val selectedGoal = state.selectedGoal
     Box(Modifier.fillMaxSize().testTag("wishlist_screen")) {
         Column(Modifier.fillMaxSize()) {
             DayloomTopBar(
@@ -137,6 +158,11 @@ fun WishlistScreen(
                 else ->
                     WishDetails(
                         goal = selectedGoal,
+                        imagePath = state.imagePaths[selectedGoal.id],
+                        isChangingImage = state.isChangingImage,
+                        hasImageError = state.hasImageError,
+                        onChooseImage = { imagePicker.launch("image/*") },
+                        onRemoveImage = { viewModel.removeImage(selectedGoal.id) },
                         onAddContribution = { showContributionEditor = true },
                         onDeleteContribution = { pendingContributionDelete = it },
                         modifier = Modifier.weight(1f),
@@ -247,7 +273,11 @@ private fun WishlistOverview(
                 )
             }
             items(state.goals, key = { it.id.value }) { goal ->
-                WishCard(goal = goal, onClick = { onOpenGoal(goal) })
+                WishCard(
+                    goal = goal,
+                    imagePath = state.imagePaths[goal.id],
+                    onClick = { onOpenGoal(goal) },
+                )
             }
         }
     }
@@ -268,8 +298,55 @@ private fun EmptyWishlistCard() {
 }
 
 @Composable
+private fun WishImageCover(
+    imagePath: String?,
+    title: String,
+    modifier: Modifier = Modifier,
+) {
+    val bitmap by
+        produceState<androidx.compose.ui.graphics.ImageBitmap?>(initialValue = null, key1 = imagePath) {
+            value =
+                imagePath?.let { path ->
+                    withContext(Dispatchers.IO) { BitmapFactory.decodeFile(path)?.asImageBitmap() }
+                }
+        }
+    val shape = RoundedCornerShape(20.dp)
+    Box(
+        modifier =
+            modifier
+                .clip(shape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.tertiaryContainer,
+                        ),
+                    ),
+                ).testTag("wish_image_$title"),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap!!,
+                contentDescription = stringResource(R.string.wishlist_goal_image, title),
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Icon(
+                Icons.Rounded.Savings,
+                contentDescription = null,
+                modifier = Modifier.size(46.dp),
+                tint = Color.White.copy(alpha = 0.9f),
+            )
+        }
+    }
+}
+
+@Composable
 private fun WishCard(
     goal: WishGoal,
+    imagePath: String?,
     onClick: () -> Unit,
 ) {
     val progress = goalProgress(goal)
@@ -280,6 +357,11 @@ private fun WishCard(
             .testTag("wish_${goal.title}"),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+            WishImageCover(
+                imagePath = imagePath,
+                title = goal.title,
+                modifier = Modifier.fillMaxWidth().height(116.dp),
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     if (goal.isCompleted) Icons.Rounded.CheckCircle else Icons.Rounded.Savings,
@@ -316,6 +398,11 @@ private fun WishCard(
 @Composable
 private fun WishDetails(
     goal: WishGoal,
+    imagePath: String?,
+    isChangingImage: Boolean,
+    hasImageError: Boolean,
+    onChooseImage: () -> Unit,
+    onRemoveImage: () -> Unit,
     onAddContribution: () -> Unit,
     onDeleteContribution: (WishContribution) -> Unit,
     modifier: Modifier = Modifier,
@@ -328,6 +415,49 @@ private fun WishDetails(
         item {
             DayloomCard(Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+                    WishImageCover(
+                        imagePath = imagePath,
+                        title = goal.title,
+                        modifier = Modifier.fillMaxWidth().height(196.dp),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+                        OutlinedButton(
+                            onClick = onChooseImage,
+                            enabled = !isChangingImage,
+                            modifier = Modifier.weight(1f).testTag("add_wish_image"),
+                        ) {
+                            Icon(Icons.Rounded.PhotoLibrary, contentDescription = null)
+                            Spacer(Modifier.size(DayloomSpacing.xs))
+                            Text(
+                                stringResource(
+                                    if (goal.image == null) {
+                                        R.string.wishlist_add_image
+                                    } else {
+                                        R.string.wishlist_change_image
+                                    },
+                                ),
+                            )
+                        }
+                        if (goal.image != null) {
+                            IconButton(
+                                onClick = onRemoveImage,
+                                enabled = !isChangingImage,
+                                modifier = Modifier.testTag("remove_wish_image"),
+                            ) {
+                                Icon(
+                                    Icons.Rounded.DeleteOutline,
+                                    contentDescription = stringResource(R.string.wishlist_remove_image),
+                                )
+                            }
+                        }
+                    }
+                    if (hasImageError) {
+                        Text(
+                            stringResource(R.string.wishlist_image_error),
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.testTag("wish_image_error"),
+                        )
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             if (goal.isCompleted) Icons.Rounded.CheckCircle else Icons.Rounded.Savings,

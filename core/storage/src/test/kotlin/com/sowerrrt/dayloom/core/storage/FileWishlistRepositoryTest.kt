@@ -1,5 +1,6 @@
 package com.sowerrrt.dayloom.core.storage
 
+import com.sowerrrt.dayloom.core.model.AttachmentRef
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.WishPriority
 import com.sowerrrt.dayloom.core.model.savedMinor
@@ -37,6 +38,10 @@ class FileWishlistRepositoryTest {
             repository.createGoal("  New laptop  ", 150_000_00, "usd", WishPriority.HIGH, "For work")
             repository.addContribution(EntityId("goal-1"), 20_000_00, "First month")
             repository.addContribution(EntityId("goal-1"), 15_500_00, "Bonus")
+            repository.setImage(
+                EntityId("goal-1"),
+                AttachmentRef(EntityId("00000000-0000-0000-0000-000000000001"), "laptop.png", "image/png"),
+            )
             repository.deleteContribution(EntityId("goal-1"), EntityId("contribution-1"))
             repository.updateGoal(
                 id = EntityId("goal-1"),
@@ -55,6 +60,7 @@ class FileWishlistRepositoryTest {
             assertEquals("Work setup", restored.note)
             assertEquals(15_500_00, restored.savedMinor)
             assertEquals("Bonus", restored.contributions.single().note)
+            assertEquals("laptop.png", restored.image?.displayName)
         }
 
     @Test

@@ -43,16 +43,33 @@ data class DemoGoal(
     val priority: WishPriority,
     val note: String = "",
     val contributionsMinor: List<Long> = emptyList(),
+    val image: DemoImage? = null,
 )
+
+enum class DemoImage {
+    LAPTOP,
+    TRAVEL,
+}
+
+data class DemoImageAsset(
+    val displayName: String,
+    val mimeType: String,
+    val bytes: ByteArray,
+)
+
+fun interface DemoImageSource {
+    fun load(image: DemoImage): DemoImageAsset
+}
 
 data class DemoSeedResult(
     val habitsAdded: Int = 0,
     val plansAdded: Int = 0,
     val listsAdded: Int = 0,
     val goalsAdded: Int = 0,
+    val imagesAdded: Int = 0,
 ) {
     val totalAdded: Int
-        get() = habitsAdded + plansAdded + listsAdded + goalsAdded
+        get() = habitsAdded + plansAdded + listsAdded + goalsAdded + imagesAdded
 }
 
 interface DemoContentRepository {
@@ -67,6 +84,8 @@ class LocalDemoContentRepository(
     private val plannerRepository: PlannerRepository,
     private val listsRepository: ListsRepository,
     private val wishlistRepository: WishlistRepository,
+    private val attachmentRepository: AttachmentRepository? = null,
+    private val demoImageSource: DemoImageSource? = null,
 ) : DemoContentRepository {
     override suspend fun seedMissing(
         content: DemoContent,
@@ -75,8 +94,8 @@ class LocalDemoContentRepository(
         val habitsAdded = seedMissingHabits(content.habits, todayEpochDay)
         val plansAdded = seedMissingPlans(content.plans, todayEpochDay)
         val listsAdded = seedMissingLists(content.lists)
-        val goalsAdded = seedMissingGoals(content.goals)
-        return DemoSeedResult(habitsAdded, plansAdded, listsAdded, goalsAdded)
+        val goals = seedMissingGoals(content.goals)
+        return DemoSeedResult(habitsAdded, plansAdded, listsAdded, goals.goalsAdded, goals.imagesAdded)
     }
 
     private suspend fun seedMissingHabits(
@@ -140,23 +159,40 @@ class LocalDemoContentRepository(
         return missing.size
     }
 
-    private suspend fun seedMissingGoals(goals: List<DemoGoal>): Int {
-        val existingTitles = wishlistRepository.loadGoals().map { it.title }.toSet()
-        val missing = goals.filterNot { it.title in existingTitles }
-        missing.forEach { demo ->
-            var created =
-                wishlistRepository.createGoal(
-                    title = demo.title,
-                    targetMinor = demo.targetMinor,
-                    currencyCode = demo.currencyCode,
-                    priority = demo.priority,
-                    note = demo.note,
-                )
-            val goalId = created.first { it.title == demo.title }.id
-            demo.contributionsMinor.forEachIndexed { index, amount ->
-                created = wishlistRepository.addContribution(goalId, amount, "#${index + 1}")
+    private suspend fun seedMissingGoals(goals: List<DemoGoal>): GoalSeedResult {
+        var current = wishlistRepository.loadGoals()
+        var goalsAdded = 0
+        var imagesAdded = 0
+        goals.forEach { demo ->
+            var goal = current.firstOrNull { it.title == demo.title }
+            if (goal == null) {
+                current =
+                    wishlistRepository.createGoal(
+                        title = demo.title,
+                        targetMinor = demo.targetMinor,
+                        currencyCode = demo.currencyCode,
+                        priority = demo.priority,
+                        note = demo.note,
+                    )
+                goal = current.first { it.title == demo.title }
+                demo.contributionsMinor.forEachIndexed { index, amount ->
+                    current = wishlistRepository.addContribution(goal.id, amount, "#${index + 1}")
+                }
+                goalsAdded++
+            }
+            if (goal.image == null && demo.image != null && attachmentRepository != null && demoImageSource != null) {
+                val asset = demoImageSource.load(demo.image)
+                val attachment =
+                    attachmentRepository.importImage(asset.displayName, asset.mimeType, asset.bytes)
+                current = wishlistRepository.setImage(goal.id, attachment)
+                imagesAdded++
             }
         }
-        return missing.size
+        return GoalSeedResult(goalsAdded, imagesAdded)
     }
+
+    private data class GoalSeedResult(
+        val goalsAdded: Int,
+        val imagesAdded: Int,
+    )
 }

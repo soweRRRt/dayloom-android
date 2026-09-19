@@ -14,6 +14,11 @@
     <string name="wishlist_saved_of_target">Накоплено %1$s из %2$s</string>
     <string name="wishlist_percent">%1$d%%</string>
     <string name="wishlist_add_contribution">Добавить накопление</string>
+    <string name="wishlist_add_image">Добавить фото</string>
+    <string name="wishlist_change_image">Заменить фото</string>
+    <string name="wishlist_remove_image">Удалить фото</string>
+    <string name="wishlist_goal_image">Обложка цели «%1$s»</string>
+    <string name="wishlist_image_error">Не удалось сохранить изображение. Выберите файл до 10 МБ.</string>
     <string name="wishlist_history">История накоплений</string>
     <string name="wishlist_no_contributions">Накоплений пока нет. Сделайте первый шаг к цели.</string>
     <string name="wishlist_contribution_value">+ %1$s</string>

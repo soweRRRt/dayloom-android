@@ -1,5 +1,6 @@
 package com.sowerrrt.dayloom.core.storage
 
+import com.sowerrrt.dayloom.core.model.AttachmentRef
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.WishContribution
 import com.sowerrrt.dayloom.core.model.WishGoal
@@ -28,6 +29,11 @@ interface WishlistRepository {
     ): List<WishGoal>
 
     suspend fun deleteGoal(id: EntityId): List<WishGoal>
+
+    suspend fun setImage(
+        id: EntityId,
+        image: AttachmentRef?,
+    ): List<WishGoal>
 
     suspend fun addContribution(
         goalId: EntityId,
@@ -109,6 +115,14 @@ class FileWishlistRepository(
         store
             .update { snapshot -> snapshot.copy(goals = snapshot.goals.filterNot { it.id == id }) }
             .sortedGoals()
+
+    override suspend fun setImage(
+        id: EntityId,
+        image: AttachmentRef?,
+    ): List<WishGoal> =
+        mutateGoal(id) { goal ->
+            goal.copy(image = image, updatedAtEpochMillis = clock())
+        }
 
     override suspend fun addContribution(
         goalId: EntityId,

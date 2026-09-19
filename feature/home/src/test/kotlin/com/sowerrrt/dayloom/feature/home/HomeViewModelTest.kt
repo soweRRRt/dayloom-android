@@ -240,6 +240,11 @@ private class ReadOnlyWishlistRepository(
 
     override suspend fun deleteGoal(id: EntityId): List<WishGoal> = error("Read-only fake")
 
+    override suspend fun setImage(
+        id: EntityId,
+        image: com.sowerrrt.dayloom.core.model.AttachmentRef?,
+    ): List<WishGoal> = error("Read-only fake")
+
     override suspend fun addContribution(
         goalId: EntityId,
         amountMinor: Long,

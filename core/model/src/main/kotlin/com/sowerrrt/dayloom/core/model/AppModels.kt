@@ -200,6 +200,7 @@ data class WishGoal(
     val currencyCode: String,
     val priority: WishPriority = WishPriority.MEDIUM,
     val note: String = "",
+    val image: AttachmentRef? = null,
     val contributions: List<WishContribution> = emptyList(),
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long = createdAtEpochMillis,

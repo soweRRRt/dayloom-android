@@ -151,6 +151,29 @@ class NavigationUiTest {
     }
 
     @Test
+    fun demoWishHasLocalCoverAndPhotoControls() {
+        composeRule.onNodeWithTag("primary_nav_more").performClick()
+        composeRule.onNodeWithTag("more_settings").performClick()
+        composeRule
+            .onNodeWithTag("settings_list")
+            .performScrollToNode(hasTestTag("add_demo_content"))
+        composeRule.onNodeWithTag("add_demo_content").performClick()
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching { composeRule.onNodeWithTag("demo_content_feedback").assertExists() }.isSuccess
+        }
+        composeRule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        composeRule.onNodeWithTag("more_wishlist").performClick()
+        composeRule
+            .onNodeWithTag("wishlist_overview")
+            .performScrollToNode(hasTestTag("wish_New laptop"))
+        composeRule.onNodeWithTag("wish_New laptop").performClick()
+
+        composeRule.onNodeWithTag("wish_image_New laptop").assertExists()
+        composeRule.onNodeWithTag("add_wish_image").assertExists()
+        composeRule.onNodeWithTag("remove_wish_image").assertExists()
+    }
+
+    @Test
     fun themeAndStartScreenSelectionsSurviveRecreation() {
         composeRule.onNodeWithText("More").performClick()
         composeRule.onNodeWithText("Settings").performClick()

@@ -1,9 +1,12 @@
 package com.sowerrrt.dayloom.feature.wishlist
 
+import android.net.Uri
+import com.sowerrrt.dayloom.core.model.AttachmentRef
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.WishContribution
 import com.sowerrrt.dayloom.core.model.WishGoal
 import com.sowerrrt.dayloom.core.model.WishPriority
+import com.sowerrrt.dayloom.core.storage.AttachmentRepository
 import com.sowerrrt.dayloom.core.storage.WishlistRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,7 +35,7 @@ class WishlistViewModelTest {
     @Test
     fun `new goal is selected and contributions update progress`() =
         runTest(dispatcher) {
-            val viewModel = WishlistViewModel(FakeWishlistRepository())
+            val viewModel = WishlistViewModel(FakeWishlistRepository(), FakeAttachmentRepository())
             runCurrent()
             assertFalse(viewModel.uiState.value.isLoading)
 
@@ -66,10 +69,51 @@ class WishlistViewModelTest {
         assertNull(parseAmountToMinor("1.234"))
         assertNull(parseAmountToMinor("0"))
     }
+
+    @Test
+    fun `attached image is exposed and removed from goal and private storage`() =
+        runTest(dispatcher) {
+            val attachment =
+                AttachmentRef(
+                    EntityId("00000000-0000-0000-0000-000000000010"),
+                    "camera.png",
+                    "image/png",
+                )
+            val repository =
+                FakeWishlistRepository(
+                    listOf(
+                        WishGoal(
+                            id = EntityId("goal-image"),
+                            title = "Camera",
+                            targetMinor = 100_000,
+                            currencyCode = "EUR",
+                            image = attachment,
+                            createdAtEpochMillis = 1L,
+                        ),
+                    ),
+                )
+            val attachments = FakeAttachmentRepository()
+            val viewModel = WishlistViewModel(repository, attachments)
+            runCurrent()
+
+            assertEquals("/private/camera.png", viewModel.uiState.value.imagePaths[EntityId("goal-image")])
+            viewModel.removeImage(EntityId("goal-image"))
+            runCurrent()
+
+            assertNull(viewModel.uiState.value.selectedGoal)
+            assertNull(
+                viewModel.uiState.value.goals
+                    .single()
+                    .image,
+            )
+            assertEquals(listOf(attachment), attachments.deleted)
+        }
 }
 
-private class FakeWishlistRepository : WishlistRepository {
-    private var goals = emptyList<WishGoal>()
+private class FakeWishlistRepository(
+    initialGoals: List<WishGoal> = emptyList(),
+) : WishlistRepository {
+    private var goals = initialGoals
 
     override suspend fun loadGoals(): List<WishGoal> = goals
 
@@ -109,6 +153,14 @@ private class FakeWishlistRepository : WishlistRepository {
         return goals
     }
 
+    override suspend fun setImage(
+        id: EntityId,
+        image: AttachmentRef?,
+    ): List<WishGoal> {
+        goals = goals.map { if (it.id == id) it.copy(image = image) else it }
+        return goals
+    }
+
     override suspend fun addContribution(
         goalId: EntityId,
         amountMinor: Long,
@@ -133,4 +185,23 @@ private class FakeWishlistRepository : WishlistRepository {
         goalId: EntityId,
         contributionId: EntityId,
     ): List<WishGoal> = error("Not needed")
+}
+
+private class FakeAttachmentRepository : AttachmentRepository {
+    val deleted = mutableListOf<AttachmentRef>()
+
+    override suspend fun importImage(uri: Uri): AttachmentRef = error("Not needed")
+
+    override suspend fun importImage(
+        displayName: String,
+        mimeType: String,
+        bytes: ByteArray,
+    ): AttachmentRef = error("Not needed")
+
+    override suspend fun delete(attachment: AttachmentRef): Boolean {
+        deleted += attachment
+        return true
+    }
+
+    override fun localPath(attachment: AttachmentRef): String = "/private/${attachment.displayName}"
 }

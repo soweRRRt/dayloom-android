@@ -45,6 +45,7 @@ import com.sowerrrt.dayloom.core.model.WishPriority
 import com.sowerrrt.dayloom.core.storage.DemoContent
 import com.sowerrrt.dayloom.core.storage.DemoGoal
 import com.sowerrrt.dayloom.core.storage.DemoHabit
+import com.sowerrrt.dayloom.core.storage.DemoImage
 import com.sowerrrt.dayloom.core.storage.DemoList
 import com.sowerrrt.dayloom.core.storage.DemoListItem
 import com.sowerrrt.dayloom.core.storage.DemoPlan
@@ -248,6 +249,7 @@ private fun rememberDemoContent(): DemoContent =
                     priority = WishPriority.HIGH,
                     note = stringResource(R.string.settings_example_goal_laptop_note),
                     contributionsMinor = listOf(20_000_00, 15_000_00, 10_000_00),
+                    image = DemoImage.LAPTOP,
                 ),
                 DemoGoal(
                     title = stringResource(R.string.settings_example_goal_trip),
@@ -256,6 +258,7 @@ private fun rememberDemoContent(): DemoContent =
                     priority = WishPriority.MEDIUM,
                     note = stringResource(R.string.settings_example_goal_trip_note),
                     contributionsMinor = listOf(12_000_00, 8_000_00),
+                    image = DemoImage.TRAVEL,
                 ),
             ),
     )

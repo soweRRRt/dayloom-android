@@ -7,8 +7,13 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.sowerrrt.dayloom.core.security.AndroidKeystoreVaultCipher
 import com.sowerrrt.dayloom.core.security.VaultCipher
+import com.sowerrrt.dayloom.core.storage.AttachmentRepository
+import com.sowerrrt.dayloom.core.storage.AttachmentStore
 import com.sowerrrt.dayloom.core.storage.DataStoreSettingsRepository
 import com.sowerrrt.dayloom.core.storage.DemoContentRepository
+import com.sowerrrt.dayloom.core.storage.DemoImage
+import com.sowerrrt.dayloom.core.storage.DemoImageAsset
+import com.sowerrrt.dayloom.core.storage.DemoImageSource
 import com.sowerrrt.dayloom.core.storage.EncryptedFileVaultRepository
 import com.sowerrrt.dayloom.core.storage.FileHabitsRepository
 import com.sowerrrt.dayloom.core.storage.FileListsRepository
@@ -16,6 +21,7 @@ import com.sowerrrt.dayloom.core.storage.FilePlannerRepository
 import com.sowerrrt.dayloom.core.storage.FileWishlistRepository
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.ListsRepository
+import com.sowerrrt.dayloom.core.storage.LocalAttachmentRepository
 import com.sowerrrt.dayloom.core.storage.LocalDemoContentRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
 import com.sowerrrt.dayloom.core.storage.SettingsRepository
@@ -73,17 +79,49 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideAttachmentStore(
+        @ApplicationContext context: Context,
+    ): AttachmentStore = AttachmentStore(context.filesDir.resolve("attachments"))
+
+    @Provides
+    @Singleton
+    fun provideAttachmentRepository(repository: LocalAttachmentRepository): AttachmentRepository = repository
+
+    @Provides
+    @Singleton
+    fun provideDemoImageSource(
+        @ApplicationContext context: Context,
+    ): DemoImageSource =
+        DemoImageSource { image ->
+            val resource =
+                when (image) {
+                    DemoImage.LAPTOP -> com.sowerrrt.dayloom.feature.wishlist.R.drawable.demo_wish_laptop
+                    DemoImage.TRAVEL -> com.sowerrrt.dayloom.feature.wishlist.R.drawable.demo_wish_travel
+                }
+            DemoImageAsset(
+                displayName = "${image.name.lowercase()}.png",
+                mimeType = "image/png",
+                bytes = context.resources.openRawResource(resource).use { it.readBytes() },
+            )
+        }
+
+    @Provides
+    @Singleton
     fun provideDemoContentRepository(
         habitsRepository: HabitsRepository,
         plannerRepository: PlannerRepository,
         listsRepository: ListsRepository,
         wishlistRepository: WishlistRepository,
+        attachmentRepository: AttachmentRepository,
+        demoImageSource: DemoImageSource,
     ): DemoContentRepository =
         LocalDemoContentRepository(
             habitsRepository = habitsRepository,
             plannerRepository = plannerRepository,
             listsRepository = listsRepository,
             wishlistRepository = wishlistRepository,
+            attachmentRepository = attachmentRepository,
+            demoImageSource = demoImageSource,
         )
 
     @Provides
