@@ -30,6 +30,7 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
         composeRule.onNodeWithTag("save_habit").performClick()
         composeRule.onNodeWithText(title).assertExists()
+        composeRule.onNodeWithTag("habit_image_action_$title").assertExists()
 
         composeRule.onNodeWithTag("habit_toggle_$title").performClick()
         composeRule.onNodeWithText("Completed today").assertExists()
@@ -70,6 +71,7 @@ class NavigationUiTest {
             .onNodeWithTag("planner_list")
             .performScrollToNode(hasTestTag("plan_$planTitle"))
         composeRule.onNodeWithTag("plan_$planTitle").assertExists()
+        composeRule.onNodeWithTag("plan_image_action_$planTitle").assertExists()
         composeRule.onNodeWithTag("plan_toggle_$planTitle").performClick()
 
         composeRule.activityRule.scenario.recreate()

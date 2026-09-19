@@ -24,6 +24,11 @@
     <string name="planner_reminder_description">Choose a time. Android may ask for permission and deliver slightly later to preserve battery.</string>
     <string name="planner_add_reminder">Add a time</string>
     <string name="planner_remove_reminder">Remove</string>
+    <string name="planner_add_image">Add photo</string>
+    <string name="planner_change_image">Replace photo</string>
+    <string name="planner_remove_image">Remove plan photo</string>
+    <string name="planner_image_description">Photo for %1$s</string>
+    <string name="planner_image_error">The photo could not be saved. The plan was not changed.</string>
     <string name="planner_reminder_error">The plan was saved, but its system reminder could not be scheduled.</string>
     <string name="planner_save">Save</string>
     <string name="planner_cancel">Cancel</string>

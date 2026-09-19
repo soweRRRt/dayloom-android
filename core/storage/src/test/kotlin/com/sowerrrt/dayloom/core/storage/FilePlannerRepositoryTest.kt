@@ -1,5 +1,6 @@
 package com.sowerrrt.dayloom.core.storage
 
+import com.sowerrrt.dayloom.core.model.AttachmentRef
 import com.sowerrrt.dayloom.core.model.EntityId
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -27,12 +28,15 @@ class FilePlannerRepositoryTest {
             repository.createPlan("  Call the dentist  ", TEST_EPOCH_DAY, 9 * 60 + 30)
             repository.toggleCompletion(id)
             repository.updatePlan(id, "Dentist appointment", TEST_EPOCH_DAY + 1, 14 * 60)
+            val image = AttachmentRef(EntityId("image-1"), "dentist.png", "image/png")
+            repository.setImage(id, image)
 
             val restored = FilePlannerRepository(directory).loadPlans().single()
             assertEquals("Dentist appointment", restored.title)
             assertEquals(TEST_EPOCH_DAY + 1, restored.dateEpochDay)
             assertEquals(14 * 60, restored.reminderMinutesOfDay)
             assertTrue(restored.completed)
+            assertEquals(image, restored.image)
         }
 
     @Test

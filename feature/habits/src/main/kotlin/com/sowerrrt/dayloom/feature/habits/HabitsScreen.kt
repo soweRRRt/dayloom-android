@@ -3,9 +3,11 @@ package com.sowerrrt.dayloom.feature.habits
 import android.Manifest
 import android.app.TimePickerDialog
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,8 +29,10 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
@@ -44,11 +48,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -69,6 +77,8 @@ import com.sowerrrt.dayloom.core.model.bestStreak
 import com.sowerrrt.dayloom.core.model.currentStreak
 import com.sowerrrt.dayloom.core.ui.ErrorState
 import com.sowerrrt.dayloom.core.ui.LoadingState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.Locale
 
 @Composable
@@ -77,9 +87,16 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
     var editingHabit by remember { mutableStateOf<Habit?>(null) }
     var pendingArchive by remember { mutableStateOf<Habit?>(null) }
+    var imageTarget by remember { mutableStateOf<Habit?>(null) }
     val context = LocalContext.current
     val notificationPermissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val imagePicker =
+        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            val target = imageTarget
+            if (uri != null && target != null) viewModel.setImage(target.id, uri)
+            imageTarget = null
+        }
 
     LaunchedEffect(Unit) { viewModel.refresh() }
 
@@ -112,6 +129,10 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                         showCreateDialog = true
                     },
                     onArchive = { pendingArchive = it },
+                    onChooseImage = { habit ->
+                        imageTarget = habit
+                        imagePicker.launch("image/*")
+                    },
                     onCreate = {
                         editingHabit = null
                         showCreateDialog = true
@@ -125,6 +146,13 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
         HabitEditorDialog(
             habit = editingHabit,
             onDismiss = { showCreateDialog = false },
+            isChangingImage = state.isChangingImage,
+            hasImageError = state.hasImageError,
+            onChooseImage = { habit ->
+                imageTarget = habit
+                imagePicker.launch("image/*")
+            },
+            onRemoveImage = viewModel::removeImage,
             onSave = { title, weekdays, reminderMinutesOfDay ->
                 val habit = editingHabit
                 if (
@@ -221,6 +249,7 @@ private fun HabitsList(
     onToggle: (EntityId) -> Unit,
     onEdit: (Habit) -> Unit,
     onArchive: (Habit) -> Unit,
+    onChooseImage: (Habit) -> Unit,
     onCreate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -266,6 +295,8 @@ private fun HabitsList(
                     onToggle = { onToggle(habit.id) },
                     onEdit = { onEdit(habit) },
                     onArchive = { onArchive(habit) },
+                    onChooseImage = { onChooseImage(habit) },
+                    imagePath = state.imagePaths[habit.id],
                     todayEpochDay = state.todayEpochDay,
                 )
             }
@@ -287,6 +318,8 @@ private fun HabitRow(
     onToggle: () -> Unit,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
+    onChooseImage: () -> Unit,
+    imagePath: String?,
 ) {
     val action =
         if (completed) {
@@ -305,6 +338,13 @@ private fun HabitRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
         ) {
+            if (imagePath != null) {
+                LocalHabitImage(
+                    imagePath = imagePath,
+                    title = habit.title,
+                    modifier = Modifier.size(76.dp),
+                )
+            }
             Icon(
                 imageVector =
                     if (completed) {
@@ -374,6 +414,18 @@ private fun HabitRow(
                 IconButton(onClick = onEdit) {
                     Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.habits_edit))
                 }
+                IconButton(
+                    onClick = onChooseImage,
+                    modifier = Modifier.testTag("habit_image_action_${habit.title}"),
+                ) {
+                    Icon(
+                        Icons.Rounded.PhotoLibrary,
+                        contentDescription =
+                            stringResource(
+                                if (habit.image == null) R.string.habits_add_image else R.string.habits_change_image,
+                            ),
+                    )
+                }
                 IconButton(onClick = onArchive) {
                     Icon(Icons.Rounded.Archive, contentDescription = stringResource(R.string.habits_archive))
                 }
@@ -387,6 +439,10 @@ private fun HabitRow(
 private fun HabitEditorDialog(
     habit: Habit?,
     onDismiss: () -> Unit,
+    isChangingImage: Boolean,
+    hasImageError: Boolean,
+    onChooseImage: (Habit) -> Unit,
+    onRemoveImage: (EntityId) -> Unit,
     onSave: (String, Set<Weekday>, Int?) -> Unit,
 ) {
     var title by remember(habit?.id) { mutableStateOf(habit?.title.orEmpty()) }
@@ -416,6 +472,52 @@ private fun HabitEditorDialog(
                     supportingText = { Text("${title.length}/$MAX_TITLE_LENGTH") },
                     singleLine = true,
                 )
+                if (habit != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedButton(
+                            onClick = { onChooseImage(habit) },
+                            enabled = !isChangingImage,
+                            modifier = Modifier.weight(1f).testTag("edit_habit_image"),
+                        ) {
+                            Icon(Icons.Rounded.PhotoLibrary, contentDescription = null)
+                            Spacer(Modifier.size(DayloomSpacing.xs))
+                            Text(
+                                stringResource(
+                                    if (habit.image ==
+                                        null
+                                    ) {
+                                        R.string.habits_add_image
+                                    } else {
+                                        R.string.habits_change_image
+                                    },
+                                ),
+                            )
+                        }
+                        if (habit.image != null) {
+                            IconButton(
+                                onClick = { onRemoveImage(habit.id) },
+                                enabled = !isChangingImage,
+                                modifier = Modifier.testTag("remove_habit_image"),
+                            ) {
+                                Icon(
+                                    Icons.Rounded.DeleteOutline,
+                                    contentDescription = stringResource(R.string.habits_remove_image),
+                                )
+                            }
+                        }
+                    }
+                    if (hasImageError) {
+                        Text(
+                            stringResource(R.string.habits_image_error),
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.testTag("habit_image_error"),
+                        )
+                    }
+                }
                 Text(stringResource(R.string.habits_schedule), style = MaterialTheme.typography.titleMedium)
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
@@ -498,6 +600,26 @@ private fun HabitEditorDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.habits_cancel)) }
         },
     )
+}
+
+@Composable
+private fun LocalHabitImage(
+    imagePath: String,
+    title: String,
+    modifier: Modifier = Modifier,
+) {
+    val bitmap by
+        produceState<androidx.compose.ui.graphics.ImageBitmap?>(initialValue = null, key1 = imagePath) {
+            value = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(imagePath)?.asImageBitmap() }
+        }
+    bitmap?.let { image ->
+        Image(
+            bitmap = image,
+            contentDescription = stringResource(R.string.habits_image_description, title),
+            modifier = modifier.clip(MaterialTheme.shapes.medium).testTag("habit_image_$title"),
+            contentScale = ContentScale.Crop,
+        )
+    }
 }
 
 @Composable

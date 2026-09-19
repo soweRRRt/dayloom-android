@@ -76,6 +76,7 @@ data class Habit(
     val scheduledWeekdays: Set<Weekday> = Weekday.entries.toSet(),
     val reminderMinutesOfDay: Int? = null,
     val completedEpochDays: Set<Long> = emptySet(),
+    val image: AttachmentRef? = null,
     val archived: Boolean = false,
 )
 
@@ -139,6 +140,7 @@ data class PlanItem(
     val createdAtEpochMillis: Long,
     val completed: Boolean = false,
     val reminderMinutesOfDay: Int? = null,
+    val image: AttachmentRef? = null,
 )
 
 @Serializable

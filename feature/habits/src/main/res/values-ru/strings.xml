@@ -21,6 +21,11 @@
     <string name="habits_reminder_description">Dayloom напомнит в выбранные дни. Энергосбережение может немного задержать доставку.</string>
     <string name="habits_add_reminder">Добавить время</string>
     <string name="habits_remove_reminder">Убрать</string>
+    <string name="habits_add_image">Добавить фото</string>
+    <string name="habits_change_image">Заменить фото</string>
+    <string name="habits_remove_image">Удалить фото привычки</string>
+    <string name="habits_image_description">Фото привычки «%1$s»</string>
+    <string name="habits_image_error">Не удалось сохранить фото. Привычка не изменена.</string>
     <string name="habits_reminder_error">Привычка сохранена, но системное напоминание не удалось запланировать.</string>
     <string name="habits_streaks">Текущая серия: %1$d · Лучшая: %2$d</string>
     <string name="habits_edit">Изменить привычку</string>

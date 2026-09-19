@@ -1,5 +1,6 @@
 package com.sowerrrt.dayloom.feature.habits
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.EntityId
@@ -8,6 +9,7 @@ import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
 import com.sowerrrt.dayloom.core.notifications.NotificationScope
 import com.sowerrrt.dayloom.core.notifications.activeHabitReminders
+import com.sowerrrt.dayloom.core.storage.AttachmentRepository
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +26,9 @@ data class HabitsUiState(
     val isLoading: Boolean = true,
     val hasError: Boolean = false,
     val reminderSchedulingFailed: Boolean = false,
+    val imagePaths: Map<EntityId, String> = emptyMap(),
+    val isChangingImage: Boolean = false,
+    val hasImageError: Boolean = false,
 ) {
     val completedToday: Int
         get() = habits.count { todayEpochDay in it.completedEpochDays }
@@ -35,6 +40,7 @@ class HabitsViewModel
     constructor(
         private val repository: HabitsRepository,
         private val notificationScheduler: NotificationScheduler,
+        private val attachmentRepository: AttachmentRepository,
     ) : ViewModel() {
         private val mutableUiState = MutableStateFlow(HabitsUiState())
         val uiState: StateFlow<HabitsUiState> = mutableUiState.asStateFlow()
@@ -60,6 +66,7 @@ class HabitsViewModel
                                 isLoading = false,
                                 hasError = false,
                                 reminderSchedulingFailed = reminderResult.isFailure,
+                                imagePaths = imagePaths(habits),
                             )
                         }
                     }.onFailure {
@@ -94,7 +101,64 @@ class HabitsViewModel
         }
 
         fun archiveHabit(id: EntityId) {
-            updateHabits { repository.archiveHabit(id) }
+            val previous =
+                mutableUiState.value.habits
+                    .firstOrNull { it.id == id }
+                    ?.image
+            updateHabits {
+                repository.archiveHabit(id).also {
+                    if (previous != null) runCatching { attachmentRepository.delete(previous) }
+                }
+            }
+        }
+
+        fun setImage(
+            habitId: EntityId,
+            uri: Uri,
+        ) {
+            if (mutableUiState.value.isChangingImage) return
+            viewModelScope.launch {
+                mutableUiState.update { it.copy(isChangingImage = true, hasImageError = false) }
+                val previous =
+                    mutableUiState.value.habits
+                        .firstOrNull { it.id == habitId }
+                        ?.image
+                runCatching {
+                    val imported = attachmentRepository.importImage(uri)
+                    try {
+                        repository.setImage(habitId, imported).also {
+                            if (previous != null) attachmentRepository.delete(previous)
+                        }
+                    } catch (error: Throwable) {
+                        attachmentRepository.delete(imported)
+                        throw error
+                    }
+                }.onSuccess(::applyHabits)
+                    .onFailure {
+                        mutableUiState.update { state ->
+                            state.copy(isChangingImage = false, hasImageError = true)
+                        }
+                    }
+            }
+        }
+
+        fun removeImage(habitId: EntityId) {
+            if (mutableUiState.value.isChangingImage) return
+            viewModelScope.launch {
+                val previous =
+                    mutableUiState.value.habits
+                        .firstOrNull { it.id == habitId }
+                        ?.image ?: return@launch
+                mutableUiState.update { it.copy(isChangingImage = true, hasImageError = false) }
+                runCatching {
+                    repository.setImage(habitId, null).also { attachmentRepository.delete(previous) }
+                }.onSuccess(::applyHabits)
+                    .onFailure {
+                        mutableUiState.update { state ->
+                            state.copy(isChangingImage = false, hasImageError = true)
+                        }
+                    }
+            }
         }
 
         private fun updateHabits(operation: suspend () -> List<Habit>) {
@@ -111,6 +175,9 @@ class HabitsViewModel
                                 habits = habits,
                                 hasError = false,
                                 reminderSchedulingFailed = reminderResult.isFailure,
+                                imagePaths = imagePaths(habits),
+                                isChangingImage = false,
+                                hasImageError = false,
                             )
                         }
                     }.onFailure {
@@ -118,4 +185,23 @@ class HabitsViewModel
                     }
             }
         }
+
+        private fun applyHabits(habits: List<Habit>) {
+            mutableUiState.update {
+                it.copy(
+                    habits = habits,
+                    imagePaths = imagePaths(habits),
+                    isLoading = false,
+                    hasError = false,
+                    isChangingImage = false,
+                    hasImageError = false,
+                )
+            }
+        }
+
+        private fun imagePaths(habits: List<Habit>): Map<EntityId, String> =
+            habits
+                .mapNotNull { habit ->
+                    habit.image?.let(attachmentRepository::localPath)?.let { habit.id to it }
+                }.toMap()
     }

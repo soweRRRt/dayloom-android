@@ -1,5 +1,6 @@
 package com.sowerrrt.dayloom.core.storage
 
+import com.sowerrrt.dayloom.core.model.AttachmentRef
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Weekday
 import kotlinx.coroutines.test.runTest
@@ -36,11 +37,14 @@ class FileHabitsRepositoryTest {
             assertFalse(TEST_EPOCH_DAY in created.completedEpochDays)
 
             firstRepository.toggleCompletion(id, TEST_EPOCH_DAY)
+            val image = AttachmentRef(EntityId("image-1"), "habit.png", "image/png")
+            firstRepository.setImage(id, image)
 
             val restored = FileHabitsRepository(directory).loadHabits().single()
             assertEquals(id, restored.id)
             assertEquals(8 * 60 + 15, restored.reminderMinutesOfDay)
             assertTrue(TEST_EPOCH_DAY in restored.completedEpochDays)
+            assertEquals(image, restored.image)
         }
 
     @Test
@@ -67,6 +71,7 @@ class FileHabitsRepositoryTest {
             val id = EntityId("habit-3")
             val repository = FileHabitsRepository(directory, idFactory = { id })
             repository.createHabit("Run", setOf(Weekday.MONDAY), TEST_EPOCH_DAY)
+            repository.setImage(id, AttachmentRef(EntityId("image-2"), "run.png", "image/png"))
 
             val edited = repository.updateHabit(id, "Morning run", setOf(Weekday.MONDAY, Weekday.FRIDAY)).single()
             assertEquals("Morning run", edited.title)

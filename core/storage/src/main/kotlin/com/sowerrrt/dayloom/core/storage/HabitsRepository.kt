@@ -1,5 +1,6 @@
 package com.sowerrrt.dayloom.core.storage
 
+import com.sowerrrt.dayloom.core.model.AttachmentRef
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.HabitsSnapshot
@@ -32,6 +33,11 @@ interface HabitsRepository {
     ): List<Habit>
 
     suspend fun archiveHabit(id: EntityId): List<Habit>
+
+    suspend fun setImage(
+        id: EntityId,
+        image: AttachmentRef?,
+    ): List<Habit>
 
     suspend fun toggleCompletion(
         id: EntityId,
@@ -133,7 +139,12 @@ class FileHabitsRepository(
     }
 
     override suspend fun archiveHabit(id: EntityId): List<Habit> =
-        updateExisting(id) { habit -> habit.copy(archived = true) }
+        updateExisting(id) { habit -> habit.copy(archived = true, image = null) }
+
+    override suspend fun setImage(
+        id: EntityId,
+        image: AttachmentRef?,
+    ): List<Habit> = updateExisting(id) { habit -> habit.copy(image = image) }
 
     override suspend fun toggleCompletion(
         id: EntityId,

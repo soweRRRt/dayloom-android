@@ -1,5 +1,7 @@
 package com.sowerrrt.dayloom.feature.planner
 
+import android.net.Uri
+import com.sowerrrt.dayloom.core.model.AttachmentRef
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.PlanItem
@@ -8,6 +10,7 @@ import com.sowerrrt.dayloom.core.notifications.NotificationId
 import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
 import com.sowerrrt.dayloom.core.notifications.NotificationScope
 import com.sowerrrt.dayloom.core.notifications.ScheduledNotification
+import com.sowerrrt.dayloom.core.storage.AttachmentRepository
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
 import kotlinx.coroutines.Dispatchers
@@ -43,7 +46,7 @@ class PlannerViewModelTest {
             val habitsRepository = FakeHabitsRepository(selectedDay)
             val plannerRepository = FakePlannerRepository()
             val scheduler = FakeNotificationScheduler()
-            val viewModel = PlannerViewModel(habitsRepository, plannerRepository, scheduler)
+            val viewModel = PlannerViewModel(habitsRepository, plannerRepository, scheduler, FakeAttachmentRepository())
 
             runCurrent()
             assertFalse(viewModel.uiState.value.isLoading)
@@ -83,6 +86,38 @@ class PlannerViewModelTest {
                     .single()
                     .completedEpochDays,
             )
+        }
+
+    @Test
+    fun `deleting a plan also deletes its private image`() =
+        runTest(dispatcher) {
+            val selectedDay = LocalDate.now().toEpochDay()
+            val plannerRepository = FakePlannerRepository()
+            val attachments = FakeAttachmentRepository()
+            plannerRepository.createPlan("Trip", selectedDay, null)
+            val planId = plannerRepository.loadPlans().single().id
+            plannerRepository.setImage(
+                planId,
+                AttachmentRef(EntityId("attachment-1"), "plan.png", "image/png"),
+            )
+            val viewModel =
+                PlannerViewModel(
+                    FakeHabitsRepository(selectedDay),
+                    plannerRepository,
+                    FakeNotificationScheduler(),
+                    attachments,
+                )
+            runCurrent()
+
+            assertEquals("/private/plan.png", viewModel.uiState.value.planImagePaths[planId])
+            viewModel.deletePlan(planId)
+            runCurrent()
+
+            assertTrue(
+                viewModel.uiState.value.plans
+                    .isEmpty(),
+            )
+            assertEquals(1, attachments.deleted.size)
         }
 
     @Test
@@ -146,6 +181,11 @@ private class FakeHabitsRepository(
 
     override suspend fun archiveHabit(id: EntityId): List<Habit> = error("Not needed")
 
+    override suspend fun setImage(
+        id: EntityId,
+        image: AttachmentRef?,
+    ): List<Habit> = error("Not needed")
+
     override suspend fun toggleCompletion(
         id: EntityId,
         epochDay: Long,
@@ -189,7 +229,38 @@ private class FakePlannerRepository : PlannerRepository {
         return plans
     }
 
-    override suspend fun deletePlan(id: EntityId): List<PlanItem> = error("Not needed")
+    override suspend fun setImage(
+        id: EntityId,
+        image: AttachmentRef?,
+    ): List<PlanItem> {
+        plans = plans.map { plan -> if (plan.id == id) plan.copy(image = image) else plan }
+        return plans
+    }
+
+    override suspend fun deletePlan(id: EntityId): List<PlanItem> {
+        plans = plans.filterNot { it.id == id }
+        return plans
+    }
+}
+
+private class FakeAttachmentRepository : AttachmentRepository {
+    val deleted = mutableListOf<AttachmentRef>()
+
+    override suspend fun importImage(uri: Uri): AttachmentRef =
+        AttachmentRef(EntityId("attachment-1"), "plan.png", "image/png")
+
+    override suspend fun importImage(
+        displayName: String,
+        mimeType: String,
+        bytes: ByteArray,
+    ): AttachmentRef = error("Not needed")
+
+    override suspend fun delete(attachment: AttachmentRef): Boolean {
+        deleted += attachment
+        return true
+    }
+
+    override fun localPath(attachment: AttachmentRef): String = "/private/${attachment.displayName}"
 }
 
 private class FakeNotificationScheduler : NotificationScheduler {

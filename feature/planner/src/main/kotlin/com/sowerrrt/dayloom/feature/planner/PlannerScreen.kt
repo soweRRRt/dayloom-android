@@ -3,9 +3,11 @@ package com.sowerrrt.dayloom.feature.planner
 import android.Manifest
 import android.app.TimePickerDialog
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,6 +35,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
@@ -46,6 +50,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -53,6 +58,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -70,6 +77,8 @@ import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.ui.ErrorState
 import com.sowerrrt.dayloom.core.ui.LoadingState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -82,9 +91,16 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
     var showPlanDialog by rememberSaveable { mutableStateOf(false) }
     var editingPlan by remember { mutableStateOf<PlanItem?>(null) }
     var pendingDelete by remember { mutableStateOf<PlanItem?>(null) }
+    var imageTarget by remember { mutableStateOf<PlanItem?>(null) }
     val context = LocalContext.current
     val notificationPermissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val imagePicker =
+        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            val target = imageTarget
+            if (uri != null && target != null) viewModel.setPlanImage(target.id, uri)
+            imageTarget = null
+        }
 
     LaunchedEffect(Unit) { viewModel.refresh() }
 
@@ -118,6 +134,10 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                         showPlanDialog = true
                     },
                     onDeletePlan = { pendingDelete = it },
+                    onChoosePlanImage = { plan ->
+                        imageTarget = plan
+                        imagePicker.launch("image/*")
+                    },
                     modifier = Modifier.weight(1f),
                 )
         }
@@ -128,6 +148,13 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
             plan = editingPlan,
             selectedEpochDay = state.selectedEpochDay,
             onDismiss = { showPlanDialog = false },
+            isChangingImage = state.isChangingImage,
+            hasImageError = state.hasImageError,
+            onChooseImage = { plan ->
+                imageTarget = plan
+                imagePicker.launch("image/*")
+            },
+            onRemoveImage = viewModel::removePlanImage,
             onSave = { title, reminderMinutesOfDay ->
                 val plan = editingPlan
                 if (
@@ -182,6 +209,7 @@ private fun PlannerContent(
     onCreatePlan: () -> Unit,
     onEditPlan: (PlanItem) -> Unit,
     onDeletePlan: (PlanItem) -> Unit,
+    onChoosePlanImage: (PlanItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val locale = currentLocale()
@@ -249,6 +277,8 @@ private fun PlannerContent(
                         onToggle = { onTogglePlan(plan.id) },
                         onEdit = { onEditPlan(plan) },
                         onDelete = { onDeletePlan(plan) },
+                        onChooseImage = { onChoosePlanImage(plan) },
+                        imagePath = state.planImagePaths[plan.id],
                     )
                 }
             }
@@ -464,63 +494,110 @@ private fun CalendarHabitRow(
 @Composable
 private fun PlanRow(
     plan: PlanItem,
+    imagePath: String?,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onChooseImage: () -> Unit,
 ) {
     DayloomCard(Modifier.fillMaxWidth().testTag("plan_${plan.title}")) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
-        ) {
-            IconButton(
-                onClick = onToggle,
-                modifier = Modifier.testTag("plan_toggle_${plan.title}"),
-            ) {
-                Icon(
-                    if (plan.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-                    contentDescription = stringResource(R.string.planner_toggle_plan, plan.title),
-                    tint =
-                        if (plan.completed) {
-                            MaterialTheme.colorScheme.secondary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
+        Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+            if (imagePath != null) {
+                LocalPlanImage(
+                    imagePath = imagePath,
+                    title = plan.title,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(112.dp)
+                            .clickable(onClick = onChooseImage)
+                            .testTag("plan_image_action_${plan.title}"),
                 )
             }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    plan.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    textDecoration = if (plan.completed) TextDecoration.LineThrough else null,
-                )
-                plan.reminderMinutesOfDay?.let { reminderMinutes ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                        modifier = Modifier.testTag("plan_reminder_${plan.title}"),
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+            ) {
+                IconButton(
+                    onClick = onToggle,
+                    modifier = Modifier.testTag("plan_toggle_${plan.title}"),
+                ) {
+                    Icon(
+                        if (plan.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                        contentDescription = stringResource(R.string.planner_toggle_plan, plan.title),
+                        tint =
+                            if (plan.completed) {
+                                MaterialTheme.colorScheme.secondary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        plan.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        textDecoration = if (plan.completed) TextDecoration.LineThrough else null,
+                    )
+                    plan.reminderMinutesOfDay?.let { reminderMinutes ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                            modifier = Modifier.testTag("plan_reminder_${plan.title}"),
+                        ) {
+                            Icon(
+                                Icons.Rounded.NotificationsActive,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.secondary,
+                            )
+                            Text(
+                                formatReminderTime(reminderMinutes, currentLocale()),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.secondary,
+                            )
+                        }
+                    }
+                }
+                if (plan.image == null) {
+                    IconButton(
+                        onClick = onChooseImage,
+                        modifier = Modifier.testTag("plan_image_action_${plan.title}"),
                     ) {
                         Icon(
-                            Icons.Rounded.NotificationsActive,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.secondary,
-                        )
-                        Text(
-                            formatReminderTime(reminderMinutes, currentLocale()),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.secondary,
+                            Icons.Rounded.PhotoLibrary,
+                            contentDescription = stringResource(R.string.planner_add_image),
                         )
                     }
                 }
-            }
-            IconButton(onClick = onEdit) {
-                Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.planner_edit))
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.planner_delete))
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.planner_edit))
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.planner_delete))
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun LocalPlanImage(
+    imagePath: String,
+    title: String,
+    modifier: Modifier = Modifier,
+) {
+    val bitmap by
+        produceState<androidx.compose.ui.graphics.ImageBitmap?>(initialValue = null, key1 = imagePath) {
+            value = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(imagePath)?.asImageBitmap() }
+        }
+    bitmap?.let { image ->
+        Image(
+            bitmap = image,
+            contentDescription = stringResource(R.string.planner_image_description, title),
+            modifier = modifier.clip(MaterialTheme.shapes.medium),
+            contentScale = ContentScale.Crop,
+        )
     }
 }
 
@@ -529,6 +606,10 @@ private fun PlanEditorDialog(
     plan: PlanItem?,
     selectedEpochDay: Long,
     onDismiss: () -> Unit,
+    isChangingImage: Boolean,
+    hasImageError: Boolean,
+    onChooseImage: (PlanItem) -> Unit,
+    onRemoveImage: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
     onSave: (String, Int?) -> Unit,
 ) {
     var title by remember(plan?.id) { mutableStateOf(plan?.title.orEmpty()) }
@@ -555,6 +636,52 @@ private fun PlanEditorDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("plan_name_input"),
                 )
+                if (plan != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedButton(
+                            onClick = { onChooseImage(plan) },
+                            enabled = !isChangingImage,
+                            modifier = Modifier.weight(1f).testTag("edit_plan_image"),
+                        ) {
+                            Icon(Icons.Rounded.PhotoLibrary, contentDescription = null)
+                            Spacer(Modifier.size(DayloomSpacing.xs))
+                            Text(
+                                stringResource(
+                                    if (plan.image ==
+                                        null
+                                    ) {
+                                        R.string.planner_add_image
+                                    } else {
+                                        R.string.planner_change_image
+                                    },
+                                ),
+                            )
+                        }
+                        if (plan.image != null) {
+                            IconButton(
+                                onClick = { onRemoveImage(plan.id) },
+                                enabled = !isChangingImage,
+                                modifier = Modifier.testTag("remove_plan_image"),
+                            ) {
+                                Icon(
+                                    Icons.Rounded.DeleteOutline,
+                                    contentDescription = stringResource(R.string.planner_remove_image),
+                                )
+                            }
+                        }
+                    }
+                    if (hasImageError) {
+                        Text(
+                            stringResource(R.string.planner_image_error),
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.testTag("plan_image_error"),
+                        )
+                    }
+                }
                 Text(stringResource(R.string.planner_reminder), style = MaterialTheme.typography.titleMedium)
                 Text(
                     stringResource(R.string.planner_reminder_description),

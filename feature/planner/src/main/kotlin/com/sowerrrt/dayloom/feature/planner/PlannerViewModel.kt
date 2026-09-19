@@ -1,5 +1,6 @@
 package com.sowerrrt.dayloom.feature.planner
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.EntityId
@@ -11,6 +12,7 @@ import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
 import com.sowerrrt.dayloom.core.notifications.NotificationScope
 import com.sowerrrt.dayloom.core.notifications.ScheduledNotification
 import com.sowerrrt.dayloom.core.notifications.activeHabitReminders
+import com.sowerrrt.dayloom.core.storage.AttachmentRepository
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,6 +37,9 @@ data class PlannerUiState(
     val isLoading: Boolean = true,
     val hasError: Boolean = false,
     val reminderSchedulingFailed: Boolean = false,
+    val planImagePaths: Map<EntityId, String> = emptyMap(),
+    val isChangingImage: Boolean = false,
+    val hasImageError: Boolean = false,
 ) {
     val selectedHabits: List<Habit>
         get() = habits.filter { it.isScheduledOn(selectedEpochDay) }
@@ -54,6 +59,7 @@ class PlannerViewModel
         private val habitsRepository: HabitsRepository,
         private val plannerRepository: PlannerRepository,
         private val notificationScheduler: NotificationScheduler,
+        private val attachmentRepository: AttachmentRepository,
     ) : ViewModel() {
         private val mutableUiState = MutableStateFlow(PlannerUiState())
         val uiState: StateFlow<PlannerUiState> = mutableUiState.asStateFlow()
@@ -88,6 +94,7 @@ class PlannerViewModel
                             hasError = false,
                             reminderSchedulingFailed =
                                 planReminderResult.isFailure || habitReminderResult.isFailure,
+                            planImagePaths = imagePaths(plans),
                         )
                     }
                 }.onFailure {
@@ -148,7 +155,64 @@ class PlannerViewModel
         }
 
         fun deletePlan(id: EntityId) {
-            updatePlans { plannerRepository.deletePlan(id) }
+            val previous =
+                mutableUiState.value.plans
+                    .firstOrNull { it.id == id }
+                    ?.image
+            updatePlans {
+                plannerRepository.deletePlan(id).also {
+                    if (previous != null) runCatching { attachmentRepository.delete(previous) }
+                }
+            }
+        }
+
+        fun setPlanImage(
+            planId: EntityId,
+            uri: Uri,
+        ) {
+            if (mutableUiState.value.isChangingImage) return
+            viewModelScope.launch {
+                mutableUiState.update { it.copy(isChangingImage = true, hasImageError = false) }
+                val previous =
+                    mutableUiState.value.plans
+                        .firstOrNull { it.id == planId }
+                        ?.image
+                runCatching {
+                    val imported = attachmentRepository.importImage(uri)
+                    try {
+                        plannerRepository.setImage(planId, imported).also {
+                            if (previous != null) attachmentRepository.delete(previous)
+                        }
+                    } catch (error: Throwable) {
+                        attachmentRepository.delete(imported)
+                        throw error
+                    }
+                }.onSuccess(::applyPlans)
+                    .onFailure {
+                        mutableUiState.update { state ->
+                            state.copy(isChangingImage = false, hasImageError = true)
+                        }
+                    }
+            }
+        }
+
+        fun removePlanImage(planId: EntityId) {
+            if (mutableUiState.value.isChangingImage) return
+            viewModelScope.launch {
+                val previous =
+                    mutableUiState.value.plans
+                        .firstOrNull { it.id == planId }
+                        ?.image ?: return@launch
+                mutableUiState.update { it.copy(isChangingImage = true, hasImageError = false) }
+                runCatching {
+                    plannerRepository.setImage(planId, null).also { attachmentRepository.delete(previous) }
+                }.onSuccess(::applyPlans)
+                    .onFailure {
+                        mutableUiState.update { state ->
+                            state.copy(isChangingImage = false, hasImageError = true)
+                        }
+                    }
+            }
         }
 
         fun toggleHabit(id: EntityId) {
@@ -186,6 +250,9 @@ class PlannerViewModel
                                 plans = plans,
                                 hasError = false,
                                 reminderSchedulingFailed = reminderResult.isFailure,
+                                planImagePaths = imagePaths(plans),
+                                isChangingImage = false,
+                                hasImageError = false,
                             )
                         }
                     }.onFailure {
@@ -193,6 +260,24 @@ class PlannerViewModel
                     }
             }
         }
+
+        private fun applyPlans(plans: List<PlanItem>) {
+            mutableUiState.update {
+                it.copy(
+                    plans = plans,
+                    planImagePaths = imagePaths(plans),
+                    hasError = false,
+                    isChangingImage = false,
+                    hasImageError = false,
+                )
+            }
+        }
+
+        private fun imagePaths(plans: List<PlanItem>): Map<EntityId, String> =
+            plans
+                .mapNotNull { plan ->
+                    plan.image?.let(attachmentRepository::localPath)?.let { plan.id to it }
+                }.toMap()
     }
 
 internal fun List<PlanItem>.activeReminders(

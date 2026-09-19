@@ -141,6 +141,11 @@ private class ReadOnlyHabitsRepository(
 
     override suspend fun archiveHabit(id: EntityId): List<Habit> = error("Read-only fake")
 
+    override suspend fun setImage(
+        id: EntityId,
+        image: com.sowerrrt.dayloom.core.model.AttachmentRef?,
+    ): List<Habit> = error("Read-only fake")
+
     override suspend fun toggleCompletion(
         id: EntityId,
         epochDay: Long,
@@ -166,6 +171,11 @@ private class ReadOnlyPlannerRepository(
     ): List<PlanItem> = error("Read-only fake")
 
     override suspend fun toggleCompletion(id: EntityId): List<PlanItem> = error("Read-only fake")
+
+    override suspend fun setImage(
+        id: EntityId,
+        image: com.sowerrrt.dayloom.core.model.AttachmentRef?,
+    ): List<PlanItem> = error("Read-only fake")
 
     override suspend fun deletePlan(id: EntityId): List<PlanItem> = error("Read-only fake")
 }

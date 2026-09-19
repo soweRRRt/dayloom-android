@@ -16,6 +16,7 @@ data class DemoHabit(
     val scheduledWeekdays: Set<Weekday>,
     val completedDayOffsets: List<Int> = emptyList(),
     val reminderMinutesOfDay: Int? = null,
+    val image: DemoImage? = null,
 )
 
 data class DemoPlan(
@@ -23,6 +24,7 @@ data class DemoPlan(
     val dayOffset: Int,
     val completed: Boolean = false,
     val reminderMinutesOfDay: Int? = null,
+    val image: DemoImage? = null,
 )
 
 data class DemoList(
@@ -93,56 +95,82 @@ class LocalDemoContentRepository(
         content: DemoContent,
         todayEpochDay: Long,
     ): DemoSeedResult {
-        val habitsAdded = seedMissingHabits(content.habits, todayEpochDay)
-        val plansAdded = seedMissingPlans(content.plans, todayEpochDay)
+        val habits = seedMissingHabits(content.habits, todayEpochDay)
+        val plans = seedMissingPlans(content.plans, todayEpochDay)
         val listsAdded = seedMissingLists(content.lists)
         val goals = seedMissingGoals(content.goals)
-        return DemoSeedResult(habitsAdded, plansAdded, listsAdded, goals.goalsAdded, goals.imagesAdded)
+        return DemoSeedResult(
+            habitsAdded = habits.entitiesAdded,
+            plansAdded = plans.entitiesAdded,
+            listsAdded = listsAdded,
+            goalsAdded = goals.goalsAdded,
+            imagesAdded = habits.imagesAdded + plans.imagesAdded + goals.imagesAdded,
+        )
     }
 
     private suspend fun seedMissingHabits(
         habits: List<DemoHabit>,
         todayEpochDay: Long,
-    ): Int {
-        val existingTitles = habitsRepository.loadHabits().map { it.title }.toSet()
-        val missing = habits.filterNot { it.title in existingTitles }
-        missing.forEach { demo ->
-            val created =
-                habitsRepository.createHabit(
-                    title = demo.title,
-                    scheduledWeekdays = demo.scheduledWeekdays,
-                    startEpochDay = todayEpochDay - 30,
-                    reminderMinutesOfDay = demo.reminderMinutesOfDay,
-                )
-            val habit = created.last { it.title == demo.title }
-            demo.completedDayOffsets
-                .map { todayEpochDay + it }
-                .filter { day -> Weekday.fromEpochDay(day) in demo.scheduledWeekdays }
-                .distinct()
-                .forEach { day -> habitsRepository.toggleCompletion(habit.id, day) }
+    ): EntitySeedResult {
+        var current = habitsRepository.loadHabits()
+        var entitiesAdded = 0
+        var imagesAdded = 0
+        habits.forEach { demo ->
+            var habit = current.firstOrNull { it.title == demo.title }
+            if (habit == null) {
+                current =
+                    habitsRepository.createHabit(
+                        title = demo.title,
+                        scheduledWeekdays = demo.scheduledWeekdays,
+                        startEpochDay = todayEpochDay - 30,
+                        reminderMinutesOfDay = demo.reminderMinutesOfDay,
+                    )
+                habit = current.last { it.title == demo.title }
+                demo.completedDayOffsets
+                    .map { todayEpochDay + it }
+                    .filter { day -> Weekday.fromEpochDay(day) in demo.scheduledWeekdays }
+                    .distinct()
+                    .forEach { day -> current = habitsRepository.toggleCompletion(habit.id, day) }
+                entitiesAdded++
+            }
+            if (habit.image == null && demo.image != null && attachmentRepository != null && demoImageSource != null) {
+                val asset = demoImageSource.load(demo.image)
+                val attachment = attachmentRepository.importImage(asset.displayName, asset.mimeType, asset.bytes)
+                current = habitsRepository.setImage(habit.id, attachment)
+                imagesAdded++
+            }
         }
-        return missing.size
+        return EntitySeedResult(entitiesAdded, imagesAdded)
     }
 
     private suspend fun seedMissingPlans(
         plans: List<DemoPlan>,
         todayEpochDay: Long,
-    ): Int {
-        val existingTitles = plannerRepository.loadPlans().map { it.title }.toSet()
-        val missing = plans.filterNot { it.title in existingTitles }
-        missing.forEach { demo ->
-            val created =
-                plannerRepository.createPlan(
-                    demo.title,
-                    todayEpochDay + demo.dayOffset,
-                    demo.reminderMinutesOfDay,
-                )
-            if (demo.completed) {
-                val plan = created.last { it.title == demo.title }
-                plannerRepository.toggleCompletion(plan.id)
+    ): EntitySeedResult {
+        var current = plannerRepository.loadPlans()
+        var entitiesAdded = 0
+        var imagesAdded = 0
+        plans.forEach { demo ->
+            var plan = current.firstOrNull { it.title == demo.title }
+            if (plan == null) {
+                current =
+                    plannerRepository.createPlan(
+                        demo.title,
+                        todayEpochDay + demo.dayOffset,
+                        demo.reminderMinutesOfDay,
+                    )
+                plan = current.last { it.title == demo.title }
+                if (demo.completed) current = plannerRepository.toggleCompletion(plan.id)
+                entitiesAdded++
+            }
+            if (plan.image == null && demo.image != null && attachmentRepository != null && demoImageSource != null) {
+                val asset = demoImageSource.load(demo.image)
+                val attachment = attachmentRepository.importImage(asset.displayName, asset.mimeType, asset.bytes)
+                current = plannerRepository.setImage(plan.id, attachment)
+                imagesAdded++
             }
         }
-        return missing.size
+        return EntitySeedResult(entitiesAdded, imagesAdded)
     }
 
     private suspend fun seedMissingLists(lists: List<DemoList>): Int {
@@ -201,6 +229,11 @@ class LocalDemoContentRepository(
 
     private data class GoalSeedResult(
         val goalsAdded: Int,
+        val imagesAdded: Int,
+    )
+
+    private data class EntitySeedResult(
+        val entitiesAdded: Int,
         val imagesAdded: Int,
     )
 }

@@ -122,6 +122,58 @@ class LocalDemoContentRepositoryTest {
             )
         }
 
+    @Test
+    fun `habit and plan demo images are imported only once`() =
+        runTest {
+            val directory = temporaryFolder.newFolder()
+            val habits = FileHabitsRepository(directory)
+            val planner = FilePlannerRepository(directory)
+            val attachments = FakeAttachmentRepository()
+            val repository =
+                LocalDemoContentRepository(
+                    habits,
+                    planner,
+                    FileListsRepository(directory),
+                    FileWishlistRepository(directory),
+                    attachments,
+                    DemoImageSource { image ->
+                        DemoImageAsset("${image.name.lowercase()}.png", "image/png", byteArrayOf(1, 2, 3))
+                    },
+                )
+            val content =
+                DemoContent(
+                    habits = listOf(DemoHabit("Stretch", Weekday.entries.toSet(), image = DemoImage.TRAVEL)),
+                    plans = listOf(DemoPlan("Prepare", 1, image = DemoImage.LAPTOP)),
+                    lists = emptyList(),
+                    goals = emptyList(),
+                )
+
+            val first = repository.seedMissing(content, 20_000)
+            val second = repository.seedMissing(content, 20_000)
+
+            assertEquals(1, first.habitsAdded)
+            assertEquals(1, first.plansAdded)
+            assertEquals(2, first.imagesAdded)
+            assertEquals(0, second.totalAdded)
+            assertEquals(2, attachments.imports)
+            assertEquals(
+                "travel.png",
+                habits
+                    .loadHabits()
+                    .single()
+                    .image
+                    ?.displayName,
+            )
+            assertEquals(
+                "laptop.png",
+                planner
+                    .loadPlans()
+                    .single()
+                    .image
+                    ?.displayName,
+            )
+        }
+
     private fun testContent() =
         DemoContent(
             habits =
@@ -163,7 +215,7 @@ private class FakeAttachmentRepository : AttachmentRepository {
     ): AttachmentRef {
         imports++
         return AttachmentRef(
-            EntityId("00000000-0000-0000-0000-000000000099"),
+            EntityId("00000000-0000-0000-0000-${imports.toString().padStart(12, '0')}"),
             displayName,
             mimeType,
         )

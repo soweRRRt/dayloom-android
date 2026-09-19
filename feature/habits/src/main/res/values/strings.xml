@@ -21,6 +21,11 @@
     <string name="habits_reminder_description">Dayloom will remind you on the selected repeat days. Battery saving may delay delivery slightly.</string>
     <string name="habits_add_reminder">Add time</string>
     <string name="habits_remove_reminder">Remove</string>
+    <string name="habits_add_image">Add photo</string>
+    <string name="habits_change_image">Replace photo</string>
+    <string name="habits_remove_image">Remove habit photo</string>
+    <string name="habits_image_description">Photo for %1$s</string>
+    <string name="habits_image_error">The photo could not be saved. The habit was not changed.</string>
     <string name="habits_reminder_error">The habit was saved, but its system reminder could not be scheduled.</string>
     <string name="habits_streaks">Current streak: %1$d · Best: %2$d</string>
     <string name="habits_edit">Edit habit</string>

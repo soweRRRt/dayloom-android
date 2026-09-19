@@ -311,6 +311,7 @@ private fun rememberDemoContent(): DemoContent =
                     title = stringResource(R.string.settings_example_habit_stretch),
                     scheduledWeekdays = Weekday.entries.toSet(),
                     reminderMinutesOfDay = 8 * 60 + 30,
+                    image = DemoImage.TRAVEL,
                 ),
             ),
         plans =
@@ -323,6 +324,7 @@ private fun rememberDemoContent(): DemoContent =
                     stringResource(R.string.settings_example_plan_evening_review),
                     1,
                     reminderMinutesOfDay = 18 * 60,
+                    image = DemoImage.LAPTOP,
                 ),
             ),
         lists =

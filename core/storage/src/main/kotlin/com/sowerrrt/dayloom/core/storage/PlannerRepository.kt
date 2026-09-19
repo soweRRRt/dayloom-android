@@ -1,5 +1,6 @@
 package com.sowerrrt.dayloom.core.storage
 
+import com.sowerrrt.dayloom.core.model.AttachmentRef
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.model.PlannerSnapshot
@@ -22,6 +23,11 @@ interface PlannerRepository {
     ): List<PlanItem>
 
     suspend fun toggleCompletion(id: EntityId): List<PlanItem>
+
+    suspend fun setImage(
+        id: EntityId,
+        image: AttachmentRef?,
+    ): List<PlanItem>
 
     suspend fun deletePlan(id: EntityId): List<PlanItem>
 }
@@ -84,6 +90,11 @@ class FilePlannerRepository(
 
     override suspend fun toggleCompletion(id: EntityId): List<PlanItem> =
         updateExisting(id) { it.copy(completed = !it.completed) }
+
+    override suspend fun setImage(
+        id: EntityId,
+        image: AttachmentRef?,
+    ): List<PlanItem> = updateExisting(id) { plan -> plan.copy(image = image) }
 
     override suspend fun deletePlan(id: EntityId): List<PlanItem> =
         store
