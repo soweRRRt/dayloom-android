@@ -22,6 +22,12 @@
     <string name="settings_lock_whole_app_description">При каждом новом запуске и после ухода в фон потребуется биометрия или код устройства.</string>
     <string name="settings_vault_always_locked">Vault продолжает использовать отдельную защищённую сессию.</string>
     <string name="settings_lock_unavailable">Сначала настройте код экрана или сильную биометрию в Android.</string>
+    <string name="settings_permissions">Разрешения</string>
+    <string name="settings_notifications">Уведомления</string>
+    <string name="settings_notifications_enabled">Разрешены</string>
+    <string name="settings_notifications_disabled">Выключены</string>
+    <string name="settings_notifications_description">Нужны для напоминаний о планах и привычках. Сами напоминания сохраняются на устройстве, даже если Android не показывает уведомления.</string>
+    <string name="settings_notifications_open">Открыть настройки уведомлений</string>
     <string name="settings_auto_updates">Автоматическая проверка</string>
     <string name="settings_auto_updates_description">Обращаться к GitHub не чаще одного раза в сутки, не задерживая запуск.</string>
     <string name="settings_check_updates">Проверить обновления</string>

@@ -22,6 +22,12 @@
     <string name="settings_lock_whole_app_description">Biometrics or your device screen lock will be required after every fresh launch and return from background.</string>
     <string name="settings_vault_always_locked">Vault keeps its own separate secure session.</string>
     <string name="settings_lock_unavailable">Set up a device screen lock or strong biometric in Android first.</string>
+    <string name="settings_permissions">Permissions</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_notifications_enabled">Allowed</string>
+    <string name="settings_notifications_disabled">Off</string>
+    <string name="settings_notifications_description">Used for plan and habit reminders. Reminders stay saved on your device even when Android does not show notifications.</string>
+    <string name="settings_notifications_open">Open notification settings</string>
     <string name="settings_auto_updates">Automatic checks</string>
     <string name="settings_auto_updates_description">Check GitHub at most once every 24 hours. Startup is never blocked.</string>
     <string name="settings_check_updates">Check for updates</string>

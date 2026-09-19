@@ -1,6 +1,12 @@
 package com.sowerrrt.dayloom.feature.settings
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.biometric.BiometricManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,7 +43,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sowerrrt.dayloom.core.designsystem.DayloomButton
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
@@ -71,6 +83,7 @@ fun SettingsScreen(
                 BiometricManager.BIOMETRIC_SUCCESS
         }
     var showLockUnavailable by remember { mutableStateOf(false) }
+    val notificationPermissionStatus = rememberNotificationPermissionStatus()
     Column {
         DayloomTopBar(stringResource(R.string.settings_title))
         LazyColumn(
@@ -156,6 +169,44 @@ fun SettingsScreen(
                             modifier = Modifier.testTag("app_lock_unavailable"),
                         )
                     }
+                }
+            }
+            item {
+                SettingsSection(
+                    title = stringResource(R.string.settings_permissions),
+                    modifier = Modifier.testTag("notification_permission_card"),
+                ) {
+                    Text(
+                        stringResource(R.string.settings_notifications),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        stringResource(
+                            if (notificationPermissionStatus == NotificationPermissionStatus.ENABLED) {
+                                R.string.settings_notifications_enabled
+                            } else {
+                                R.string.settings_notifications_disabled
+                            },
+                        ),
+                        style = MaterialTheme.typography.labelLarge,
+                        color =
+                            if (notificationPermissionStatus == NotificationPermissionStatus.ENABLED) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.error
+                            },
+                        modifier = Modifier.testTag("notification_permission_status"),
+                    )
+                    Text(
+                        stringResource(R.string.settings_notifications_description),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    DayloomButton(
+                        text = stringResource(R.string.settings_notifications_open),
+                        onClick = { openNotificationSettings(context) },
+                        modifier = Modifier.testTag("open_notification_settings"),
+                    )
                 }
             }
             item {
@@ -336,9 +387,10 @@ private fun rememberDemoContent(): DemoContent =
 @Composable
 private fun SettingsSection(
     title: String,
+    modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    DayloomCard(Modifier.fillMaxWidth()) {
+    DayloomCard(modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
             Text(title, style = MaterialTheme.typography.titleLarge)
             content()
@@ -454,3 +506,62 @@ private fun supportedAuthenticators(): Int =
     } else {
         BiometricManager.Authenticators.BIOMETRIC_STRONG
     }
+
+internal enum class NotificationPermissionStatus {
+    ENABLED,
+    DISABLED,
+}
+
+internal fun resolveNotificationPermissionStatus(
+    runtimePermissionGranted: Boolean,
+    systemNotificationsEnabled: Boolean,
+): NotificationPermissionStatus =
+    if (runtimePermissionGranted && systemNotificationsEnabled) {
+        NotificationPermissionStatus.ENABLED
+    } else {
+        NotificationPermissionStatus.DISABLED
+    }
+
+@Composable
+private fun rememberNotificationPermissionStatus(): NotificationPermissionStatus {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var status by remember(context) { mutableStateOf(context.notificationPermissionStatus()) }
+    DisposableEffect(context, lifecycleOwner) {
+        val observer =
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    status = context.notificationPermissionStatus()
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return status
+}
+
+private fun Context.notificationPermissionStatus(): NotificationPermissionStatus {
+    val runtimePermissionGranted =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+    return resolveNotificationPermissionStatus(
+        runtimePermissionGranted = runtimePermissionGranted,
+        systemNotificationsEnabled = NotificationManagerCompat.from(this).areNotificationsEnabled(),
+    )
+}
+
+private fun openNotificationSettings(context: Context) {
+    val notificationIntent =
+        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+    runCatching { context.startActivity(notificationIntent) }
+        .getOrElse {
+            context.startActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:${context.packageName}"),
+                ),
+            )
+        }
+}

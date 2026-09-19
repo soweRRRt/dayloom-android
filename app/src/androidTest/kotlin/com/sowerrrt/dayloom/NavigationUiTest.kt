@@ -175,6 +175,17 @@ class NavigationUiTest {
     }
 
     @Test
+    fun settingsExposeNotificationPermissionCenter() {
+        composeRule.onNodeWithTag("primary_nav_more").performClick()
+        composeRule.onNodeWithTag("more_settings").performClick()
+        composeRule
+            .onNodeWithTag("settings_list")
+            .performScrollToNode(hasTestTag("notification_permission_card"))
+        composeRule.onNodeWithTag("notification_permission_status").assertExists()
+        composeRule.onNodeWithTag("open_notification_settings").assertExists()
+    }
+
+    @Test
     fun demoWishHasLocalCoverAndPhotoControls() {
         composeRule.onNodeWithTag("primary_nav_more").performClick()
         composeRule.onNodeWithTag("more_settings").performClick()
