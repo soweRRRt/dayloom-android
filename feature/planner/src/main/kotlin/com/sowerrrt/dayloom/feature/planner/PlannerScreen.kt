@@ -953,6 +953,48 @@ private fun PlanEditorDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("plan_name_input"),
                 )
+                Text(stringResource(R.string.planner_reminder), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.planner_reminder_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val initial = reminderMinutesOfDay ?: DEFAULT_REMINDER_MINUTES
+                            TimePickerDialog(
+                                context,
+                                { _, hour, minute -> reminderMinutesOfDay = hour * 60 + minute },
+                                initial / 60,
+                                initial % 60,
+                                true,
+                            ).show()
+                        },
+                        modifier = Modifier.testTag("set_plan_reminder"),
+                    ) {
+                        Icon(Icons.Rounded.NotificationsActive, contentDescription = null)
+                        Text(
+                            if (reminderMinutesOfDay == null) {
+                                stringResource(R.string.planner_add_reminder)
+                            } else {
+                                formatReminderTime(requireNotNull(reminderMinutesOfDay), locale)
+                            },
+                            modifier = Modifier.padding(start = DayloomSpacing.xs),
+                        )
+                    }
+                    if (reminderMinutesOfDay != null) {
+                        TextButton(
+                            onClick = { reminderMinutesOfDay = null },
+                            modifier = Modifier.testTag("clear_plan_reminder"),
+                        ) {
+                            Text(stringResource(R.string.planner_remove_reminder))
+                        }
+                    }
+                }
                 TextButton(
                     onClick = { onSavePreset(title, reminderMinutesOfDay, repeat) },
                     enabled = title.isNotBlank(),
@@ -1018,48 +1060,6 @@ private fun PlanEditorDialog(
                             color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.testTag("plan_image_error"),
                         )
-                    }
-                }
-                Text(stringResource(R.string.planner_reminder), style = MaterialTheme.typography.titleMedium)
-                Text(
-                    stringResource(R.string.planner_reminder_description),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            val initial = reminderMinutesOfDay ?: DEFAULT_REMINDER_MINUTES
-                            TimePickerDialog(
-                                context,
-                                { _, hour, minute -> reminderMinutesOfDay = hour * 60 + minute },
-                                initial / 60,
-                                initial % 60,
-                                true,
-                            ).show()
-                        },
-                        modifier = Modifier.testTag("set_plan_reminder"),
-                    ) {
-                        Icon(Icons.Rounded.NotificationsActive, contentDescription = null)
-                        Text(
-                            if (reminderMinutesOfDay == null) {
-                                stringResource(R.string.planner_add_reminder)
-                            } else {
-                                formatReminderTime(requireNotNull(reminderMinutesOfDay), locale)
-                            },
-                            modifier = Modifier.padding(start = DayloomSpacing.xs),
-                        )
-                    }
-                    if (reminderMinutesOfDay != null) {
-                        TextButton(
-                            onClick = { reminderMinutesOfDay = null },
-                            modifier = Modifier.testTag("clear_plan_reminder"),
-                        ) {
-                            Text(stringResource(R.string.planner_remove_reminder))
-                        }
                     }
                 }
             }
