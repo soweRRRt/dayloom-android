@@ -9,6 +9,7 @@ import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
 import com.sowerrrt.dayloom.core.notifications.WorkManagerNotificationScheduler
 import com.sowerrrt.dayloom.core.security.AndroidKeystoreVaultCipher
 import com.sowerrrt.dayloom.core.security.VaultCipher
+import com.sowerrrt.dayloom.core.storage.ArchiveCleanup
 import com.sowerrrt.dayloom.core.storage.AttachmentRepository
 import com.sowerrrt.dayloom.core.storage.AttachmentStore
 import com.sowerrrt.dayloom.core.storage.DataStoreSettingsRepository
@@ -21,6 +22,7 @@ import com.sowerrrt.dayloom.core.storage.EncryptedFileVaultRepository
 import com.sowerrrt.dayloom.core.storage.FileHabitsRepository
 import com.sowerrrt.dayloom.core.storage.FileListsRepository
 import com.sowerrrt.dayloom.core.storage.FilePlannerRepository
+import com.sowerrrt.dayloom.core.storage.FileTemplateBundlesRepository
 import com.sowerrrt.dayloom.core.storage.FileWishlistRepository
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.ListsRepository
@@ -28,7 +30,9 @@ import com.sowerrrt.dayloom.core.storage.LocalAttachmentRepository
 import com.sowerrrt.dayloom.core.storage.LocalDataTransferRepository
 import com.sowerrrt.dayloom.core.storage.LocalDemoContentRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
+import com.sowerrrt.dayloom.core.storage.RepositoryArchiveCleanup
 import com.sowerrrt.dayloom.core.storage.SettingsRepository
+import com.sowerrrt.dayloom.core.storage.TemplateBundlesRepository
 import com.sowerrrt.dayloom.core.storage.VaultRepository
 import com.sowerrrt.dayloom.core.storage.WishlistRepository
 import com.sowerrrt.dayloom.core.updates.GitHubUpdateSource
@@ -95,7 +99,28 @@ object AppModule {
     @Singleton
     fun provideWishlistRepository(
         @ApplicationContext context: Context,
-    ): WishlistRepository = FileWishlistRepository(context.filesDir)
+        attachmentStore: AttachmentStore,
+    ): WishlistRepository =
+        FileWishlistRepository(
+            directory = context.filesDir,
+            deleteAttachment = attachmentStore::delete,
+        )
+
+    @Provides
+    @Singleton
+    fun provideTemplateBundlesRepository(
+        @ApplicationContext context: Context,
+    ): TemplateBundlesRepository = FileTemplateBundlesRepository(context.filesDir)
+
+    @Provides
+    @Singleton
+    fun provideArchiveCleanup(
+        habitsRepository: HabitsRepository,
+        plannerRepository: PlannerRepository,
+        listsRepository: ListsRepository,
+        wishlistRepository: WishlistRepository,
+    ): ArchiveCleanup =
+        RepositoryArchiveCleanup(habitsRepository, plannerRepository, listsRepository, wishlistRepository)
 
     @Provides
     @Singleton
@@ -155,6 +180,7 @@ object AppModule {
         listsRepository: ListsRepository,
         wishlistRepository: WishlistRepository,
         settingsRepository: SettingsRepository,
+        templateBundlesRepository: TemplateBundlesRepository,
         attachmentStore: AttachmentStore,
         vaultRepository: VaultRepository,
         vaultCipher: VaultCipher,
@@ -166,6 +192,7 @@ object AppModule {
             listsRepository = listsRepository,
             wishlistRepository = wishlistRepository,
             settingsRepository = settingsRepository,
+            templateBundlesRepository = templateBundlesRepository,
             attachmentStore = attachmentStore,
             vaultRepository = vaultRepository,
             vaultCipher = vaultCipher,

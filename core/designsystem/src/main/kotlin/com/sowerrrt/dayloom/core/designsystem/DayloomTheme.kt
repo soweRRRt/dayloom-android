@@ -10,6 +10,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -67,7 +68,7 @@ fun DayloomTheme(
     )
 }
 
-private fun dayloomColorScheme(
+internal fun dayloomColorScheme(
     accent: AccentPalette,
     dark: Boolean,
 ): ColorScheme {
@@ -120,3 +121,12 @@ private fun Color.lighten(amount: Float): Color =
 
 private fun Color.darken(amount: Float): Color =
     Color(red = red * (1f - amount), green = green * (1f - amount), blue = blue * (1f - amount), alpha = alpha)
+
+internal fun contrastRatio(
+    foreground: Color,
+    background: Color,
+): Float {
+    val lighter = maxOf(foreground.luminance(), background.luminance())
+    val darker = minOf(foreground.luminance(), background.luminance())
+    return (lighter + 0.05f) / (darker + 0.05f)
+}

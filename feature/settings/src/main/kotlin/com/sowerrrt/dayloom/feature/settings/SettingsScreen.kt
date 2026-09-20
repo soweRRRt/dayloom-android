@@ -785,6 +785,8 @@ private fun rememberDemoContent(): DemoContent =
                     note = stringResource(R.string.settings_example_goal_laptop_note),
                     contributionsMinor = listOf(20_000_00, 15_000_00, 10_000_00),
                     image = DemoImage.LAPTOP,
+                    purchaseUrl = "https://example.com/laptop",
+                    category = stringResource(R.string.settings_example_category_tech),
                 ),
                 DemoGoal(
                     title = stringResource(R.string.settings_example_goal_trip),
@@ -794,6 +796,8 @@ private fun rememberDemoContent(): DemoContent =
                     note = stringResource(R.string.settings_example_goal_trip_note),
                     contributionsMinor = listOf(12_000_00, 8_000_00),
                     image = DemoImage.TRAVEL,
+                    purchaseUrl = "https://example.com/travel",
+                    category = stringResource(R.string.settings_example_category_travel),
                 ),
             ),
         habitPresets =

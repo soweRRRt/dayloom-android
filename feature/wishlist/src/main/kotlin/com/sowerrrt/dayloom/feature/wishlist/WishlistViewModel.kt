@@ -19,19 +19,70 @@ import javax.inject.Inject
 
 data class WishlistUiState(
     val goals: List<WishGoal> = emptyList(),
+    val archivedGoals: List<WishGoal> = emptyList(),
     val selectedGoalId: EntityId? = null,
     val isLoading: Boolean = true,
     val hasError: Boolean = false,
     val imagePaths: Map<EntityId, String> = emptyMap(),
     val isChangingImage: Boolean = false,
     val hasImageError: Boolean = false,
+    val query: String = "",
+    val categoryFilter: String? = null,
+    val statusFilter: WishStatusFilter = WishStatusFilter.ALL,
+    val linkFilter: WishLinkFilter = WishLinkFilter.ALL,
+    val sort: WishSort = WishSort.PRIORITY,
+    val showingArchive: Boolean = false,
 ) {
     val selectedGoal: WishGoal?
         get() = goals.firstOrNull { it.id == selectedGoalId }
 
     val completedGoals: Int
         get() = goals.count(WishGoal::isCompleted)
+
+    val categories: List<String>
+        get() =
+            (goals + archivedGoals)
+                .map(WishGoal::category)
+                .filter(String::isNotBlank)
+                .distinct()
+                .sorted()
+
+    val visibleGoals: List<WishGoal>
+        get() {
+            val needle = query.trim()
+            return (if (showingArchive) archivedGoals else goals)
+                .asSequence()
+                .filter { goal ->
+                    needle.isEmpty() || goal.title.contains(needle, true) || goal.note.contains(needle, true)
+                }.filter { categoryFilter == null || it.category == categoryFilter }
+                .filter {
+                    when (statusFilter) {
+                        WishStatusFilter.ALL -> true
+                        WishStatusFilter.ACTIVE -> !it.isCompleted
+                        WishStatusFilter.COMPLETED -> it.isCompleted
+                    }
+                }.filter {
+                    when (linkFilter) {
+                        WishLinkFilter.ALL -> true
+                        WishLinkFilter.WITH_LINK -> it.purchaseUrl.isNotBlank()
+                        WishLinkFilter.WITHOUT_LINK -> it.purchaseUrl.isBlank()
+                    }
+                }.let { sequence ->
+                    when (sort) {
+                        WishSort.PRIORITY -> sequence.sortedByDescending { it.priority.ordinal }
+                        WishSort.PRICE -> sequence.sortedByDescending(WishGoal::targetMinor)
+                        WishSort.TITLE -> sequence.sortedBy { it.title.lowercase() }
+                        WishSort.ADDED -> sequence.sortedByDescending(WishGoal::createdAtEpochMillis)
+                    }
+                }.toList()
+        }
 }
+
+enum class WishStatusFilter { ALL, ACTIVE, COMPLETED }
+
+enum class WishLinkFilter { ALL, WITH_LINK, WITHOUT_LINK }
+
+enum class WishSort { PRIORITY, PRICE, TITLE, ADDED }
 
 @HiltViewModel
 class WishlistViewModel
@@ -55,8 +106,8 @@ class WishlistViewModel
         fun refresh() {
             viewModelScope.launch {
                 mutableUiState.update { it.copy(isLoading = true, hasError = false) }
-                runCatching { repository.loadGoals() }
-                    .onSuccess(::applyGoals)
+                runCatching { repository.loadGoals() to repository.loadArchivedGoals() }
+                    .onSuccess { (active, archived) -> applyGoals(active, archived) }
                     .onFailure { mutableUiState.update { state -> state.copy(isLoading = false, hasError = true) } }
             }
         }
@@ -69,6 +120,19 @@ class WishlistViewModel
             mutableUiState.update { it.copy(selectedGoalId = null) }
         }
 
+        fun setQuery(value: String) = mutableUiState.update { it.copy(query = value.take(120)) }
+
+        fun setCategoryFilter(value: String?) = mutableUiState.update { it.copy(categoryFilter = value) }
+
+        fun setStatusFilter(value: WishStatusFilter) = mutableUiState.update { it.copy(statusFilter = value) }
+
+        fun setLinkFilter(value: WishLinkFilter) = mutableUiState.update { it.copy(linkFilter = value) }
+
+        fun setSort(value: WishSort) = mutableUiState.update { it.copy(sort = value) }
+
+        fun setShowingArchive(value: Boolean) =
+            mutableUiState.update { it.copy(showingArchive = value, selectedGoalId = null) }
+
         fun createGoal(
             title: String,
             targetMinor: Long,
@@ -76,13 +140,24 @@ class WishlistViewModel
             priority: WishPriority,
             note: String,
             purchaseUrl: String,
+            category: String = "",
         ) {
             val previousIds =
                 mutableUiState.value.goals
                     .map(WishGoal::id)
                     .toSet()
             updateGoals(
-                operation = { repository.createGoal(title, targetMinor, currencyCode, priority, note, purchaseUrl) },
+                operation = {
+                    val created = repository.createGoal(title, targetMinor, currencyCode, priority, note, purchaseUrl)
+                    val newGoal = created.firstOrNull { it.id !in previousIds }
+                    if (newGoal != null &&
+                        category.isNotBlank()
+                    ) {
+                        repository.setCategory(newGoal.id, category)
+                    } else {
+                        created
+                    }
+                },
                 selectedId = { goals -> goals.firstOrNull { it.id !in previousIds }?.id },
             )
         }
@@ -95,10 +170,12 @@ class WishlistViewModel
             priority: WishPriority,
             note: String,
             purchaseUrl: String,
+            category: String = "",
         ) {
             updateGoals(
                 operation = {
                     repository.updateGoal(id, title, targetMinor, currencyCode, priority, note, purchaseUrl)
+                    repository.setCategory(id, category)
                 },
             )
         }
@@ -117,6 +194,10 @@ class WishlistViewModel
                 selectedId = { null },
             )
         }
+
+        fun archiveGoal(id: EntityId) = reloadAfter { repository.archiveGoal(id) }
+
+        fun restoreGoal(id: EntityId) = reloadAfter { repository.restoreGoal(id) }
 
         fun setImage(
             goalId: EntityId,
@@ -202,10 +283,14 @@ class WishlistViewModel
             }
         }
 
-        private fun applyGoals(goals: List<WishGoal>) {
+        private fun applyGoals(
+            goals: List<WishGoal>,
+            archivedGoals: List<WishGoal> = mutableUiState.value.archivedGoals,
+        ) {
             mutableUiState.update { state ->
                 state.copy(
                     goals = goals,
+                    archivedGoals = archivedGoals,
                     selectedGoalId = state.selectedGoalId?.takeIf { id -> goals.any { it.id == id } },
                     imagePaths = imagePaths(goals),
                     isLoading = false,
@@ -213,6 +298,18 @@ class WishlistViewModel
                     isChangingImage = false,
                     hasImageError = false,
                 )
+            }
+        }
+
+        private fun reloadAfter(operation: suspend () -> Unit) {
+            viewModelScope.launch {
+                runCatching {
+                    operation()
+                    repository.loadGoals() to repository.loadArchivedGoals()
+                }.onSuccess { (active, archived) ->
+                    applyGoals(active, archived)
+                    mutableUiState.update { it.copy(selectedGoalId = null) }
+                }.onFailure { mutableUiState.update { state -> state.copy(hasError = true) } }
             }
         }
 

@@ -86,6 +86,38 @@ class FileWishlistRepositoryTest {
         }
 
     @Test
+    fun `goal category archive restore and retention are persisted`() =
+        runTest {
+            val week = 7L * 24 * 60 * 60 * 1_000
+            var now = 5_000L
+            var attachmentDeleted = false
+            val repository =
+                FileWishlistRepository(
+                    directory = temporaryFolder.newFolder("categories-archive"),
+                    clock = { now },
+                    idFactory = { EntityId("goal-category") },
+                    deleteAttachment = {
+                        attachmentDeleted = true
+                        true
+                    },
+                )
+            repository.createGoal("Camera", 100_00, "EUR", WishPriority.HIGH, "", "https://example.com")
+            repository.setCategory(EntityId("goal-category"), "Tech")
+            repository.setImage(
+                EntityId("goal-category"),
+                AttachmentRef(EntityId("00000000-0000-0000-0000-000000000002"), "camera.png", "image/png"),
+            )
+            repository.archiveGoal(EntityId("goal-category"))
+            assertEquals("Tech", repository.loadArchivedGoals().single().category)
+            repository.restoreGoal(EntityId("goal-category"))
+            assertEquals("Tech", repository.loadGoals().single().category)
+            repository.archiveGoal(EntityId("goal-category"))
+            now += week
+            assertTrue(repository.loadArchivedGoals().isEmpty())
+            assertTrue(attachmentDeleted)
+        }
+
+    @Test
     fun `purchase link only accepts web addresses`() =
         runTest {
             val repository = FileWishlistRepository(temporaryFolder.newFolder("invalid-url"))

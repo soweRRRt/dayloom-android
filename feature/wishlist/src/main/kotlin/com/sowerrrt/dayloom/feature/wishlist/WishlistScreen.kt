@@ -19,18 +19,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Savings
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -131,6 +135,12 @@ fun WishlistScreen(
                             Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.wishlist_edit))
                         }
                         IconButton(
+                            onClick = { viewModel.archiveGoal(selectedGoal.id) },
+                            modifier = Modifier.testTag("archive_wish"),
+                        ) {
+                            Icon(Icons.Rounded.Archive, contentDescription = stringResource(R.string.wishlist_archive))
+                        }
+                        IconButton(
                             onClick = { pendingGoalDelete = selectedGoal },
                             modifier = Modifier.testTag("delete_wish"),
                         ) {
@@ -156,6 +166,13 @@ fun WishlistScreen(
                     WishlistOverview(
                         state = state,
                         onOpenGoal = { viewModel.openGoal(it.id) },
+                        onQueryChange = viewModel::setQuery,
+                        onCategoryFilter = viewModel::setCategoryFilter,
+                        onStatusFilter = viewModel::setStatusFilter,
+                        onLinkFilter = viewModel::setLinkFilter,
+                        onSort = viewModel::setSort,
+                        onShowArchive = viewModel::setShowingArchive,
+                        onRestore = { viewModel.restoreGoal(it.id) },
                         modifier = Modifier.weight(1f),
                     )
                 else ->
@@ -195,12 +212,12 @@ fun WishlistScreen(
         GoalEditorDialog(
             goal = editingGoal,
             onDismiss = { showGoalEditor = false },
-            onSave = { title, target, currency, priority, note, purchaseUrl ->
+            onSave = { title, target, currency, priority, note, purchaseUrl, category ->
                 val goal = editingGoal
                 if (goal == null) {
-                    viewModel.createGoal(title, target, currency, priority, note, purchaseUrl)
+                    viewModel.createGoal(title, target, currency, priority, note, purchaseUrl, category)
                 } else {
-                    viewModel.updateGoal(goal.id, title, target, currency, priority, note, purchaseUrl)
+                    viewModel.updateGoal(goal.id, title, target, currency, priority, note, purchaseUrl, category)
                 }
                 showGoalEditor = false
             },
@@ -253,6 +270,13 @@ fun WishlistScreen(
 private fun WishlistOverview(
     state: WishlistUiState,
     onOpenGoal: (WishGoal) -> Unit,
+    onQueryChange: (String) -> Unit,
+    onCategoryFilter: (String?) -> Unit,
+    onStatusFilter: (WishStatusFilter) -> Unit,
+    onLinkFilter: (WishLinkFilter) -> Unit,
+    onSort: (WishSort) -> Unit,
+    onShowArchive: (Boolean) -> Unit,
+    onRestore: (WishGoal) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -267,21 +291,113 @@ private fun WishlistOverview(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (state.goals.isEmpty()) {
+        item {
+            OutlinedTextField(
+                value = state.query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.fillMaxWidth().testTag("wishlist_search"),
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                label = { Text(stringResource(R.string.wishlist_search)) },
+            )
+        }
+        item {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                contentPadding = PaddingValues(end = DayloomSpacing.xl),
+            ) {
+                item {
+                    FilterChip(
+                        selected = !state.showingArchive,
+                        onClick = { onShowArchive(false) },
+                        label = { Text(stringResource(R.string.wishlist_active)) },
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = state.showingArchive,
+                        onClick = { onShowArchive(true) },
+                        label = { Text(stringResource(R.string.wishlist_archive)) },
+                    )
+                }
+                items(WishStatusFilter.entries) { filter ->
+                    FilterChip(
+                        selected = state.statusFilter == filter,
+                        onClick = { onStatusFilter(filter) },
+                        label = { Text(statusFilterLabel(filter)) },
+                    )
+                }
+            }
+        }
+        item {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                contentPadding = PaddingValues(end = DayloomSpacing.xl),
+            ) {
+                items(WishLinkFilter.entries) { filter ->
+                    FilterChip(
+                        selected = state.linkFilter == filter,
+                        onClick = { onLinkFilter(filter) },
+                        label = { Text(linkFilterLabel(filter)) },
+                    )
+                }
+            }
+        }
+        if (state.categories.isNotEmpty()) {
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    contentPadding = PaddingValues(end = DayloomSpacing.xl),
+                ) {
+                    item {
+                        FilterChip(
+                            selected = state.categoryFilter == null,
+                            onClick = { onCategoryFilter(null) },
+                            label = { Text(stringResource(R.string.wishlist_all_categories)) },
+                        )
+                    }
+                    items(state.categories) { category ->
+                        FilterChip(
+                            selected = state.categoryFilter == category,
+                            onClick = { onCategoryFilter(category) },
+                            label = { Text(category) },
+                        )
+                    }
+                }
+            }
+        }
+        item {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                contentPadding = PaddingValues(end = DayloomSpacing.xl),
+            ) {
+                items(WishSort.entries) { sort ->
+                    FilterChip(
+                        selected = state.sort == sort,
+                        onClick = { onSort(sort) },
+                        label = { Text(sortLabel(sort)) },
+                    )
+                }
+            }
+        }
+        if (state.visibleGoals.isEmpty()) {
             item { EmptyWishlistCard() }
         } else {
-            item {
-                Text(
-                    stringResource(R.string.wishlist_summary, state.goals.size, state.completedGoals),
-                    style = MaterialTheme.typography.titleMedium,
-                )
+            if (!state.showingArchive) {
+                item {
+                    Text(
+                        stringResource(R.string.wishlist_summary, state.goals.size, state.completedGoals),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
             }
-            items(state.goals, key = { it.id.value }) { goal ->
+            items(state.visibleGoals, key = { it.id.value }) { goal ->
                 Box(Modifier.animateItem()) {
                     WishCard(
                         goal = goal,
                         imagePath = state.imagePaths[goal.id],
-                        onClick = { onOpenGoal(goal) },
+                        onClick = { if (!state.showingArchive) onOpenGoal(goal) },
+                        onRestore = if (state.showingArchive) ({ onRestore(goal) }) else null,
                     )
                 }
             }
@@ -354,6 +470,7 @@ private fun WishCard(
     goal: WishGoal,
     imagePath: String?,
     onClick: () -> Unit,
+    onRestore: (() -> Unit)? = null,
 ) {
     val progress = goalProgress(goal)
     DayloomCard(
@@ -383,6 +500,9 @@ private fun WishCard(
                         style = MaterialTheme.typography.labelLarge,
                         color = priorityColor(goal.priority),
                     )
+                    if (goal.category.isNotBlank()) {
+                        Text(goal.category, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
                 Text(
                     stringResource(R.string.wishlist_percent, (progress * 100).toInt()),
@@ -398,6 +518,12 @@ private fun WishCard(
                 ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            onRestore?.let {
+                TextButton(onClick = it, modifier = Modifier.align(Alignment.End)) {
+                    Icon(Icons.Rounded.Restore, contentDescription = null)
+                    Text(stringResource(R.string.wishlist_restore))
+                }
+            }
         }
     }
 }
@@ -574,7 +700,7 @@ private fun ContributionRow(
 private fun GoalEditorDialog(
     goal: WishGoal?,
     onDismiss: () -> Unit,
-    onSave: (String, Long, String, WishPriority, String, String) -> Unit,
+    onSave: (String, Long, String, WishPriority, String, String, String) -> Unit,
 ) {
     var title by remember(goal?.id) { mutableStateOf(goal?.title.orEmpty()) }
     var target by remember(goal?.id) { mutableStateOf(goal?.targetMinor?.let(::minorToInput).orEmpty()) }
@@ -582,6 +708,7 @@ private fun GoalEditorDialog(
     var priority by remember(goal?.id) { mutableStateOf(goal?.priority ?: WishPriority.MEDIUM) }
     var note by remember(goal?.id) { mutableStateOf(goal?.note.orEmpty()) }
     var purchaseUrl by remember(goal?.id) { mutableStateOf(goal?.purchaseUrl.orEmpty()) }
+    var category by remember(goal?.id) { mutableStateOf(goal?.category.orEmpty()) }
     val parsedTarget = parseAmountToMinor(target)
     val normalizedCurrency = currency.trim().uppercase()
     val targetIsValid = parsedTarget != null && parsedTarget > 0
@@ -602,6 +729,16 @@ private fun GoalEditorDialog(
         },
         text = {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+                item {
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = { category = it.take(MAX_CATEGORY_LENGTH) },
+                        modifier = Modifier.fillMaxWidth().testTag("wish_category_input"),
+                        label = { Text(stringResource(R.string.wishlist_category_label)) },
+                        supportingText = { Text(stringResource(R.string.wishlist_category_description)) },
+                        singleLine = true,
+                    )
+                }
                 item {
                     OutlinedTextField(
                         value = title,
@@ -714,7 +851,15 @@ private fun GoalEditorDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    onSave(title, parsedTarget!!, normalizedCurrency, priority, note, purchaseUrl.trim())
+                    onSave(
+                        title,
+                        parsedTarget!!,
+                        normalizedCurrency,
+                        priority,
+                        note,
+                        purchaseUrl.trim(),
+                        category.trim(),
+                    )
                 },
                 enabled = canSave,
                 modifier = Modifier.testTag("save_wish"),
@@ -806,6 +951,37 @@ private fun priorityLabel(priority: WishPriority): String =
     )
 
 @Composable
+private fun statusFilterLabel(value: WishStatusFilter): String =
+    stringResource(
+        when (value) {
+            WishStatusFilter.ALL -> R.string.wishlist_status_all
+            WishStatusFilter.ACTIVE -> R.string.wishlist_status_active
+            WishStatusFilter.COMPLETED -> R.string.wishlist_status_completed
+        },
+    )
+
+@Composable
+private fun linkFilterLabel(value: WishLinkFilter): String =
+    stringResource(
+        when (value) {
+            WishLinkFilter.ALL -> R.string.wishlist_links_all
+            WishLinkFilter.WITH_LINK -> R.string.wishlist_links_with
+            WishLinkFilter.WITHOUT_LINK -> R.string.wishlist_links_without
+        },
+    )
+
+@Composable
+private fun sortLabel(value: WishSort): String =
+    stringResource(
+        when (value) {
+            WishSort.PRIORITY -> R.string.wishlist_sort_priority
+            WishSort.PRICE -> R.string.wishlist_sort_price
+            WishSort.TITLE -> R.string.wishlist_sort_title
+            WishSort.ADDED -> R.string.wishlist_sort_added
+        },
+    )
+
+@Composable
 private fun priorityColor(priority: WishPriority) =
     when (priority) {
         WishPriority.LOW -> MaterialTheme.colorScheme.secondary
@@ -852,5 +1028,6 @@ private val COMMON_CURRENCIES = listOf("RUB", "USD", "EUR", "GBP", "KZT")
 private const val MAX_TITLE_LENGTH = 100
 private const val MAX_NOTE_LENGTH = 500
 private const val MAX_URL_LENGTH = 2_048
+private const val MAX_CATEGORY_LENGTH = 40
 private const val MAX_AMOUNT_INPUT_LENGTH = 16
 private const val MAX_AMOUNT_MINOR = 999_999_999_999_99L

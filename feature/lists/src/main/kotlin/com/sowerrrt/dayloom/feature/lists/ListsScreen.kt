@@ -20,13 +20,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FormatListBulleted
 import androidx.compose.material.icons.rounded.FormatListNumbered
@@ -35,6 +38,8 @@ import androidx.compose.material.icons.rounded.Luggage
 import androidx.compose.material.icons.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Notes
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.ShoppingCart
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.AlertDialog
@@ -113,6 +118,21 @@ fun ListsScreen(viewModel: ListsViewModel = hiltViewModel()) {
                             Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.lists_edit_list))
                         }
                         IconButton(
+                            onClick = { viewModel.duplicateList(selectedList.id) },
+                            modifier = Modifier.testTag("duplicate_list"),
+                        ) {
+                            Icon(
+                                Icons.Rounded.ContentCopy,
+                                contentDescription = stringResource(R.string.lists_duplicate),
+                            )
+                        }
+                        IconButton(
+                            onClick = { viewModel.archiveList(selectedList.id) },
+                            modifier = Modifier.testTag("archive_list"),
+                        ) {
+                            Icon(Icons.Rounded.Archive, contentDescription = stringResource(R.string.lists_archive))
+                        }
+                        IconButton(
                             onClick = { pendingListDelete = selectedList },
                             modifier = Modifier.testTag("delete_list"),
                         ) {
@@ -139,12 +159,18 @@ fun ListsScreen(viewModel: ListsViewModel = hiltViewModel()) {
                     ListsOverview(
                         state = state,
                         onOpenList = { viewModel.openList(it.id) },
+                        onQueryChange = viewModel::setQuery,
+                        onShowArchive = viewModel::setShowingArchive,
+                        onRestore = { viewModel.restoreList(it.id) },
+                        onDuplicate = { viewModel.duplicateList(it.id) },
                         modifier = Modifier.weight(1f),
                     )
                 else ->
                     ListDetails(
                         list = selectedList,
+                        otherLists = state.lists.filterNot { it.id == selectedList.id },
                         presets = state.itemPresets,
+                        selectedItemIds = state.selectedItemIds,
                         onUsePreset = { viewModel.addItemFromPreset(selectedList.id, it) },
                         onToggle = { viewModel.toggleItem(selectedList.id, it.id) },
                         onEdit = {
@@ -153,6 +179,11 @@ fun ListsScreen(viewModel: ListsViewModel = hiltViewModel()) {
                         },
                         onDelete = { pendingItemDelete = it },
                         onMove = { item, offset -> viewModel.moveItem(selectedList.id, item.id, offset) },
+                        onSelect = { viewModel.toggleItemSelection(it.id) },
+                        onClearSelection = viewModel::clearItemSelection,
+                        onCompleteSelected = { viewModel.completeSelected(selectedList.id) },
+                        onDeleteSelected = { viewModel.deleteSelected(selectedList.id) },
+                        onMoveSelected = { target -> viewModel.moveSelected(selectedList.id, target.id) },
                         modifier = Modifier.weight(1f),
                     )
             }
@@ -246,6 +277,10 @@ fun ListsScreen(viewModel: ListsViewModel = hiltViewModel()) {
 private fun ListsOverview(
     state: ListsUiState,
     onOpenList: (DayList) -> Unit,
+    onQueryChange: (String) -> Unit,
+    onShowArchive: (Boolean) -> Unit,
+    onRestore: (DayList) -> Unit,
+    onDuplicate: (DayList) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -260,23 +295,55 @@ private fun ListsOverview(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (state.lists.isEmpty()) {
-            item { EmptyListsCard() }
-        } else {
-            item {
-                Text(
-                    stringResource(
-                        R.string.lists_overview_summary,
-                        state.lists.size,
-                        state.completedItems,
-                        state.totalItems,
-                    ),
-                    style = MaterialTheme.typography.titleMedium,
+        item {
+            OutlinedTextField(
+                value = state.query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.fillMaxWidth().testTag("lists_search"),
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                label = { Text(stringResource(R.string.lists_search)) },
+            )
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+                FilterChip(
+                    selected = !state.showingArchive,
+                    onClick = { onShowArchive(false) },
+                    label = { Text(stringResource(R.string.lists_active)) },
+                )
+                FilterChip(
+                    selected = state.showingArchive,
+                    onClick = { onShowArchive(true) },
+                    label = { Text(stringResource(R.string.lists_archive)) },
+                    leadingIcon = { Icon(Icons.Rounded.Archive, contentDescription = null) },
                 )
             }
-            itemsIndexed(state.lists, key = { _, list -> list.id.value }) { _, list ->
+        }
+        if (state.visibleLists.isEmpty()) {
+            item { EmptyListsCard() }
+        } else {
+            if (!state.showingArchive) {
+                item {
+                    Text(
+                        stringResource(
+                            R.string.lists_overview_summary,
+                            state.lists.size,
+                            state.completedItems,
+                            state.totalItems,
+                        ),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+            }
+            itemsIndexed(state.visibleLists, key = { _, list -> list.id.value }) { _, list ->
                 Box(Modifier.animateItem()) {
-                    ListOverviewCard(list = list, onClick = { onOpenList(list) })
+                    ListOverviewCard(
+                        list = list,
+                        onClick = { if (!state.showingArchive) onOpenList(list) },
+                        onRestore = if (state.showingArchive) ({ onRestore(list) }) else null,
+                        onDuplicate = if (!state.showingArchive) ({ onDuplicate(list) }) else null,
+                    )
                 }
             }
         }
@@ -301,6 +368,8 @@ private fun EmptyListsCard() {
 private fun ListOverviewCard(
     list: DayList,
     onClick: () -> Unit,
+    onRestore: (() -> Unit)? = null,
+    onDuplicate: (() -> Unit)? = null,
 ) {
     val completed = list.items.count(DayListItem::completed)
     val total = list.items.size
@@ -333,12 +402,32 @@ private fun ListOverviewCard(
                         stringResource(R.string.lists_items_count, total)
                     },
                 )
+                onDuplicate?.let {
+                    IconButton(onClick = it) {
+                        Icon(
+                            Icons.Rounded.ContentCopy,
+                            contentDescription = stringResource(R.string.lists_duplicate),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
             }
             if (list.kind == ListKind.GENERAL) {
                 LinearProgressIndicator(
                     progress = { if (total == 0) 0f else completed.toFloat() / total },
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+            if (onRestore != null) {
+                Row(
+                    modifier = Modifier.align(Alignment.End),
+                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                ) {
+                    TextButton(onClick = onRestore) {
+                        Icon(Icons.Rounded.Restore, contentDescription = null)
+                        Text(stringResource(R.string.lists_restore))
+                    }
+                }
             }
         }
     }
@@ -348,12 +437,19 @@ private fun ListOverviewCard(
 @Composable
 private fun ListDetails(
     list: DayList,
+    otherLists: List<DayList>,
     presets: List<ListItemPreset>,
+    selectedItemIds: Set<com.sowerrrt.dayloom.core.model.EntityId>,
     onUsePreset: (ListItemPreset) -> Unit,
     onToggle: (DayListItem) -> Unit,
     onEdit: (DayListItem) -> Unit,
     onDelete: (DayListItem) -> Unit,
     onMove: (DayListItem, Int) -> Unit,
+    onSelect: (DayListItem) -> Unit,
+    onClearSelection: () -> Unit,
+    onCompleteSelected: () -> Unit,
+    onDeleteSelected: () -> Unit,
+    onMoveSelected: (DayList) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val completed = list.items.count(DayListItem::completed)
@@ -388,6 +484,40 @@ private fun ListDetails(
                             },
                             modifier = Modifier.fillMaxWidth(),
                         )
+                    }
+                }
+            }
+        }
+        if (selectedItemIds.isNotEmpty()) {
+            item {
+                DayloomCard(Modifier.fillMaxWidth().testTag("list_bulk_actions")) {
+                    Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs)) {
+                        Text(
+                            stringResource(R.string.lists_selected_count, selectedItemIds.size),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs)) {
+                            TextButton(onClick = onCompleteSelected) {
+                                Icon(Icons.Rounded.DoneAll, contentDescription = null)
+                                Text(stringResource(R.string.lists_complete_selected))
+                            }
+                            TextButton(onClick = onDeleteSelected) {
+                                Icon(Icons.Rounded.DeleteOutline, contentDescription = null)
+                                Text(stringResource(R.string.lists_delete_selected))
+                            }
+                            TextButton(
+                                onClick = onClearSelection,
+                            ) { Text(stringResource(R.string.lists_cancel_selection)) }
+                        }
+                        if (otherLists.isNotEmpty()) {
+                            Text(
+                                stringResource(R.string.lists_move_selected),
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            DayloomHorizontalRail(otherLists, key = { it.id.value }) { target ->
+                                AssistChip(onClick = { onMoveSelected(target) }, label = { Text(target.title) })
+                            }
+                        }
                     }
                 }
             }
@@ -436,6 +566,8 @@ private fun ListDetails(
                         onDelete = { onDelete(item) },
                         onMoveUp = { onMove(item, -1) },
                         onMoveDown = { onMove(item, 1) },
+                        selected = item.id in selectedItemIds,
+                        onSelect = { onSelect(item) },
                     )
                 }
             }
@@ -455,6 +587,8 @@ private fun ListItemRow(
     onDelete: () -> Unit,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
+    selected: Boolean,
+    onSelect: () -> Unit,
 ) {
     DayloomCard(Modifier.fillMaxWidth().testTag("list_item_${item.title}")) {
         Column {
@@ -528,6 +662,18 @@ private fun ListItemRow(
                 }
                 IconButton(onClick = onEdit) {
                     Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.lists_edit_item))
+                }
+                IconButton(onClick = onSelect, modifier = Modifier.testTag("select_list_item_${item.title}")) {
+                    Icon(
+                        if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                        contentDescription = stringResource(R.string.lists_select_item, item.title),
+                        tint =
+                            if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                    )
                 }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.lists_delete_item))

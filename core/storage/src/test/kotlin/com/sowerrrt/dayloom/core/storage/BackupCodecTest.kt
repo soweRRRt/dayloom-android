@@ -51,4 +51,29 @@ class BackupCodecTest {
 
         assertThrows(Exception::class.java) { codec.decode(foreign) }
     }
+
+    @Test
+    fun `schema one backup remains import compatible and defaults template bundles`() {
+        val current =
+            DayloomBackup(
+                createdAtEpochMillis = 123,
+                settings = AppSettings(),
+                habits = emptyList(),
+                plans = emptyList(),
+                lists = emptyList(),
+                goals = emptyList(),
+                attachments = emptyList(),
+            )
+        val legacyJson =
+            codec
+                .encode(current)
+                .toString(Charsets.UTF_8)
+                .replace("\"schemaVersion\": 2", "\"schemaVersion\": 1")
+                .replace(Regex("\\s*\"templateBundles\": \\[\\],"), "")
+
+        val restored = codec.decode(legacyJson.toByteArray())
+
+        assertEquals(1, restored.schemaVersion)
+        assertEquals(emptyList<Any>(), restored.templateBundles)
+    }
 }

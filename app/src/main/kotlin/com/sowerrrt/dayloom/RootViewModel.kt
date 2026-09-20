@@ -3,6 +3,7 @@ package com.sowerrrt.dayloom
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.AppSettings
+import com.sowerrrt.dayloom.core.storage.ArchiveCleanup
 import com.sowerrrt.dayloom.core.storage.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,9 +39,20 @@ class RootViewModel
     @Inject
     constructor(
         private val repository: SettingsRepository,
+        private val archiveCleanup: ArchiveCleanup,
     ) : ViewModel() {
         private val session = MutableStateFlow(AppLockSession())
         private var previousWholeAppLock = false
+
+        init {
+            viewModelScope.launch {
+                // Loading every archive once at startup also removes only entries whose individual
+                // seven-day retention period has elapsed.
+                runCatching {
+                    archiveCleanup.removeExpiredEntries()
+                }
+            }
+        }
 
         val uiState: StateFlow<RootUiState> =
             combine(

@@ -36,3 +36,12 @@ dependencies {
     implementation(libs.androidx.test.uiautomator)
     implementation(libs.androidx.benchmark.macro.junit4)
 }
+
+tasks.matching { it.name == "connectedBenchmarkAndroidTest" }.configureEach {
+    doFirst {
+        check(providers.environmentVariable("DAYLOOM_ALLOW_DESTRUCTIVE_BENCHMARK").orNull == "true") {
+            "Macrobenchmark replaces the target APK and may clear its app data. " +
+                "Run it only on a disposable emulator/device with DAYLOOM_ALLOW_DESTRUCTIVE_BENCHMARK=true."
+        }
+    }
+}

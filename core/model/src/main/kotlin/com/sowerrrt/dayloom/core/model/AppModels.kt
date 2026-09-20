@@ -298,6 +298,8 @@ data class DayList(
     val items: List<DayListItem> = emptyList(),
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long = createdAtEpochMillis,
+    val archived: Boolean = false,
+    val archivedAtEpochMillis: Long? = null,
 )
 
 @Serializable
@@ -329,10 +331,13 @@ data class WishGoal(
     val priority: WishPriority = WishPriority.MEDIUM,
     val note: String = "",
     val purchaseUrl: String = "",
+    val category: String = "",
     val image: AttachmentRef? = null,
     val contributions: List<WishContribution> = emptyList(),
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long = createdAtEpochMillis,
+    val archived: Boolean = false,
+    val archivedAtEpochMillis: Long? = null,
 )
 
 val WishGoal.savedMinor: Long
@@ -344,6 +349,42 @@ val WishGoal.isCompleted: Boolean
 @Serializable
 data class WishlistSnapshot(
     val goals: List<WishGoal> = emptyList(),
+)
+
+@Serializable
+enum class TemplateEntryType {
+    HABIT,
+    PLAN,
+    LIST_ITEM,
+}
+
+@Serializable
+data class TemplateBundleEntry(
+    val id: EntityId = EntityId.random(),
+    val type: TemplateEntryType,
+    val title: String,
+    val note: String = "",
+    val quantity: String = "",
+    val scheduledWeekdays: Set<Weekday> = emptySet(),
+    val repeatEveryDays: Int? = null,
+    val scheduledMonthDays: Set<Int> = emptySet(),
+    val reminderMinutesOfDay: Int? = null,
+    val targetAmount: String = "",
+    val targetUnit: String = "",
+)
+
+@Serializable
+data class TemplateBundle(
+    val id: EntityId,
+    val name: String,
+    val entries: List<TemplateBundleEntry>,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long = createdAtEpochMillis,
+)
+
+@Serializable
+data class TemplateBundlesSnapshot(
+    val bundles: List<TemplateBundle> = emptyList(),
 )
 
 @Serializable

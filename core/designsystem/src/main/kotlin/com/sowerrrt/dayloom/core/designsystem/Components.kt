@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -253,15 +254,17 @@ fun DayloomCard(
         }
     val interactiveModifier =
         if (onClick == null) {
-            motionModifier
+            motionModifier.defaultMinSize(minHeight = 48.dp)
         } else {
             motionModifier
+                .defaultMinSize(minHeight = 48.dp)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
                 }.clickable(
                     interactionSource = interactionSource,
                     indication = LocalIndication.current,
+                    role = Role.Button,
                     onClick = onClick,
                 )
         }

@@ -1,4 +1,21 @@
 <resources>
+    <string name="wishlist_search">Поиск желаний</string>
+    <string name="wishlist_active">Активные</string>
+    <string name="wishlist_archive">Архив</string>
+    <string name="wishlist_restore">Восстановить</string>
+    <string name="wishlist_category_label">Категория</string>
+    <string name="wishlist_category_description">Введите новую или существующую категорию</string>
+    <string name="wishlist_all_categories">Все категории</string>
+    <string name="wishlist_status_all">Любой статус</string>
+    <string name="wishlist_status_active">В процессе</string>
+    <string name="wishlist_status_completed">Достигнутые</string>
+    <string name="wishlist_links_all">Любая ссылка</string>
+    <string name="wishlist_links_with">Со ссылкой</string>
+    <string name="wishlist_links_without">Без ссылки</string>
+    <string name="wishlist_sort_priority">Приоритет</string>
+    <string name="wishlist_sort_price">Цена</string>
+    <string name="wishlist_sort_title">Название</string>
+    <string name="wishlist_sort_added">Новые</string>
     <string name="wishlist_title">Желания</string>
     <string name="wishlist_description">Превращайте желания в понятные цели и отмечайте каждый шаг к ним.</string>
     <string name="wishlist_empty_title">Освободите место для мечты</string>

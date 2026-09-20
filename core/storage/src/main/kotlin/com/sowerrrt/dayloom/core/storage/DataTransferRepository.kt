@@ -7,6 +7,7 @@ import com.sowerrrt.dayloom.core.model.AttachmentRef
 import com.sowerrrt.dayloom.core.model.DayList
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.PlanItem
+import com.sowerrrt.dayloom.core.model.TemplateBundle
 import com.sowerrrt.dayloom.core.model.WishGoal
 import com.sowerrrt.dayloom.core.security.VaultCipher
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -26,6 +27,7 @@ data class DataTransferSummary(
     val lists: Int,
     val goals: Int,
     val attachments: Int,
+    val bundles: Int = 0,
 )
 
 interface DataTransferRepository {
@@ -46,6 +48,7 @@ internal data class DayloomBackup(
     val plans: List<PlanItem>,
     val lists: List<DayList>,
     val goals: List<WishGoal>,
+    val templateBundles: List<TemplateBundle> = emptyList(),
     val attachments: List<BackupAttachment>,
     val vaultIncluded: Boolean = false,
 )
@@ -71,12 +74,13 @@ internal class BackupCodec(
         require(bytes.size <= MAX_BACKUP_BYTES) { "Backup is too large" }
         val backup = json.decodeFromString<DayloomBackup>(bytes.toString(Charsets.UTF_8))
         require(backup.format == BACKUP_FORMAT) { "This is not a Dayloom backup" }
-        require(backup.schemaVersion == BACKUP_SCHEMA_VERSION) { "Unsupported backup version" }
+        require(backup.schemaVersion in 1..BACKUP_SCHEMA_VERSION) { "Unsupported backup version" }
         require(!backup.vaultIncluded) { "Vault data cannot be imported" }
         require(backup.habits.size <= MAX_ENTITY_COUNT) { "Too many habits" }
         require(backup.plans.size <= MAX_ENTITY_COUNT) { "Too many plans" }
         require(backup.lists.size <= MAX_ENTITY_COUNT) { "Too many lists" }
         require(backup.goals.size <= MAX_ENTITY_COUNT) { "Too many goals" }
+        require(backup.templateBundles.size <= MAX_ENTITY_COUNT) { "Too many template bundles" }
         require(backup.attachments.size <= MAX_ATTACHMENT_COUNT) { "Too many attachments" }
         return backup
     }
@@ -90,6 +94,7 @@ class LocalDataTransferRepository
         private val listsRepository: ListsRepository,
         private val wishlistRepository: WishlistRepository,
         private val settingsRepository: SettingsRepository,
+        private val templateBundlesRepository: TemplateBundlesRepository,
         private val attachmentStore: AttachmentStore,
         private val vaultRepository: VaultRepository,
         private val vaultCipher: VaultCipher,
@@ -142,6 +147,7 @@ class LocalDataTransferRepository
                 plannerRepository.replaceAll(emptyList())
                 listsRepository.replaceAll(emptyList())
                 wishlistRepository.replaceAll(emptyList())
+                templateBundlesRepository.replaceAll(emptyList())
                 attachmentStore.replaceAll(emptyList())
                 vaultRepository.deleteVault()
                 vaultCipher.destroyKey().getOrThrow()
@@ -151,8 +157,9 @@ class LocalDataTransferRepository
         private suspend fun captureState(): TransferState {
             val habits = habitsRepository.loadAllHabits()
             val plans = plannerRepository.loadAllPlans()
-            val lists = listsRepository.loadLists()
-            val goals = wishlistRepository.loadGoals()
+            val lists = listsRepository.loadAllLists()
+            val goals = wishlistRepository.loadAllGoals()
+            val templateBundles = templateBundlesRepository.loadBundles()
             val references =
                 buildList {
                     habits.mapNotNullTo(this) { it.image }
@@ -165,6 +172,7 @@ class LocalDataTransferRepository
                 plans = plans,
                 lists = lists,
                 goals = goals,
+                templateBundles = templateBundles,
                 attachments = attachmentStore.exportAll(references),
             )
         }
@@ -174,6 +182,7 @@ class LocalDataTransferRepository
             plannerRepository.replaceAll(state.plans)
             listsRepository.replaceAll(state.lists)
             wishlistRepository.replaceAll(state.goals)
+            templateBundlesRepository.replaceAll(state.templateBundles)
             attachmentStore.replaceAll(state.attachments)
             settingsRepository.replaceAll(state.settings)
         }
@@ -199,6 +208,7 @@ private data class TransferState(
     val plans: List<PlanItem>,
     val lists: List<DayList>,
     val goals: List<WishGoal>,
+    val templateBundles: List<TemplateBundle>,
     val attachments: List<StoredAttachment>,
 ) {
     fun toBackup(createdAtEpochMillis: Long): DayloomBackup =
@@ -209,6 +219,7 @@ private data class TransferState(
             plans = plans,
             lists = lists,
             goals = goals,
+            templateBundles = templateBundles,
             attachments =
                 attachments.map { attachment ->
                     BackupAttachment(
@@ -241,11 +252,11 @@ private fun DayloomBackup.toState(): TransferState {
             require(totalBytes <= MAX_TOTAL_ATTACHMENT_BYTES) { "Backup attachments are too large" }
             StoredAttachment(attachment.reference, bytes)
         }
-    return TransferState(settings, habits, plans, lists, goals, decoded)
+    return TransferState(settings, habits, plans, lists, goals, templateBundles, decoded)
 }
 
 private fun DayloomBackup.summary(): DataTransferSummary =
-    DataTransferSummary(habits.size, plans.size, lists.size, goals.size, attachments.size)
+    DataTransferSummary(habits.size, plans.size, lists.size, goals.size, attachments.size, templateBundles.size)
 
 private fun java.io.InputStream.readBytesLimited(maxBytes: Int): ByteArray {
     val output = ByteArrayOutputStream()
@@ -262,7 +273,7 @@ private fun java.io.InputStream.readBytesLimited(maxBytes: Int): ByteArray {
 }
 
 private const val BACKUP_FORMAT = "dayloom-backup"
-private const val BACKUP_SCHEMA_VERSION = 1
+private const val BACKUP_SCHEMA_VERSION = 2
 private const val MAX_BACKUP_BYTES = 140 * 1024 * 1024
 private const val MAX_TOTAL_ATTACHMENT_BYTES = 100L * 1024 * 1024
 private const val MAX_ENTITY_COUNT = 10_000

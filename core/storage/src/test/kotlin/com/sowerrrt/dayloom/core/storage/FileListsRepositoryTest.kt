@@ -63,4 +63,55 @@ class FileListsRepositoryTest {
             assertTrue(withoutItem.single().items.isEmpty())
             assertTrue(repository.deleteList(EntityId("list-2")).isEmpty())
         }
+
+    @Test
+    fun `lists support duplicate bulk actions archive restore and individual expiry`() =
+        runTest {
+            val week = 7L * 24 * 60 * 60 * 1_000
+            var now = 1_000L
+            val ids =
+                ArrayDeque(
+                    listOf(
+                        EntityId("source"),
+                        EntityId("target"),
+                        EntityId("one"),
+                        EntityId("two"),
+                        EntityId("copy"),
+                        EntityId("copy-one"),
+                        EntityId("copy-two"),
+                    ),
+                )
+            val repository = FileListsRepository(temporaryFolder.newFolder("advanced"), { now }, { ids.removeFirst() })
+            repository.createList("Source", ListKind.GENERAL)
+            repository.createList("Target", ListKind.GENERAL)
+            repository.addItem(EntityId("source"), "One", "", "")
+            repository.addItem(EntityId("source"), "Two", "", "")
+            repository.setItemsCompleted(EntityId("source"), setOf(EntityId("one")), true)
+            repository.moveItems(EntityId("source"), EntityId("target"), setOf(EntityId("one")))
+            assertEquals(
+                listOf("One"),
+                repository
+                    .loadLists()
+                    .first { it.id.value == "target" }
+                    .items
+                    .map { it.title },
+            )
+            assertTrue(
+                repository
+                    .loadLists()
+                    .first { it.id.value == "target" }
+                    .items
+                    .single()
+                    .completed,
+            )
+
+            repository.duplicateList(EntityId("source"))
+            assertTrue(repository.loadLists().any { it.title.contains("copy", true) })
+            repository.archiveList(EntityId("source"))
+            assertEquals("Source", repository.loadArchivedLists().single().title)
+            repository.restoreList(EntityId("source"))
+            repository.archiveList(EntityId("source"))
+            now += week
+            assertTrue(repository.loadArchivedLists().isEmpty())
+        }
 }

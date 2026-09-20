@@ -23,7 +23,11 @@ import javax.inject.Inject
 
 data class ListsUiState(
     val lists: List<DayList> = emptyList(),
+    val archivedLists: List<DayList> = emptyList(),
     val selectedListId: EntityId? = null,
+    val query: String = "",
+    val showingArchive: Boolean = false,
+    val selectedItemIds: Set<EntityId> = emptySet(),
     val isLoading: Boolean = true,
     val hasError: Boolean = false,
     val itemPresets: List<ListItemPreset> = emptyList(),
@@ -36,6 +40,20 @@ data class ListsUiState(
 
     val completedItems: Int
         get() = lists.sumOf { list -> list.items.count(DayListItem::completed) }
+
+    val visibleLists: List<DayList>
+        get() {
+            val source = if (showingArchive) archivedLists else lists
+            val needle = query.trim()
+            if (needle.isEmpty()) return source
+            return source.filter { list ->
+                list.title.contains(needle, true) ||
+                    list.customKind.contains(needle, true) ||
+                    list.items.any { item ->
+                        item.title.contains(needle, true) || item.note.contains(needle, true)
+                    }
+            }
+        }
 }
 
 @HiltViewModel
@@ -60,13 +78,19 @@ class ListsViewModel
         fun refresh() {
             viewModelScope.launch {
                 mutableUiState.update { it.copy(isLoading = true, hasError = false) }
-                runCatching { repository.loadLists() to settingsRepository.settings.first().listItemPresets }
-                    .onSuccess { (lists, presets) ->
-                        applyLists(
-                            lists,
-                            presets.mapNotNull(String::toListItemPresetOrNull).sortedBy { it.title.lowercase() },
-                        )
-                    }.onFailure { mutableUiState.update { state -> state.copy(isLoading = false, hasError = true) } }
+                runCatching {
+                    Triple(
+                        repository.loadLists(),
+                        repository.loadArchivedLists(),
+                        settingsRepository.settings.first().listItemPresets,
+                    )
+                }.onSuccess { (lists, archived, presets) ->
+                    applyLists(
+                        lists,
+                        archived,
+                        presets.mapNotNull(String::toListItemPresetOrNull).sortedBy { it.title.lowercase() },
+                    )
+                }.onFailure { mutableUiState.update { state -> state.copy(isLoading = false, hasError = true) } }
             }
         }
 
@@ -75,7 +99,21 @@ class ListsViewModel
         }
 
         fun closeList() {
-            mutableUiState.update { it.copy(selectedListId = null) }
+            mutableUiState.update { it.copy(selectedListId = null, selectedItemIds = emptySet()) }
+        }
+
+        fun setQuery(value: String) {
+            mutableUiState.update { it.copy(query = value.take(120)) }
+        }
+
+        fun setShowingArchive(value: Boolean) {
+            mutableUiState.update {
+                it.copy(
+                    showingArchive = value,
+                    selectedListId = null,
+                    selectedItemIds = emptySet(),
+                )
+            }
         }
 
         fun createList(
@@ -109,6 +147,49 @@ class ListsViewModel
                 operation = { repository.deleteList(id) },
                 selectedId = { null },
             )
+        }
+
+        fun archiveList(id: EntityId) = reloadAfter { repository.archiveList(id) }
+
+        fun restoreList(id: EntityId) = reloadAfter { repository.restoreList(id) }
+
+        fun duplicateList(id: EntityId) = reloadAfter { repository.duplicateList(id) }
+
+        fun toggleItemSelection(id: EntityId) {
+            mutableUiState.update { state ->
+                state.copy(
+                    selectedItemIds =
+                        if (id in state.selectedItemIds) state.selectedItemIds - id else state.selectedItemIds + id,
+                )
+            }
+        }
+
+        fun clearItemSelection() {
+            mutableUiState.update { it.copy(selectedItemIds = emptySet()) }
+        }
+
+        fun completeSelected(listId: EntityId) {
+            val selected = mutableUiState.value.selectedItemIds
+            if (selected.isEmpty()) return
+            updateLists(operation = { repository.setItemsCompleted(listId, selected, true) })
+            clearItemSelection()
+        }
+
+        fun deleteSelected(listId: EntityId) {
+            val selected = mutableUiState.value.selectedItemIds
+            if (selected.isEmpty()) return
+            updateLists(operation = { repository.deleteItems(listId, selected) })
+            clearItemSelection()
+        }
+
+        fun moveSelected(
+            sourceListId: EntityId,
+            targetListId: EntityId,
+        ) {
+            val selected = mutableUiState.value.selectedItemIds
+            if (selected.isEmpty()) return
+            updateLists(operation = { repository.moveItems(sourceListId, targetListId, selected) })
+            clearItemSelection()
         }
 
         fun addItem(
@@ -212,16 +293,30 @@ class ListsViewModel
 
         private fun applyLists(
             lists: List<DayList>,
+            archivedLists: List<DayList> = mutableUiState.value.archivedLists,
             presets: List<ListItemPreset> = mutableUiState.value.itemPresets,
         ) {
             mutableUiState.update { state ->
                 state.copy(
                     lists = lists,
+                    archivedLists = archivedLists,
                     selectedListId = state.selectedListId?.takeIf { id -> lists.any { it.id == id } },
                     isLoading = false,
                     hasError = false,
                     itemPresets = presets,
                 )
+            }
+        }
+
+        private fun reloadAfter(operation: suspend () -> Unit) {
+            viewModelScope.launch {
+                runCatching {
+                    operation()
+                    repository.loadLists() to repository.loadArchivedLists()
+                }.onSuccess { (active, archived) ->
+                    applyLists(active, archived)
+                    mutableUiState.update { it.copy(selectedListId = null, selectedItemIds = emptySet()) }
+                }.onFailure { mutableUiState.update { state -> state.copy(hasError = true) } }
             }
         }
 

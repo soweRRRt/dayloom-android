@@ -1,4 +1,15 @@
 <resources>
+    <string name="lists_search">Search lists and items</string>
+    <string name="lists_active">Active</string>
+    <string name="lists_archive">Archive</string>
+    <string name="lists_restore">Restore</string>
+    <string name="lists_duplicate">Duplicate</string>
+    <string name="lists_selected_count">Selected: %1$d</string>
+    <string name="lists_complete_selected">Complete</string>
+    <string name="lists_delete_selected">Delete</string>
+    <string name="lists_cancel_selection">Cancel</string>
+    <string name="lists_move_selected">Move to list</string>
+    <string name="lists_select_item">Select %1$s</string>
     <string name="lists_title">Lists</string>
     <string name="lists_description">Capture groceries, ideas, packing lists, and anything else worth remembering.</string>
     <string name="lists_empty_title">A place for every thought</string>

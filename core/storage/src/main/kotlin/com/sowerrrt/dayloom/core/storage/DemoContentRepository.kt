@@ -70,6 +70,7 @@ data class DemoGoal(
     val contributionsMinor: List<Long> = emptyList(),
     val image: DemoImage? = null,
     val purchaseUrl: String = "",
+    val category: String = "",
 )
 
 enum class DemoImage {
@@ -315,6 +316,10 @@ class LocalDemoContentRepository(
                     current = wishlistRepository.addContribution(goal.id, amount, "#${index + 1}")
                 }
                 goalsAdded++
+            }
+            if (demo.category.isNotBlank() && goal.category != demo.category) {
+                current = wishlistRepository.setCategory(goal.id, demo.category)
+                goal = current.first { it.id == goal.id }
             }
             if (goal.image == null && demo.image != null && attachmentRepository != null && demoImageSource != null) {
                 val asset = demoImageSource.load(demo.image)

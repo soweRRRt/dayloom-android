@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.kapt)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.screenshot)
 }
 
 val releaseStorePath = providers.environmentVariable("DAYLOOM_KEYSTORE_PATH").orNull
@@ -24,8 +25,8 @@ android {
         applicationId = "com.sowerrrt.dayloom"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -71,6 +72,7 @@ android {
     }
     androidResources { localeFilters += listOf("en", "ru") }
     packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    experimentalProperties["android.experimental.enableScreenshotTest"] = true
 }
 
 dependencies {
@@ -118,6 +120,8 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     add("qaImplementation", libs.androidx.compose.ui.tooling)
     add("qaImplementation", libs.androidx.compose.ui.test.manifest)
+    screenshotTestImplementation(libs.screenshot.validation.api)
+    screenshotTestImplementation(libs.androidx.compose.ui.tooling)
 }
 
 kapt { correctErrorTypes = true }

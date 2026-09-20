@@ -9,6 +9,7 @@ import androidx.test.uiautomator.By
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.regex.Pattern
 
 @RunWith(AndroidJUnit4::class)
 class DayloomBenchmark {
@@ -39,11 +40,11 @@ class DayloomBenchmark {
                 startActivityAndWait()
             },
         ) {
-            device.findObject(By.text("Habits"))?.click()
+            requireNotNull(device.findObject(By.text(Pattern.compile("Habits|Привычки")))).click()
             device.waitForIdle()
-            device.findObject(By.text("Plan"))?.click()
+            requireNotNull(device.findObject(By.text(Pattern.compile("Plan|План")))).click()
             device.waitForIdle()
-            device.findObject(By.text("Lists"))?.click()
+            requireNotNull(device.findObject(By.text(Pattern.compile("Lists|Списки")))).click()
             device.waitForIdle()
         }
 

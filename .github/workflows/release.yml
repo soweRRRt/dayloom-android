@@ -9,7 +9,7 @@ on:
       version:
         description: "Release version without the v prefix (must match app versionName)"
         required: true
-        default: "0.1.0"
+        default: "0.2.0"
 
 permissions:
   contents: write
@@ -85,7 +85,7 @@ jobs:
 
       - name: Verify and build signed release
         if: steps.release_meta.outputs.signed == 'true'
-        run: ./gradlew --no-daemon ktlintCheck testDebugUnitTest lintDebug assembleRelease bundleRelease
+        run: ./gradlew --no-daemon ktlintCheck testDebugUnitTest lintDebug validateDebugScreenshotTest assembleRelease bundleRelease
 
       - name: Confirm APK signature
         if: steps.release_meta.outputs.signed == 'true'
@@ -108,7 +108,7 @@ jobs:
 
       - name: Verify and build unsigned preview
         if: steps.release_meta.outputs.signed != 'true'
-        run: ./gradlew --no-daemon ktlintCheck testDebugUnitTest lintDebug assembleDebug bundleRelease
+        run: ./gradlew --no-daemon ktlintCheck testDebugUnitTest lintDebug validateDebugScreenshotTest assembleDebug bundleRelease
 
       - name: Prepare clearly labeled preview artifacts
         if: steps.release_meta.outputs.signed != 'true'

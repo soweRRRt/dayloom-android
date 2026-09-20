@@ -107,6 +107,7 @@ import com.sowerrrt.dayloom.feature.home.HomeScreen
 import com.sowerrrt.dayloom.feature.lists.ListsScreen
 import com.sowerrrt.dayloom.feature.planner.PlannerScreen
 import com.sowerrrt.dayloom.feature.settings.SettingsScreen
+import com.sowerrrt.dayloom.feature.settings.TemplatesScreen
 import com.sowerrrt.dayloom.feature.vault.VaultScreen
 import com.sowerrrt.dayloom.feature.wishlist.WishlistScreen
 import kotlinx.coroutines.coroutineScope
@@ -351,7 +352,7 @@ private fun DayloomShell(
         containerColor = Color.Transparent,
     ) { outerPadding ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(outerPadding)) {
-            val wide = maxWidth >= 720.dp
+            val wide = isWideLayout(maxWidth.value)
             if (wide) {
                 Row(Modifier.fillMaxSize()) {
                     DayloomNavigationRail(currentRoute, navController, settings.bottomSections)
@@ -401,6 +402,8 @@ private fun DayloomShell(
         )
     }
 }
+
+internal fun isWideLayout(widthDp: Float): Boolean = widthDp >= 720f
 
 @Composable
 internal fun UpdateAvailableDialog(
@@ -483,11 +486,13 @@ private fun DayloomNavHost(
             MoreScreen(
                 onWishlist = { navController.navigate(Routes.WISHLIST) },
                 onVault = { navController.navigate(Routes.VAULT) },
+                onTemplates = { navController.navigate(Routes.TEMPLATES) },
                 onSettings = { navController.navigate(Routes.SETTINGS) },
             )
         }
         composable(Routes.WISHLIST) { WishlistScreen(onBack = navController::popBackStack) }
         composable(Routes.VAULT) { VaultScreen(onBack = navController::popBackStack) }
+        composable(Routes.TEMPLATES) { TemplatesScreen(onBack = navController::popBackStack) }
         composable(Routes.SETTINGS) {
             SettingsScreen(
                 onCheckUpdates = updateViewModel::checkManually,
@@ -525,7 +530,7 @@ private fun DayloomBottomBar(
         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
         tonalElevation = 0.dp,
     ) {
-        BoxWithConstraints(
+        Box(
             modifier =
                 Modifier
                     .fillMaxWidth()
@@ -669,14 +674,16 @@ private object Routes {
     const val MORE = "more"
     const val WISHLIST = "wishlist"
     const val VAULT = "vault"
+    const val TEMPLATES = "templates"
     const val SETTINGS = "settings"
-    val moreRoutes = setOf(MORE, WISHLIST, VAULT, SETTINGS)
+    val moreRoutes = setOf(MORE, WISHLIST, VAULT, TEMPLATES, SETTINGS)
 }
 
 @Composable
 private fun MoreScreen(
     onWishlist: () -> Unit,
     onVault: () -> Unit,
+    onTemplates: () -> Unit,
     onSettings: () -> Unit,
 ) {
     val items =
@@ -694,6 +701,13 @@ private fun MoreScreen(
                 icon = Icons.Rounded.Lock,
                 testTag = "more_vault",
                 onClick = onVault,
+            ),
+            MoreDestination(
+                title = stringResource(R.string.more_templates),
+                description = stringResource(R.string.more_templates_description),
+                icon = Icons.Rounded.AutoAwesome,
+                testTag = "more_templates",
+                onClick = onTemplates,
             ),
             MoreDestination(
                 title = stringResource(R.string.more_settings),

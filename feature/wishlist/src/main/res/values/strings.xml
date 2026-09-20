@@ -1,4 +1,21 @@
 <resources>
+    <string name="wishlist_search">Search wishes</string>
+    <string name="wishlist_active">Active</string>
+    <string name="wishlist_archive">Archive</string>
+    <string name="wishlist_restore">Restore</string>
+    <string name="wishlist_category_label">Category</string>
+    <string name="wishlist_category_description">Enter a new or existing category</string>
+    <string name="wishlist_all_categories">All categories</string>
+    <string name="wishlist_status_all">Any status</string>
+    <string name="wishlist_status_active">In progress</string>
+    <string name="wishlist_status_completed">Completed</string>
+    <string name="wishlist_links_all">Any link</string>
+    <string name="wishlist_links_with">With link</string>
+    <string name="wishlist_links_without">Without link</string>
+    <string name="wishlist_sort_priority">Priority</string>
+    <string name="wishlist_sort_price">Price</string>
+    <string name="wishlist_sort_title">Name</string>
+    <string name="wishlist_sort_added">Newest</string>
     <string name="wishlist_title">Wishes</string>
     <string name="wishlist_description">Turn wishes into visible goals and celebrate every step toward them.</string>
     <string name="wishlist_empty_title">Make room for something wonderful</string>

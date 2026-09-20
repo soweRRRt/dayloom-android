@@ -37,7 +37,7 @@ jobs:
         uses: gradle/actions/setup-gradle@67621b124fd2e251c5e8a0e6e3b91318f2287669 # v6.3.0
 
       - name: Verify, test and assemble
-        run: ./gradlew --no-daemon ktlintCheck testDebugUnitTest lintDebug assembleDebug
+        run: ./gradlew --no-daemon ktlintCheck testDebugUnitTest lintDebug validateDebugScreenshotTest assembleDebug
 
       - name: Upload debug APK
         if: success()

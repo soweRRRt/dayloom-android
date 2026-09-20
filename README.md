@@ -96,6 +96,10 @@ Instrumented UI tests проверяют навигацию, сквозную с
 
 `CI` запускается для pull request, push в `main` и вручную. Он валидирует Gradle Wrapper, выполняет ktlint, unit tests, Android Lint, debug-сборку и публикует debug APK как временный artifact. Actions закреплены на commit SHA, permissions минимальны, параллельные устаревшие прогоны отменяются.
 
+Screenshot-регрессии построены на официальном Compose Preview Screenshot Testing. Эталоны обновляются только явной командой `./gradlew :app:updateDebugScreenshotTest`, проверка запускается командой `./gradlew :app:validateDebugScreenshotTest`. Каталог покрывает шесть основных экранов, русский/английский, светлую/тёмную темы, компактный/широкий экран и крупный шрифт.
+
+Перед выпуском обязательно пройти [release checklist](docs/RELEASE_CHECKLIST.md); результаты проверки на физическом устройстве фиксируются в [device QA record](docs/DEVICE_QA.md).
+
 `Release` запускается тегом `vX.Y.Z` или вручную. Версия без `v` обязана точно совпасть с `versionName` в `app/build.gradle.kts`. При настроенных signing secrets workflow публикует обычный GitHub Release только после проверок, сборки APK/AAB и проверки подписи. Без секретов создаётся явно помеченный prerelease: устанавливаемый `debug-test-only.apk` предназначен только для тестирования, а `unsigned.aab` — только для проверки сборки. Такой prerelease нельзя считать production-дистрибутивом или отправлять в Google Play.
 
 Важно: debug APK, созданные разными GitHub Actions runner, могут иметь разные временные ключи подписи и не обязаны обновляться друг поверх друга. Перед переходом с `v0.1.0 Preview` на первый production-подписанный APK нужно экспортировать резервную копию через «Настройки → Данные и резервные копии», установить production-версию и импортировать файл. Vault в переносимую копию не входит, поэтому его записи перед удалением Preview нужно сохранить отдельно. После фиксации постоянного production-ключа все последующие обновления с тем же `applicationId` и подписью будут устанавливаться поверх приложения с сохранением данных.
@@ -118,8 +122,8 @@ keytool -genkeypair -v -keystore dayloom-release.jks -alias dayloom -keyalg RSA 
 Для релиза обновите `versionCode`/`versionName`, влейте изменения в `main`, затем создайте и отправьте соответствующий тег:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 ## Лицензия

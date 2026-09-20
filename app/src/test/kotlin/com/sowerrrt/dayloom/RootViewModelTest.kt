@@ -39,7 +39,7 @@ class RootViewModelTest {
     fun `whole app protection locks authenticates and resets after background`() =
         runTest(dispatcher) {
             val repository = FakeRootSettingsRepository()
-            val viewModel = RootViewModel(repository)
+            val viewModel = RootViewModel(repository) {}
 
             viewModel.uiState.test {
                 awaitItem()
@@ -75,6 +75,14 @@ class RootViewModelTest {
         assertEquals("", AppLanguage.SYSTEM.languageTags)
         assertEquals("ru", AppLanguage.RUSSIAN.languageTags)
         assertEquals("en", AppLanguage.ENGLISH.languageTags)
+    }
+
+    @Test
+    fun `adaptive navigation uses rail only on wide screens`() {
+        assertFalse(isWideLayout(360f))
+        assertFalse(isWideLayout(719f))
+        assertTrue(isWideLayout(720f))
+        assertTrue(isWideLayout(1_024f))
     }
 }
 

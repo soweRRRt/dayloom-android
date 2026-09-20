@@ -10,6 +10,10 @@ import java.io.File
 interface ListsRepository {
     suspend fun loadLists(): List<DayList>
 
+    suspend fun loadArchivedLists(): List<DayList> = emptyList()
+
+    suspend fun loadAllLists(): List<DayList> = loadLists() + loadArchivedLists()
+
     suspend fun replaceAll(lists: List<DayList>): List<DayList> =
         error("This lists repository does not support replacement")
 
@@ -27,6 +31,12 @@ interface ListsRepository {
     ): List<DayList>
 
     suspend fun deleteList(id: EntityId): List<DayList>
+
+    suspend fun archiveList(id: EntityId): List<DayList> = error("Archiving is not supported")
+
+    suspend fun restoreList(id: EntityId): List<DayList> = error("Restoring is not supported")
+
+    suspend fun duplicateList(id: EntityId): List<DayList> = error("Duplicating is not supported")
 
     suspend fun addItem(
         listId: EntityId,
@@ -58,6 +68,23 @@ interface ListsRepository {
         itemId: EntityId,
         offset: Int,
     ): List<DayList>
+
+    suspend fun setItemsCompleted(
+        listId: EntityId,
+        itemIds: Set<EntityId>,
+        completed: Boolean,
+    ): List<DayList> = error("Bulk completion is not supported")
+
+    suspend fun deleteItems(
+        listId: EntityId,
+        itemIds: Set<EntityId>,
+    ): List<DayList> = error("Bulk deletion is not supported")
+
+    suspend fun moveItems(
+        sourceListId: EntityId,
+        targetListId: EntityId,
+        itemIds: Set<EntityId>,
+    ): List<DayList> = error("Moving between lists is not supported")
 }
 
 class FileListsRepository(
@@ -74,7 +101,11 @@ class FileListsRepository(
             defaultValue = ::ListsSnapshot,
         )
 
-    override suspend fun loadLists(): List<DayList> = store.read().sortedLists()
+    override suspend fun loadLists(): List<DayList> = readWithoutExpiredArchives().activeLists()
+
+    override suspend fun loadArchivedLists(): List<DayList> = readWithoutExpiredArchives().archivedLists()
+
+    override suspend fun loadAllLists(): List<DayList> = readWithoutExpiredArchives().sortedLists()
 
     override suspend fun replaceAll(lists: List<DayList>): List<DayList> {
         require(lists.map(DayList::id).distinct().size == lists.size) { "List IDs must be unique" }
@@ -91,8 +122,17 @@ class FileListsRepository(
             }
             list.items.forEach { item -> normalizeItemFields(item.title, item.quantity, item.note) }
         }
-        store.write(ListsSnapshot(lists))
-        return ListsSnapshot(lists).sortedLists()
+        val now = clock()
+        val normalized =
+            lists.map { list ->
+                when {
+                    !list.archived -> list.copy(archivedAtEpochMillis = null)
+                    list.archivedAtEpochMillis == null -> list.copy(archivedAtEpochMillis = now)
+                    else -> list
+                }
+            }
+        store.write(ListsSnapshot(normalized))
+        return readWithoutExpiredArchives().activeLists()
     }
 
     override suspend fun createList(
@@ -140,7 +180,37 @@ class FileListsRepository(
     override suspend fun deleteList(id: EntityId): List<DayList> =
         store
             .update { snapshot -> snapshot.copy(lists = snapshot.lists.filterNot { it.id == id }) }
-            .sortedLists()
+            .activeLists()
+
+    override suspend fun archiveList(id: EntityId): List<DayList> =
+        mutateList(id) { list ->
+            list.copy(archived = true, archivedAtEpochMillis = list.archivedAtEpochMillis ?: clock())
+        }
+
+    override suspend fun restoreList(id: EntityId): List<DayList> =
+        mutateList(id) { list -> list.copy(archived = false, archivedAtEpochMillis = null) }
+
+    override suspend fun duplicateList(id: EntityId): List<DayList> {
+        val now = clock()
+        return store
+            .update { snapshot ->
+                val source = snapshot.lists.firstOrNull { it.id == id } ?: error("List does not exist")
+                val copy =
+                    source.copy(
+                        id = idFactory(),
+                        title = "${source.title} — copy".take(MAX_LIST_TITLE_LENGTH),
+                        items =
+                            source.items.mapIndexed { index, item ->
+                                item.copy(id = idFactory(), order = index, createdAtEpochMillis = now)
+                            },
+                        createdAtEpochMillis = now,
+                        updatedAtEpochMillis = now,
+                        archived = false,
+                        archivedAtEpochMillis = null,
+                    )
+                snapshot.copy(lists = snapshot.lists + copy)
+            }.activeLists()
+    }
 
     override suspend fun addItem(
         listId: EntityId,
@@ -215,6 +285,65 @@ class FileListsRepository(
         }
     }
 
+    override suspend fun setItemsCompleted(
+        listId: EntityId,
+        itemIds: Set<EntityId>,
+        completed: Boolean,
+    ): List<DayList> =
+        mutateList(listId) { list ->
+            list.copy(
+                items = list.items.map { item -> if (item.id in itemIds) item.copy(completed = completed) else item },
+                updatedAtEpochMillis = clock(),
+            )
+        }
+
+    override suspend fun deleteItems(
+        listId: EntityId,
+        itemIds: Set<EntityId>,
+    ): List<DayList> =
+        mutateList(listId) { list ->
+            list.copy(
+                items = list.items.filterNot { it.id in itemIds }.withNormalizedOrder(),
+                updatedAtEpochMillis = clock(),
+            )
+        }
+
+    override suspend fun moveItems(
+        sourceListId: EntityId,
+        targetListId: EntityId,
+        itemIds: Set<EntityId>,
+    ): List<DayList> {
+        require(sourceListId != targetListId) { "Source and target must differ" }
+        val now = clock()
+        return store
+            .update { snapshot ->
+                val source = snapshot.lists.firstOrNull { it.id == sourceListId } ?: error("Source list does not exist")
+                val target = snapshot.lists.firstOrNull { it.id == targetListId } ?: error("Target list does not exist")
+                val moved = source.items.filter { it.id in itemIds }
+                require(moved.isNotEmpty()) { "No list items selected" }
+                snapshot.copy(
+                    lists =
+                        snapshot.lists.map { list ->
+                            when (list.id) {
+                                sourceListId ->
+                                    source.copy(
+                                        items = source.items.filterNot { it.id in itemIds }.withNormalizedOrder(),
+                                        updatedAtEpochMillis = now,
+                                    )
+                                targetListId ->
+                                    target.copy(
+                                        items =
+                                            (target.items + moved)
+                                                .mapIndexed { index, item -> item.copy(order = index) },
+                                        updatedAtEpochMillis = now,
+                                    )
+                                else -> list
+                            }
+                        },
+                )
+            }.activeLists()
+    }
+
     private suspend fun mutateItem(
         listId: EntityId,
         itemId: EntityId,
@@ -236,7 +365,16 @@ class FileListsRepository(
             .update { snapshot ->
                 require(snapshot.lists.any { it.id == id }) { "List does not exist" }
                 snapshot.copy(lists = snapshot.lists.map { list -> if (list.id == id) transform(list) else list })
-            }.sortedLists()
+            }.activeLists()
+
+    private suspend fun readWithoutExpiredArchives(): ListsSnapshot {
+        val now = clock()
+        val current = store.read()
+        if (current.lists.none { it.archiveExpired(now) }) return current
+        return store.update { snapshot ->
+            snapshot.copy(lists = snapshot.lists.filterNot { it.archiveExpired(now) })
+        }
+    }
 
     private fun normalizeListTitle(title: String): String {
         val normalized = title.trim()
@@ -271,6 +409,12 @@ class FileListsRepository(
             .map { list -> list.copy(items = list.items.sortedBy(DayListItem::order)) }
             .sortedByDescending(DayList::updatedAtEpochMillis)
 
+    private fun ListsSnapshot.activeLists(): List<DayList> =
+        copy(lists = lists.filterNot(DayList::archived)).sortedLists()
+
+    private fun ListsSnapshot.archivedLists(): List<DayList> =
+        lists.filter(DayList::archived).sortedByDescending { it.archivedAtEpochMillis }
+
     private fun List<DayListItem>.withNormalizedOrder(): List<DayListItem> =
         mapIndexed { index, item -> item.copy(order = index) }
 
@@ -288,3 +432,8 @@ class FileListsRepository(
         const val MAX_NOTE_LENGTH = 500
     }
 }
+
+private const val ARCHIVE_RETENTION_MILLIS = 7L * 24L * 60L * 60L * 1_000L
+
+private fun DayList.archiveExpired(nowEpochMillis: Long): Boolean =
+    archived && archivedAtEpochMillis?.let { nowEpochMillis - it >= ARCHIVE_RETENTION_MILLIS } == true

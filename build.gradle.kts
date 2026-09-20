@@ -11,6 +11,7 @@ plugins {
     alias(libs.plugins.kotlin.kapt) apply false
     alias(libs.plugins.hilt) apply false
     alias(libs.plugins.ktlint) apply false
+    alias(libs.plugins.screenshot) apply false
 }
 
 subprojects {
