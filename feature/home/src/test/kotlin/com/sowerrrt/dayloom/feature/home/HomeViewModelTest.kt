@@ -10,6 +10,9 @@ import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.model.WishContribution
 import com.sowerrrt.dayloom.core.model.WishGoal
 import com.sowerrrt.dayloom.core.model.WishPriority
+import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
+import com.sowerrrt.dayloom.core.notifications.NotificationScope
+import com.sowerrrt.dayloom.core.notifications.ScheduledNotification
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.ListsRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
@@ -105,6 +108,7 @@ class HomeViewModelTest {
                                 ),
                             ),
                         ),
+                    notificationScheduler = NoOpNotificationScheduler,
                 )
 
             runCurrent()
@@ -117,7 +121,31 @@ class HomeViewModelTest {
             assertEquals(1, viewModel.uiState.value.openListItems)
             assertEquals(1, viewModel.uiState.value.wishCount)
             assertEquals(1, viewModel.uiState.value.completedWishCount)
+            assertEquals(
+                "Water",
+                viewModel.uiState.value.todayHabits
+                    .single()
+                    .title,
+            )
+            assertEquals(
+                "Today",
+                viewModel.uiState.value.todayPlans
+                    .single()
+                    .title,
+            )
         }
+}
+
+private object NoOpNotificationScheduler : NotificationScheduler {
+    override suspend fun schedule(notification: ScheduledNotification): Result<Unit> = Result.success(Unit)
+
+    override suspend fun cancel(id: com.sowerrrt.dayloom.core.notifications.NotificationId): Result<Unit> =
+        Result.success(Unit)
+
+    override suspend fun rescheduleAll(
+        scope: NotificationScope,
+        notifications: List<ScheduledNotification>,
+    ): Result<Unit> = Result.success(Unit)
 }
 
 private class ReadOnlyHabitsRepository(

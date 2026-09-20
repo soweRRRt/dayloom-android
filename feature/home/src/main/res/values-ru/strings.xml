@@ -3,6 +3,16 @@
     <string name="home_welcome_title">Сплетите спокойный день</string>
     <string name="home_welcome_body">Ваши привычки, планы и идеи объединятся в одном приватном пространстве.</string>
     <string name="home_overview">Сегодня одним взглядом</string>
+    <string name="home_open_calendar">Открыть календарь</string>
+    <string name="home_sections">Ваше пространство</string>
+    <string name="home_today_habit">Привычка</string>
+    <string name="home_today_plan">План</string>
+    <string name="home_today_empty_title">Сегодня ничего не требует внимания</string>
+    <string name="home_today_empty_body">Оставьте день свободным или добавьте небольшую привычку либо план.</string>
+    <string name="home_add_habit">Добавить привычку</string>
+    <string name="home_add_plan">Добавить план</string>
+    <string name="home_toggle_item">Изменить выполнение «%1$s»</string>
+    <string name="home_update_error">Не удалось обновить часть текущих данных. Сохранённые записи не изменены.</string>
     <string name="home_habits_title">Привычки</string>
     <string name="home_habits_body">Начните с одного небольшого повторяемого действия.</string>
     <string name="home_habits_metric">Привычек пока нет</string>

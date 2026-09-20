@@ -23,17 +23,22 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Checklist
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,8 +51,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -59,6 +66,7 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTheme
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.model.AccentPalette
+import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.ThemeMode
 
@@ -80,6 +88,8 @@ fun HomeScreen(
         onOpenPlanner = onOpenPlanner,
         onOpenLists = onOpenLists,
         onOpenWishlist = onOpenWishlist,
+        onToggleHabit = viewModel::toggleHabit,
+        onTogglePlan = viewModel::togglePlan,
     )
 }
 
@@ -91,6 +101,8 @@ private fun HomeContent(
     onOpenPlanner: () -> Unit,
     onOpenLists: () -> Unit,
     onOpenWishlist: () -> Unit,
+    onToggleHabit: (EntityId) -> Unit,
+    onTogglePlan: (EntityId) -> Unit,
 ) {
     val cards =
         mapOf(
@@ -156,11 +168,51 @@ private fun HomeContent(
                 ),
         )
     val visibleCards = sections.distinct().mapNotNull { section -> cards[section]?.let { section to it } }
+    val todayItems =
+        buildList {
+            if (HomeSection.HABITS in sections) {
+                state.todayHabits.forEach { habit ->
+                    add(
+                        TodayRowData(
+                            key = "habit-${habit.id.value}",
+                            testTag = "habit_${habit.title}",
+                            title = habit.title,
+                            typeLabel = stringResource(R.string.home_today_habit),
+                            reminderMinutes = habit.reminderMinutesOfDay,
+                            detail =
+                                listOf(habit.targetAmount, habit.targetUnit)
+                                    .filter(String::isNotBlank)
+                                    .joinToString(" "),
+                            completed = state.todayEpochDay in habit.completedEpochDays,
+                            color = MaterialTheme.colorScheme.primary,
+                            onToggle = { onToggleHabit(habit.id) },
+                        ),
+                    )
+                }
+            }
+            if (HomeSection.PLANNER in sections) {
+                state.todayPlans.forEach { plan ->
+                    add(
+                        TodayRowData(
+                            key = "plan-${plan.id.value}",
+                            testTag = "plan_${plan.title}",
+                            title = plan.title,
+                            typeLabel = stringResource(R.string.home_today_plan),
+                            reminderMinutes = plan.reminderMinutesOfDay,
+                            detail = "",
+                            completed = plan.completed,
+                            color = MaterialTheme.colorScheme.secondary,
+                            onToggle = { onTogglePlan(plan.id) },
+                        ),
+                    )
+                }
+            }
+        }.sortedWith(compareBy<TodayRowData> { it.reminderMinutes ?: Int.MAX_VALUE }.thenBy { it.title.lowercase() })
 
     Column {
         DayloomTopBar(title = stringResource(R.string.home_app_name), showLogo = true)
         LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().testTag("home_list"),
             contentPadding =
                 PaddingValues(
                     start = DayloomSpacing.md,
@@ -171,9 +223,31 @@ private fun HomeContent(
         ) {
             item { WelcomeCard(state) }
             item {
+                SectionHeader(
+                    title = stringResource(R.string.home_overview),
+                    action = stringResource(R.string.home_open_calendar),
+                    onAction = onOpenPlanner,
+                )
+            }
+            if (state.hasError) {
+                item {
+                    DayloomCard(Modifier.fillMaxWidth()) {
+                        Text(
+                            stringResource(R.string.home_update_error),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+            if (!state.isLoading && todayItems.isEmpty()) {
+                item { TodayEmptyCard(onOpenHabits, onOpenPlanner) }
+            } else {
+                items(todayItems, key = TodayRowData::key) { item -> TodayRow(item) }
+            }
+            item {
                 Text(
-                    stringResource(R.string.home_overview),
-                    modifier = Modifier.padding(top = DayloomSpacing.xs),
+                    stringResource(R.string.home_sections),
+                    modifier = Modifier.padding(top = DayloomSpacing.sm),
                     style = MaterialTheme.typography.titleLarge,
                 )
             }
@@ -186,6 +260,108 @@ private fun HomeContent(
                         ModuleSummaryCard(section, data, Modifier.weight(1f))
                     }
                     if (cardRow.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(
+    title: String,
+    action: String,
+    onAction: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = DayloomSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(title, style = MaterialTheme.typography.titleLarge)
+        TextButton(onClick = onAction) { Text(action) }
+    }
+}
+
+@Composable
+private fun TodayEmptyCard(
+    onOpenHabits: () -> Unit,
+    onOpenPlanner: () -> Unit,
+) {
+    DayloomCard(Modifier.fillMaxWidth().testTag("home_today_empty")) {
+        Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+            Text(stringResource(R.string.home_today_empty_title), style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(R.string.home_today_empty_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+                TextButton(onClick = onOpenHabits) { Text(stringResource(R.string.home_add_habit)) }
+                TextButton(onClick = onOpenPlanner) { Text(stringResource(R.string.home_add_plan)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TodayRow(item: TodayRowData) {
+    val locale = LocalConfiguration.current.locales[0]
+    DayloomCard(
+        modifier = Modifier.fillMaxWidth().testTag("home_today_${item.testTag}"),
+        contentPadding = PaddingValues(horizontal = DayloomSpacing.regular, vertical = DayloomSpacing.sm),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+        ) {
+            IconButton(
+                onClick = item.onToggle,
+                modifier =
+                    Modifier.testTag(
+                        "home_toggle_${item.testTag}_${if (item.completed) "completed" else "open"}",
+                    ),
+            ) {
+                Icon(
+                    if (item.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                    contentDescription = stringResource(R.string.home_toggle_item, item.title),
+                    tint = if (item.completed) item.color else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    item.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    textDecoration = if (item.completed) TextDecoration.LineThrough else null,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                ) {
+                    Text(item.typeLabel, style = MaterialTheme.typography.labelMedium, color = item.color)
+                    if (item.detail.isNotBlank()) {
+                        Text("· ${item.detail}", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+            item.reminderMinutes?.let { minutes ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Icon(
+                        Icons.Rounded.AccessTime,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        String.format(locale, "%02d:%02d", minutes / 60, minutes % 60),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -357,6 +533,19 @@ private data class HomeCardData(
     val onClick: () -> Unit,
 )
 
+@Immutable
+private data class TodayRowData(
+    val key: String,
+    val testTag: String,
+    val title: String,
+    val typeLabel: String,
+    val reminderMinutes: Int?,
+    val detail: String,
+    val completed: Boolean,
+    val color: Color,
+    val onToggle: () -> Unit,
+)
+
 @Preview(name = "Light · English", locale = "en", showBackground = true)
 @Preview(name = "Dark · Русский", locale = "ru", showBackground = true, uiMode = 0x20)
 @Composable
@@ -365,6 +554,6 @@ private fun HomeScreenPreview() {
         themeMode = ThemeMode.SYSTEM,
         accentPalette = AccentPalette.VIOLET,
     ) {
-        HomeContent(HomeUiState(), HomeSection.entries, {}, {}, {}, {})
+        HomeContent(HomeUiState(isLoading = false), HomeSection.entries, {}, {}, {}, {}, {}, {})
     }
 }

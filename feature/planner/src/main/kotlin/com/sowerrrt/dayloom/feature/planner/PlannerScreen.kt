@@ -48,6 +48,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -239,6 +240,7 @@ private fun PlannerContent(
     modifier: Modifier = Modifier,
 ) {
     val locale = currentLocale()
+    var calendarMode by rememberSaveable { mutableStateOf(CalendarMode.MONTH) }
     Box(modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().testTag("planner_list"),
@@ -263,14 +265,48 @@ private fun PlannerContent(
                 }
             }
             item {
-                MonthCalendar(
-                    state = state,
-                    locale = locale,
-                    onSelectDate = onSelectDate,
-                    onPreviousMonth = onPreviousMonth,
-                    onNextMonth = onNextMonth,
-                    onToday = onToday,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+                    ) {
+                        FilterChip(
+                            selected = calendarMode == CalendarMode.WEEK,
+                            onClick = { calendarMode = CalendarMode.WEEK },
+                            label = { Text(stringResource(R.string.planner_week)) },
+                            modifier = Modifier.weight(1f).testTag("calendar_mode_week"),
+                        )
+                        FilterChip(
+                            selected = calendarMode == CalendarMode.MONTH,
+                            onClick = { calendarMode = CalendarMode.MONTH },
+                            label = { Text(stringResource(R.string.planner_month)) },
+                            modifier = Modifier.weight(1f).testTag("calendar_mode_month"),
+                        )
+                    }
+                    Crossfade(
+                        targetState = calendarMode,
+                        animationSpec = tween(DayloomMotion.STANDARD_MILLIS),
+                        label = "calendarMode",
+                    ) { mode ->
+                        if (mode == CalendarMode.MONTH) {
+                            MonthCalendar(
+                                state = state,
+                                locale = locale,
+                                onSelectDate = onSelectDate,
+                                onPreviousMonth = onPreviousMonth,
+                                onNextMonth = onNextMonth,
+                                onToday = onToday,
+                            )
+                        } else {
+                            WeekCalendar(
+                                state = state,
+                                locale = locale,
+                                onSelectDate = onSelectDate,
+                                onToday = onToday,
+                            )
+                        }
+                    }
+                }
             }
             item {
                 SelectedDateHeader(
@@ -341,6 +377,69 @@ private fun PlannerContent(
     }
 }
 
+private enum class CalendarMode { WEEK, MONTH }
+
+@Composable
+private fun WeekCalendar(
+    state: PlannerUiState,
+    locale: Locale,
+    onSelectDate: (Long) -> Unit,
+    onToday: () -> Unit,
+) {
+    val selected = LocalDate.ofEpochDay(state.selectedEpochDay)
+    val weekStart = selected.minusDays((selected.dayOfWeek.value - 1).toLong())
+    val days = (0L..6L).map(weekStart::plusDays)
+    DayloomCard(Modifier.fillMaxWidth().testTag("week_calendar")) {
+        Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                IconButton(onClick = { onSelectDate(selected.minusWeeks(1).toEpochDay()) }) {
+                    Icon(Icons.Rounded.ChevronLeft, contentDescription = stringResource(R.string.planner_previous_week))
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        weekLabel(days.first(), days.last(), locale),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    TextButton(onClick = onToday) { Text(stringResource(R.string.planner_today)) }
+                }
+                IconButton(onClick = { onSelectDate(selected.plusWeeks(1).toEpochDay()) }) {
+                    Icon(Icons.Rounded.ChevronRight, contentDescription = stringResource(R.string.planner_next_week))
+                }
+            }
+            Row(Modifier.fillMaxWidth()) {
+                days.forEach { date ->
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        CalendarDay(
+                            date = date,
+                            selected = date == selected,
+                            today = date.toEpochDay() == state.todayEpochDay,
+                            habitCount = state.habitCount(date.toEpochDay()),
+                            planCount = state.planCount(date.toEpochDay()),
+                            completedHabitCount = state.completedHabitCount(date.toEpochDay()),
+                            completedPlanCount = state.completedPlanCount(date.toEpochDay()),
+                            onClick = { onSelectDate(date.toEpochDay()) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun MonthCalendar(
     state: PlannerUiState,
@@ -362,6 +461,16 @@ private fun MonthCalendar(
     val planCounts =
         remember(state.plans, month) {
             cells.filterNotNull().associate { date -> date.toEpochDay() to state.planCount(date.toEpochDay()) }
+        }
+    val completedHabitCounts =
+        remember(state.habits, month) {
+            cells.filterNotNull().associate { date ->
+                date.toEpochDay() to state.completedHabitCount(date.toEpochDay())
+            }
+        }
+    val completedPlanCounts =
+        remember(state.plans, month) {
+            cells.filterNotNull().associate { date -> date.toEpochDay() to state.completedPlanCount(date.toEpochDay()) }
         }
     DayloomCard(Modifier.fillMaxWidth().testTag("month_calendar")) {
         Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
@@ -417,6 +526,8 @@ private fun MonthCalendar(
                                         today = date.toEpochDay() == state.todayEpochDay,
                                         habitCount = habitCounts[date.toEpochDay()] ?: 0,
                                         planCount = planCounts[date.toEpochDay()] ?: 0,
+                                        completedHabitCount = completedHabitCounts[date.toEpochDay()] ?: 0,
+                                        completedPlanCount = completedPlanCounts[date.toEpochDay()] ?: 0,
                                         onClick = { onSelectDate(date.toEpochDay()) },
                                         modifier = Modifier.weight(1f),
                                     )
@@ -437,6 +548,8 @@ private fun CalendarDay(
     today: Boolean,
     habitCount: Int,
     planCount: Int,
+    completedHabitCount: Int,
+    completedPlanCount: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -463,15 +576,28 @@ private fun CalendarDay(
     ) {
         Text(date.dayOfMonth.toString(), style = MaterialTheme.typography.bodyMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            if (habitCount > 0) CalendarDot(MaterialTheme.colorScheme.primary)
-            if (planCount > 0) CalendarDot(MaterialTheme.colorScheme.secondary)
+            if (habitCount > 0) {
+                CalendarDot(MaterialTheme.colorScheme.primary, completedHabitCount == habitCount)
+            }
+            if (planCount > 0) {
+                CalendarDot(MaterialTheme.colorScheme.secondary, completedPlanCount == planCount)
+            }
         }
     }
 }
 
 @Composable
-private fun CalendarDot(color: Color) {
-    Box(Modifier.size(5.dp).clip(CircleShape).background(color))
+private fun CalendarDot(
+    color: Color,
+    completed: Boolean,
+) {
+    Box(
+        Modifier
+            .size(
+                if (completed) 6.dp else 5.dp,
+            ).clip(CircleShape)
+            .background(color.copy(alpha = if (completed) 1f else 0.48f)),
+    )
 }
 
 @Composable
@@ -889,6 +1015,16 @@ private fun monthLabel(
         .atDay(1)
         .format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))
         .replaceFirstChar { it.titlecase(locale) }
+
+private fun weekLabel(
+    start: LocalDate,
+    end: LocalDate,
+    locale: Locale,
+): String {
+    val startLabel = start.format(DateTimeFormatter.ofPattern("d MMM", locale))
+    val endPattern = if (start.year == end.year) "d MMM" else "d MMM yyyy"
+    return "$startLabel — ${end.format(DateTimeFormatter.ofPattern(endPattern, locale))}"
+}
 
 private const val MAX_PLAN_TITLE_LENGTH = 120
 private const val DEFAULT_REMINDER_MINUTES = 9 * 60

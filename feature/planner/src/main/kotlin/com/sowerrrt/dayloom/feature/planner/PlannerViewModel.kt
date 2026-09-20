@@ -11,11 +11,10 @@ import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.isScheduledOn
 import com.sowerrrt.dayloom.core.model.toPlanPresetOrNull
 import com.sowerrrt.dayloom.core.model.toStorageValue
-import com.sowerrrt.dayloom.core.notifications.NotificationId
 import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
 import com.sowerrrt.dayloom.core.notifications.NotificationScope
-import com.sowerrrt.dayloom.core.notifications.ScheduledNotification
 import com.sowerrrt.dayloom.core.notifications.activeHabitReminders
+import com.sowerrrt.dayloom.core.notifications.activePlanReminders
 import com.sowerrrt.dayloom.core.storage.AttachmentRepository
 import com.sowerrrt.dayloom.core.storage.HabitsRepository
 import com.sowerrrt.dayloom.core.storage.PlannerRepository
@@ -49,14 +48,29 @@ data class PlannerUiState(
     val presets: List<PlanPreset> = emptyList(),
 ) {
     val selectedHabits: List<Habit>
-        get() = habits.filter { it.isScheduledOn(selectedEpochDay) }
+        get() =
+            habits
+                .filter { it.isScheduledOn(selectedEpochDay) }
+                .sortedWith(
+                    compareBy<Habit> { it.reminderMinutesOfDay ?: Int.MAX_VALUE }.thenBy { it.title.lowercase() },
+                )
 
     val selectedPlans: List<PlanItem>
-        get() = plans.filter { it.dateEpochDay == selectedEpochDay }
+        get() =
+            plans
+                .filter { it.dateEpochDay == selectedEpochDay }
+                .sortedWith(
+                    compareBy<PlanItem> { it.reminderMinutesOfDay ?: Int.MAX_VALUE }.thenBy { it.title.lowercase() },
+                )
 
     fun habitCount(epochDay: Long): Int = habits.count { it.isScheduledOn(epochDay) }
 
     fun planCount(epochDay: Long): Int = plans.count { it.dateEpochDay == epochDay }
+
+    fun completedHabitCount(epochDay: Long): Int =
+        habits.count { it.isScheduledOn(epochDay) && epochDay in it.completedEpochDays }
+
+    fun completedPlanCount(epochDay: Long): Int = plans.count { it.dateEpochDay == epochDay && it.completed }
 }
 
 @HiltViewModel
@@ -93,7 +107,7 @@ class PlannerViewModel
                     }
                 }.onSuccess { (habits, plans, presets) ->
                     val planReminderResult =
-                        notificationScheduler.rescheduleAll(NotificationScope.PLANS, plans.activeReminders())
+                        notificationScheduler.rescheduleAll(NotificationScope.PLANS, plans.activePlanReminders())
                     val habitReminderResult =
                         notificationScheduler.rescheduleAll(
                             NotificationScope.HABITS,
@@ -292,7 +306,7 @@ class PlannerViewModel
                 runCatching { operation() }
                     .onSuccess { plans ->
                         val reminderResult =
-                            notificationScheduler.rescheduleAll(NotificationScope.PLANS, plans.activeReminders())
+                            notificationScheduler.rescheduleAll(NotificationScope.PLANS, plans.activePlanReminders())
                         mutableUiState.update {
                             it.copy(
                                 plans = plans,
@@ -339,24 +353,4 @@ class PlannerViewModel
 internal fun List<PlanItem>.activeReminders(
     nowEpochMillis: Long = System.currentTimeMillis(),
     zoneId: ZoneId = ZoneId.systemDefault(),
-): List<ScheduledNotification> =
-    mapNotNull { plan ->
-        val minutes = plan.reminderMinutesOfDay ?: return@mapNotNull null
-        val trigger =
-            LocalDate
-                .ofEpochDay(plan.dateEpochDay)
-                .atStartOfDay(zoneId)
-                .plusMinutes(minutes.toLong())
-                .toInstant()
-                .toEpochMilli()
-        if (plan.completed || trigger <= nowEpochMillis) {
-            null
-        } else {
-            ScheduledNotification(
-                id = NotificationId("plan:${plan.id.value}"),
-                scope = NotificationScope.PLANS,
-                triggerAtEpochMillis = trigger,
-                title = plan.title,
-            )
-        }
-    }
+) = activePlanReminders(nowEpochMillis, zoneId)

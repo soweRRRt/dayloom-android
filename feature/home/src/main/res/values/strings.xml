@@ -3,6 +3,16 @@
     <string name="home_welcome_title">Weave a calmer day</string>
     <string name="home_welcome_body">Your routines, plans, and ideas are ready to come together in one private space.</string>
     <string name="home_overview">Today at a glance</string>
+    <string name="home_open_calendar">Open calendar</string>
+    <string name="home_sections">Your space</string>
+    <string name="home_today_habit">Habit</string>
+    <string name="home_today_plan">Plan</string>
+    <string name="home_today_empty_title">Nothing is waiting for you today</string>
+    <string name="home_today_empty_body">Keep the day open or add a small habit or plan.</string>
+    <string name="home_add_habit">Add a habit</string>
+    <string name="home_add_plan">Add a plan</string>
+    <string name="home_toggle_item">Toggle %1$s</string>
+    <string name="home_update_error">Some current data could not be refreshed. Your saved records were not changed.</string>
     <string name="home_habits_title">Habits</string>
     <string name="home_habits_body">Start with one small, repeatable action.</string>
     <string name="home_habits_metric">No habits yet</string>

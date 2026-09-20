@@ -153,6 +153,35 @@ class NavigationUiTest {
     }
 
     @Test
+    fun calendarSwitchesBetweenWeekAndMonth() {
+        composeRule.onNodeWithTag("primary_nav_planner").performClick()
+        composeRule.onNodeWithTag("month_calendar").assertExists()
+
+        composeRule.onNodeWithTag("calendar_mode_week").performClick()
+        composeRule.onNodeWithTag("week_calendar").assertExists()
+
+        composeRule.onNodeWithTag("calendar_mode_month").performClick()
+        composeRule.onNodeWithTag("month_calendar").assertExists()
+    }
+
+    @Test
+    fun todaysHabitCanBeCompletedFromHome() {
+        val title = "Home habit ${System.currentTimeMillis()}"
+        composeRule.onNodeWithTag("primary_nav_habits").performClick()
+        composeRule.onNodeWithTag("create_habit").performClick()
+        composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("save_habit").performClick()
+        waitForTag("habit_toggle_$title")
+
+        composeRule.onNodeWithTag("primary_nav_home").performClick()
+        composeRule
+            .onNodeWithTag("home_list")
+            .performScrollToNode(hasTestTag("home_toggle_habit_${title}_open"))
+        composeRule.onNodeWithTag("home_toggle_habit_${title}_open").performClick()
+        waitForTag("home_toggle_habit_${title}_completed")
+    }
+
+    @Test
     fun planEditorOffersLocalReminderTime() {
         composeRule.onNodeWithTag("primary_nav_planner").performClick()
         composeRule.onNodeWithTag("create_plan").performClick()
