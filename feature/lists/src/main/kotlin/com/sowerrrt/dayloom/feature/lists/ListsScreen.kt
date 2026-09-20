@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
+import com.sowerrrt.dayloom.core.designsystem.DayloomHorizontalRail
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
@@ -248,8 +249,8 @@ private fun ListsOverview(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxWidth().testTag("lists_overview"),
-        contentPadding = PaddingValues(start = DayloomSpacing.md, end = DayloomSpacing.md, bottom = 104.dp),
-        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+        contentPadding = PaddingValues(start = DayloomSpacing.md, end = DayloomSpacing.md, bottom = 84.dp),
+        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
     ) {
         item {
             Text(
@@ -349,7 +350,7 @@ private fun ListDetails(
     val completed = list.items.count(DayListItem::completed)
     LazyColumn(
         modifier = modifier.fillMaxWidth().testTag("list_details"),
-        contentPadding = PaddingValues(start = DayloomSpacing.md, end = DayloomSpacing.md, bottom = 104.dp),
+        contentPadding = PaddingValues(start = DayloomSpacing.md, end = DayloomSpacing.md, bottom = 84.dp),
         verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
     ) {
         item {
@@ -381,18 +382,16 @@ private fun ListDetails(
                         stringResource(R.string.lists_quick_add),
                         style = MaterialTheme.typography.titleMedium,
                     )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                    ) {
-                        presets.forEach { preset ->
-                            AssistChip(
-                                onClick = { onUsePreset(preset) },
-                                label = { Text(preset.title) },
-                                leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null) },
-                                modifier = Modifier.testTag("quick_list_item_preset_${preset.title}"),
-                            )
-                        }
+                    DayloomHorizontalRail(
+                        items = presets,
+                        key = { it.title },
+                    ) { preset ->
+                        AssistChip(
+                            onClick = { onUsePreset(preset) },
+                            label = { Text(preset.title) },
+                            leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                            modifier = Modifier.testTag("quick_list_item_preset_${preset.title}"),
+                        )
                     }
                 }
             }
@@ -514,7 +513,7 @@ private fun ListEditorDialog(
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
             ) {
                 OutlinedTextField(
                     value = title,

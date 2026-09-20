@@ -58,6 +58,8 @@
     <string name="planner_search_clear">Очистить поиск планов</string>
     <string name="planner_filters_empty">По этим условиям планов нет. Сбросьте фильтры или измените запрос.</string>
     <string name="planner_filters_reset">Сбросить фильтры</string>
+    <string name="planner_filters_title">Фильтры</string>
+    <string name="planner_filters_active">Фильтры · %1$d</string>
     <string name="planner_filter_date">Дата</string>
     <string name="planner_filter_status">Статус</string>
     <string name="planner_filter_time">Точное время</string>

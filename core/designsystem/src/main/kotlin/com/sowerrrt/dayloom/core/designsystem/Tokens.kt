@@ -12,12 +12,12 @@ import androidx.compose.ui.unit.sp
 object DayloomSpacing {
     val xxs = 2.dp
     val xs = 4.dp
-    val sm = 8.dp
-    val regular = 12.dp
-    val md = 16.dp
-    val lg = 24.dp
-    val xl = 32.dp
-    val xxl = 40.dp
+    val sm = 7.dp
+    val regular = 10.dp
+    val md = 14.dp
+    val lg = 20.dp
+    val xl = 28.dp
+    val xxl = 36.dp
 }
 
 object DayloomMotion {
@@ -29,10 +29,10 @@ object DayloomMotion {
 val DayloomShapes =
     Shapes(
         extraSmall = RoundedCornerShape(8.dp),
-        small = RoundedCornerShape(12.dp),
-        medium = RoundedCornerShape(18.dp),
-        large = RoundedCornerShape(24.dp),
-        extraLarge = RoundedCornerShape(32.dp),
+        small = RoundedCornerShape(11.dp),
+        medium = RoundedCornerShape(16.dp),
+        large = RoundedCornerShape(20.dp),
+        extraLarge = RoundedCornerShape(28.dp),
     )
 
 val DayloomTypography =

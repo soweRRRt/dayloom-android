@@ -4,6 +4,7 @@ import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -17,7 +18,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -26,9 +29,15 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -220,7 +229,11 @@ fun DayloomTopBar(
 fun DayloomCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    contentPadding: PaddingValues = PaddingValues(DayloomSpacing.md),
+    contentPadding: PaddingValues =
+        PaddingValues(
+            horizontal = DayloomSpacing.md,
+            vertical = DayloomSpacing.regular,
+        ),
     content: @Composable () -> Unit,
 ) {
     val motionEnabled = rememberDayloomMotionEnabled()
@@ -260,6 +273,41 @@ fun DayloomCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Box(Modifier.padding(contentPadding)) { content() }
+    }
+}
+
+@Composable
+fun <T> DayloomHorizontalRail(
+    items: List<T>,
+    key: (T) -> Any,
+    modifier: Modifier = Modifier,
+    itemContent: @Composable (T) -> Unit,
+) {
+    val state = rememberLazyListState()
+    Box(modifier.fillMaxWidth()) {
+        LazyRow(
+            state = state,
+            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+            contentPadding = PaddingValues(end = DayloomSpacing.xl),
+            flingBehavior = rememberSnapFlingBehavior(lazyListState = state),
+        ) {
+            items(items = items, key = key) { item -> itemContent(item) }
+        }
+        AnimatedVisibility(
+            visible = state.canScrollForward,
+            modifier = Modifier.align(Alignment.CenterEnd),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .width(DayloomSpacing.xl)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(Color.Transparent, MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
+                        ),
+                    ),
+            )
+        }
     }
 }
 

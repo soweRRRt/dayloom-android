@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -58,6 +59,7 @@ import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
@@ -99,6 +101,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
+import com.sowerrrt.dayloom.core.designsystem.DayloomHorizontalRail
 import com.sowerrrt.dayloom.core.designsystem.DayloomMotion
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
@@ -325,8 +328,8 @@ private fun PlannerContent(
     Box(modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().testTag("planner_list"),
-            contentPadding = PaddingValues(start = DayloomSpacing.md, end = DayloomSpacing.md, bottom = 104.dp),
-            verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+            contentPadding = PaddingValues(start = DayloomSpacing.md, end = DayloomSpacing.md, bottom = 84.dp),
+            verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
         ) {
             item {
                 Text(
@@ -404,18 +407,16 @@ private fun PlannerContent(
                             stringResource(R.string.planner_quick_add),
                             style = MaterialTheme.typography.titleMedium,
                         )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                            verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                        ) {
-                            state.presets.forEach { preset ->
-                                AssistChip(
-                                    onClick = { onUsePreset(preset) },
-                                    label = { Text(preset.title) },
-                                    leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null) },
-                                    modifier = Modifier.testTag("quick_plan_preset_${preset.title}"),
-                                )
-                            }
+                        DayloomHorizontalRail(
+                            items = state.presets,
+                            key = { it.title },
+                        ) { preset ->
+                            AssistChip(
+                                onClick = { onUsePreset(preset) },
+                                label = { Text(preset.title) },
+                                leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                                modifier = Modifier.testTag("quick_plan_preset_${preset.title}"),
+                            )
                         }
                     }
                 }
@@ -536,6 +537,13 @@ private fun PlanFilterPanel(
     onReset: () -> Unit,
 ) {
     var sortExpanded by remember { mutableStateOf(false) }
+    var filtersExpanded by rememberSaveable { mutableStateOf(false) }
+    val activeFilterCount =
+        listOf(
+            dateFilter != PlanDateFilter.SELECTED,
+            statusFilter != PlanStatusFilter.ALL,
+            timeFilter != PlanTimeFilter.ALL,
+        ).count { it }
     val hasCustomFilters =
         query.isNotBlank() ||
             dateFilter != PlanDateFilter.SELECTED ||
@@ -628,51 +636,70 @@ private fun PlanFilterPanel(
                     }
                 }
             }
-            Text(stringResource(R.string.planner_filter_date), style = MaterialTheme.typography.labelLarge)
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                PlanDateFilter.entries.forEach { option ->
-                    FilterChip(
-                        selected = dateFilter == option,
-                        onClick = { onDateFilterChange(option) },
-                        label = { Text(stringResource(option.labelResource())) },
-                        modifier = Modifier.testTag("plan_date_${option.name.lowercase()}"),
-                    )
+                FilterChip(
+                    selected = filtersExpanded || activeFilterCount > 0,
+                    onClick = { filtersExpanded = !filtersExpanded },
+                    label = {
+                        Text(
+                            if (activeFilterCount == 0) {
+                                stringResource(R.string.planner_filters_title)
+                            } else {
+                                stringResource(R.string.planner_filters_active, activeFilterCount)
+                            },
+                        )
+                    },
+                    leadingIcon = { Icon(Icons.Rounded.Tune, contentDescription = null) },
+                    modifier = Modifier.testTag("plan_filters_toggle"),
+                )
+                if (hasCustomFilters) {
+                    TextButton(onClick = onReset, modifier = Modifier.testTag("plan_filters_reset")) {
+                        Text(stringResource(R.string.planner_filters_reset))
+                    }
                 }
             }
-            Text(stringResource(R.string.planner_filter_status), style = MaterialTheme.typography.labelLarge)
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-            ) {
-                PlanStatusFilter.entries.forEach { option ->
-                    FilterChip(
-                        selected = statusFilter == option,
-                        onClick = { onStatusFilterChange(option) },
-                        label = { Text(stringResource(option.labelResource())) },
-                        modifier = Modifier.testTag("plan_status_${option.name.lowercase()}"),
-                    )
-                }
-            }
-            Text(stringResource(R.string.planner_filter_time), style = MaterialTheme.typography.labelLarge)
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-            ) {
-                PlanTimeFilter.entries.forEach { option ->
-                    FilterChip(
-                        selected = timeFilter == option,
-                        onClick = { onTimeFilterChange(option) },
-                        label = { Text(stringResource(option.labelResource())) },
-                        modifier = Modifier.testTag("plan_time_${option.name.lowercase()}"),
-                    )
-                }
-            }
-            if (hasCustomFilters) {
-                TextButton(onClick = onReset, modifier = Modifier.testTag("plan_filters_reset")) {
-                    Text(stringResource(R.string.planner_filters_reset))
+            AnimatedVisibility(visible = filtersExpanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs)) {
+                    Text(stringResource(R.string.planner_filter_date), style = MaterialTheme.typography.labelLarge)
+                    DayloomHorizontalRail(
+                        items = PlanDateFilter.entries,
+                        key = { it.name },
+                    ) { option ->
+                        FilterChip(
+                            selected = dateFilter == option,
+                            onClick = { onDateFilterChange(option) },
+                            label = { Text(stringResource(option.labelResource())) },
+                            modifier = Modifier.testTag("plan_date_${option.name.lowercase()}"),
+                        )
+                    }
+                    Text(stringResource(R.string.planner_filter_status), style = MaterialTheme.typography.labelLarge)
+                    DayloomHorizontalRail(
+                        items = PlanStatusFilter.entries,
+                        key = { it.name },
+                    ) { option ->
+                        FilterChip(
+                            selected = statusFilter == option,
+                            onClick = { onStatusFilterChange(option) },
+                            label = { Text(stringResource(option.labelResource())) },
+                            modifier = Modifier.testTag("plan_status_${option.name.lowercase()}"),
+                        )
+                    }
+                    Text(stringResource(R.string.planner_filter_time), style = MaterialTheme.typography.labelLarge)
+                    DayloomHorizontalRail(
+                        items = PlanTimeFilter.entries,
+                        key = { it.name },
+                    ) { option ->
+                        FilterChip(
+                            selected = timeFilter == option,
+                            onClick = { onTimeFilterChange(option) },
+                            label = { Text(stringResource(option.labelResource())) },
+                            modifier = Modifier.testTag("plan_time_${option.name.lowercase()}"),
+                        )
+                    }
                 }
             }
         }
@@ -1047,7 +1074,7 @@ private fun ArchivedPlanRow(
                 LocalPlanImage(
                     imagePath = imagePath,
                     title = plan.title,
-                    modifier = Modifier.fillMaxWidth().height(96.dp),
+                    modifier = Modifier.fillMaxWidth().height(84.dp),
                 )
             }
             Text(plan.title, style = MaterialTheme.typography.titleMedium)
@@ -1103,7 +1130,7 @@ private fun PlanRow(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .height(112.dp)
+                            .height(96.dp)
                             .clickable(onClick = onChooseImage)
                             .testTag("plan_image_preview_${plan.title}"),
                 )

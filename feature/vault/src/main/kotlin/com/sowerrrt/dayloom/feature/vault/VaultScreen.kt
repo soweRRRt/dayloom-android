@@ -356,7 +356,7 @@ private fun VaultOverview(
 ) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(DayloomSpacing.md),
-        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
     ) {
         OutlinedTextField(
             value = state.query,
@@ -488,7 +488,7 @@ private fun VaultEntryDetails(
                     rememberScrollState(),
                 ).padding(DayloomSpacing.md)
                 .testTag("vault_details"),
-        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(entry.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall)

@@ -257,8 +257,8 @@ private fun WishlistOverview(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxWidth().testTag("wishlist_overview"),
-        contentPadding = PaddingValues(start = DayloomSpacing.md, end = DayloomSpacing.md, bottom = 104.dp),
-        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+        contentPadding = PaddingValues(start = DayloomSpacing.md, end = DayloomSpacing.md, bottom = 84.dp),
+        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
     ) {
         item {
             Text(
@@ -367,7 +367,7 @@ private fun WishCard(
             WishImageCover(
                 imagePath = imagePath,
                 title = goal.title,
-                modifier = Modifier.fillMaxWidth().height(116.dp),
+                modifier = Modifier.fillMaxWidth().height(96.dp),
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -418,7 +418,7 @@ private fun WishDetails(
     LazyColumn(
         modifier = modifier.fillMaxWidth().testTag("wish_details"),
         contentPadding = PaddingValues(start = DayloomSpacing.md, end = DayloomSpacing.md, bottom = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
     ) {
         item {
             DayloomCard(Modifier.fillMaxWidth()) {
@@ -426,7 +426,7 @@ private fun WishDetails(
                     WishImageCover(
                         imagePath = imagePath,
                         title = goal.title,
-                        modifier = Modifier.fillMaxWidth().height(196.dp),
+                        modifier = Modifier.fillMaxWidth().height(172.dp),
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
                         OutlinedButton(

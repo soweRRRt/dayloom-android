@@ -222,6 +222,7 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("plan_search").performScrollTo().performTextInput(note)
         closeSoftKeyboard()
         waitUntilScrollable("planner_list", "plan_$title")
+        composeRule.onNodeWithTag("plan_filters_toggle").performScrollTo().performClick()
         composeRule
             .onNodeWithTag("plan_status_open")
             .performScrollTo()

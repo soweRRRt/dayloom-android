@@ -58,6 +58,8 @@
     <string name="planner_search_clear">Clear plan search</string>
     <string name="planner_filters_empty">No plans match these filters. Reset filters or change the search.</string>
     <string name="planner_filters_reset">Reset filters</string>
+    <string name="planner_filters_title">Filters</string>
+    <string name="planner_filters_active">Filters · %1$d</string>
     <string name="planner_filter_date">Date</string>
     <string name="planner_filter_status">Status</string>
     <string name="planner_filter_time">Exact time</string>

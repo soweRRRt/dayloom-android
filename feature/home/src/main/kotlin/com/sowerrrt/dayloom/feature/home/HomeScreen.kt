@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -225,9 +227,9 @@ private fun HomeContent(
                 PaddingValues(
                     start = DayloomSpacing.md,
                     end = DayloomSpacing.md,
-                    bottom = 96.dp,
+                    bottom = DayloomSpacing.lg,
                 ),
-            verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
         ) {
             item { WelcomeCard(state) }
             item {
@@ -250,8 +252,8 @@ private fun HomeContent(
             if (!state.isLoading && todayItems.isEmpty()) {
                 item { TodayEmptyCard(onOpenHabits, onOpenPlanner) }
             } else {
-                items(todayItems, key = TodayRowData::key) { item ->
-                    Box(Modifier.animateItem()) { TodayRow(item) }
+                item(key = "today_timeline") {
+                    Box(Modifier.animateItem()) { TodayTimeline(todayItems) }
                 }
             }
             item {
@@ -292,8 +294,19 @@ private fun SectionHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(title, style = MaterialTheme.typography.titleLarge)
-        TextButton(onClick = onAction) { Text(action) }
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.titleLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        TextButton(
+            onClick = onAction,
+            contentPadding = PaddingValues(horizontal = DayloomSpacing.sm),
+        ) {
+            Text(action, maxLines = 1)
+        }
     }
 }
 
@@ -319,65 +332,91 @@ private fun TodayEmptyCard(
 }
 
 @Composable
+private fun TodayTimeline(items: List<TodayRowData>) {
+    DayloomCard(
+        modifier = Modifier.fillMaxWidth().testTag("home_today_timeline"),
+        contentPadding = PaddingValues(0.dp),
+    ) {
+        Column {
+            items.forEachIndexed { index, item ->
+                TodayRow(item)
+                if (index < items.lastIndex) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 68.dp, end = DayloomSpacing.md),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun TodayRow(item: TodayRowData) {
     val locale = LocalConfiguration.current.locales[0]
-    DayloomCard(
-        modifier = Modifier.fillMaxWidth().testTag("home_today_${item.testTag}"),
-        contentPadding = PaddingValues(horizontal = DayloomSpacing.regular, vertical = DayloomSpacing.sm),
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag("home_today_${item.testTag}")
+                .padding(horizontal = DayloomSpacing.regular, vertical = DayloomSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+        Box(
+            Modifier
+                .width(3.dp)
+                .height(32.dp)
+                .clip(CircleShape)
+                .background(item.color.copy(alpha = 0.72f)),
+        )
+        IconButton(
+            onClick = item.onToggle,
+            modifier =
+                Modifier.testTag(
+                    "home_toggle_${item.testTag}_${if (item.completed) "completed" else "open"}",
+                ),
         ) {
-            IconButton(
-                onClick = item.onToggle,
-                modifier =
-                    Modifier.testTag(
-                        "home_toggle_${item.testTag}_${if (item.completed) "completed" else "open"}",
-                    ),
+            Icon(
+                if (item.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                contentDescription = stringResource(R.string.home_toggle_item, item.title),
+                tint = if (item.completed) item.color else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                item.title,
+                style = MaterialTheme.typography.titleSmall,
+                textDecoration = if (item.completed) TextDecoration.LineThrough else null,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+            ) {
+                Text(item.typeLabel, style = MaterialTheme.typography.labelMedium, color = item.color)
+                if (item.detail.isNotBlank()) {
+                    Text("· ${item.detail}", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+        item.reminderMinutes?.let { minutes ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
             ) {
                 Icon(
-                    if (item.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-                    contentDescription = stringResource(R.string.home_toggle_item, item.title),
-                    tint = if (item.completed) item.color else MaterialTheme.colorScheme.onSurfaceVariant,
+                    Icons.Rounded.AccessTime,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
                 )
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    item.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    textDecoration = if (item.completed) TextDecoration.LineThrough else null,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+                    String.format(locale, "%02d:%02d", minutes / 60, minutes % 60),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                ) {
-                    Text(item.typeLabel, style = MaterialTheme.typography.labelMedium, color = item.color)
-                    if (item.detail.isNotBlank()) {
-                        Text("· ${item.detail}", style = MaterialTheme.typography.labelMedium)
-                    }
-                }
-            }
-            item.reminderMinutes?.let { minutes ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    Icon(
-                        Icons.Rounded.AccessTime,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(
-                        String.format(locale, "%02d:%02d", minutes / 60, minutes % 60),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
         }
     }
@@ -500,7 +539,7 @@ private fun ModuleSummaryCard(
     DayloomCard(
         modifier =
             modifier
-                .height(148.dp)
+                .height(128.dp)
                 .testTag("home_card_${section.name.lowercase()}"),
         onClick = data.onClick,
     ) {

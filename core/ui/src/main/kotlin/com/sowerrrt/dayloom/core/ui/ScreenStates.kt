@@ -39,7 +39,7 @@ fun ModulePreviewScreen(
     icon: ImageVector,
     modifier: Modifier = Modifier,
     onAction: () -> Unit = {},
-    contentPadding: PaddingValues = PaddingValues(bottom = 96.dp),
+    contentPadding: PaddingValues = PaddingValues(bottom = DayloomSpacing.lg),
 ) {
     Column(modifier.fillMaxSize()) {
         DayloomTopBar(title)
@@ -63,7 +63,7 @@ fun ModulePreviewScreen(
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(vertical = DayloomSpacing.lg),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+                    verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
                 ) {
                     Icon(
                         imageVector = icon,

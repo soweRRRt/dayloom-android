@@ -90,6 +90,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sowerrrt.dayloom.core.designsystem.DayloomButton
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
+import com.sowerrrt.dayloom.core.designsystem.DayloomHorizontalRail
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
@@ -351,7 +352,7 @@ private fun EmptyHabits(
             Column(
                 modifier = Modifier.fillMaxWidth().padding(vertical = DayloomSpacing.lg),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
             ) {
                 Icon(
                     imageVector = Icons.Rounded.AutoAwesome,
@@ -379,18 +380,16 @@ private fun EmptyHabits(
                         stringResource(R.string.habits_quick_add),
                         style = MaterialTheme.typography.titleMedium,
                     )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                    ) {
-                        presets.forEach { preset ->
-                            AssistChip(
-                                onClick = { onUsePreset(preset) },
-                                label = { Text(preset.title) },
-                                leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null) },
-                                modifier = Modifier.testTag("quick_habit_preset_${preset.title}"),
-                            )
-                        }
+                    DayloomHorizontalRail(
+                        items = presets,
+                        key = { it.title },
+                    ) { preset ->
+                        AssistChip(
+                            onClick = { onUsePreset(preset) },
+                            label = { Text(preset.title) },
+                            leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                            modifier = Modifier.testTag("quick_habit_preset_${preset.title}"),
+                        )
                     }
                 }
             }
@@ -435,36 +434,34 @@ private fun HabitsList(
                     start = DayloomSpacing.md,
                     top = DayloomSpacing.sm,
                     end = DayloomSpacing.md,
-                    bottom = 96.dp,
+                    bottom = 84.dp,
                 ),
             verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
         ) {
             item {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                    verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                ) {
-                    HabitViewMode.entries.forEach { mode ->
-                        val leadingIcon: (@Composable () -> Unit)? =
-                            when (mode) {
-                                HabitViewMode.HISTORY ->
-                                    {
-                                        { Icon(Icons.Rounded.History, contentDescription = null) }
-                                    }
-                                HabitViewMode.ARCHIVED ->
-                                    {
-                                        { Icon(Icons.Rounded.Archive, contentDescription = null) }
-                                    }
-                                else -> null
-                            }
-                        FilterChip(
-                            selected = viewMode == mode,
-                            onClick = { viewMode = mode },
-                            label = { Text(stringResource(mode.labelResource())) },
-                            leadingIcon = leadingIcon,
-                            modifier = Modifier.testTag("habit_view_${mode.name.lowercase()}"),
-                        )
-                    }
+                DayloomHorizontalRail(
+                    items = HabitViewMode.entries,
+                    key = { it.name },
+                ) { mode ->
+                    val leadingIcon: (@Composable () -> Unit)? =
+                        when (mode) {
+                            HabitViewMode.HISTORY ->
+                                {
+                                    { Icon(Icons.Rounded.History, contentDescription = null) }
+                                }
+                            HabitViewMode.ARCHIVED ->
+                                {
+                                    { Icon(Icons.Rounded.Archive, contentDescription = null) }
+                                }
+                            else -> null
+                        }
+                    FilterChip(
+                        selected = viewMode == mode,
+                        onClick = { viewMode = mode },
+                        label = { Text(stringResource(mode.labelResource())) },
+                        leadingIcon = leadingIcon,
+                        modifier = Modifier.testTag("habit_view_${mode.name.lowercase()}"),
+                    )
                 }
             }
             item {
@@ -598,18 +595,16 @@ private fun HabitsList(
                                 stringResource(R.string.habits_quick_add),
                                 style = MaterialTheme.typography.titleMedium,
                             )
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
-                            ) {
-                                state.presets.forEach { preset ->
-                                    AssistChip(
-                                        onClick = { onUsePreset(preset) },
-                                        label = { Text(preset.title) },
-                                        leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null) },
-                                        modifier = Modifier.testTag("quick_habit_preset_${preset.title}"),
-                                    )
-                                }
+                            DayloomHorizontalRail(
+                                items = state.presets,
+                                key = { it.title },
+                            ) { preset ->
+                                AssistChip(
+                                    onClick = { onUsePreset(preset) },
+                                    label = { Text(preset.title) },
+                                    leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                                    modifier = Modifier.testTag("quick_habit_preset_${preset.title}"),
+                                )
                             }
                         }
                     }
@@ -700,7 +695,7 @@ private fun HabitInsightsScreen(
                 end = DayloomSpacing.md,
                 bottom = DayloomSpacing.xl,
             ),
-        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
@@ -725,7 +720,7 @@ private fun HabitInsightsScreen(
         }
         item {
             DayloomCard(Modifier.fillMaxWidth().testTag("habit_insights_summary")) {
-                Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md)) {
+                Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -979,7 +974,7 @@ private fun HabitAnalyticsCard(state: HabitsUiState) {
     val stats = state.habits.periodStats(state.todayEpochDay - ANALYTICS_DAYS + 1, state.todayEpochDay)
     val weekDays = (6L downTo 0L).map { state.todayEpochDay - it }
     DayloomCard(Modifier.fillMaxWidth().testTag("habit_analytics")) {
-        Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md)) {
+        Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1132,7 +1127,7 @@ private fun ArchivedHabitRow(
     onRestore: () -> Unit,
 ) {
     DayloomCard(Modifier.fillMaxWidth().testTag("archived_habit_${habit.title}")) {
-        Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md)) {
+        Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1217,54 +1212,120 @@ private fun HabitRow(
                 .testTag("habit_toggle_${habit.title}"),
         onClick = onToggle.takeIf { scheduledToday },
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
-        ) {
-            if (imagePath != null) {
-                LocalHabitImage(
-                    imagePath = imagePath,
-                    title = habit.title,
-                    modifier = Modifier.size(76.dp),
-                )
-            }
-            Icon(
-                imageVector =
-                    if (completed) {
-                        Icons.Rounded.CheckCircle
-                    } else {
-                        Icons.Rounded.RadioButtonUnchecked
-                    },
-                contentDescription = action,
-                tint =
-                    if (completed) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                modifier = Modifier.size(34.dp),
-            )
-            Column(Modifier.weight(1f)) {
-                Text(habit.title, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text =
-                        stringResource(
-                            if (!scheduledToday) {
-                                R.string.habits_not_scheduled_today
-                            } else if (completed) {
-                                R.string.habits_completed_today
-                            } else {
-                                R.string.habits_tap_to_complete
+        Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+            ) {
+                if (imagePath != null) {
+                    Box(Modifier.size(64.dp)) {
+                        LocalHabitImage(
+                            imagePath = imagePath,
+                            title = habit.title,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                        Box(
+                            modifier =
+                                Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            HabitCompletionIcon(completed, action, Modifier.size(22.dp))
+                        }
+                    }
+                } else {
+                    HabitCompletionIcon(completed, action, Modifier.size(34.dp))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(habit.title, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text =
+                            stringResource(
+                                if (!scheduledToday) {
+                                    R.string.habits_not_scheduled_today
+                                } else if (completed) {
+                                    R.string.habits_completed_today
+                                } else {
+                                    R.string.habits_tap_to_complete
+                                },
+                            ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier =
+                            Modifier.testTag(
+                                "habit_status_${habit.title}_${if (completed) "completed" else "open"}",
+                            ),
+                    )
+                }
+                Box {
+                    IconButton(
+                        onClick = { menuExpanded = true },
+                        modifier = Modifier.testTag("habit_more_${habit.title}"),
+                    ) {
+                        Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.habits_edit))
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                    ) {
+                        if (habit.targetAmount.isNotBlank() || habit.targetUnit.isNotBlank()) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.habits_update_progress)) },
+                                leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
+                                onClick = {
+                                    menuExpanded = false
+                                    onProgress()
+                                },
+                                modifier = Modifier.testTag("habit_progress_${habit.title}"),
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.habits_edit)) },
+                            leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                onEdit()
                             },
-                        ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier =
-                        Modifier.testTag(
-                            "habit_status_${habit.title}_${if (completed) "completed" else "open"}",
-                        ),
-                )
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(
+                                        if (habit.image == null) {
+                                            R.string.habits_add_image
+                                        } else {
+                                            R.string.habits_change_image
+                                        },
+                                    ),
+                                )
+                            },
+                            leadingIcon = { Icon(Icons.Rounded.PhotoLibrary, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                onChooseImage()
+                            },
+                            modifier = Modifier.testTag("habit_image_action_${habit.title}"),
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.habits_archive)) },
+                            leadingIcon = { Icon(Icons.Rounded.Archive, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                onArchive()
+                            },
+                            modifier = Modifier.testTag("archive_habit_${habit.title}"),
+                        )
+                    }
+                }
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(start = 42.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
                 Text(
                     text = scheduleLabel(habit),
                     style = MaterialTheme.typography.bodyMedium,
@@ -1302,88 +1363,49 @@ private fun HabitRow(
                         modifier = Modifier.testTag("habit_target_${habit.title}"),
                     )
                 }
-                Text(
-                    text =
-                        stringResource(
-                            R.string.habits_streaks,
-                            habit.currentStreak(todayEpochDay),
-                            habit.bestStreak(),
-                        ),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            IconButton(
-                onClick = onInsights,
-                modifier = Modifier.testTag("habit_insights_${habit.title}"),
-            ) {
-                Icon(
-                    Icons.Rounded.Insights,
-                    contentDescription = stringResource(R.string.habits_open_insights, habit.title),
-                )
-            }
-            Box {
-                IconButton(
-                    onClick = { menuExpanded = true },
-                    modifier = Modifier.testTag("habit_more_${habit.title}"),
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.habits_edit))
-                }
-                DropdownMenu(
-                    expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false },
-                ) {
-                    if (habit.targetAmount.isNotBlank() || habit.targetUnit.isNotBlank()) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.habits_update_progress)) },
-                            leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
-                            onClick = {
-                                menuExpanded = false
-                                onProgress()
-                            },
-                            modifier = Modifier.testTag("habit_progress_${habit.title}"),
+                    Text(
+                        text =
+                            stringResource(
+                                R.string.habits_streaks,
+                                habit.currentStreak(todayEpochDay),
+                                habit.bestStreak(),
+                            ),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    IconButton(
+                        onClick = onInsights,
+                        modifier = Modifier.size(40.dp).testTag("habit_insights_${habit.title}"),
+                    ) {
+                        Icon(
+                            Icons.Rounded.Insights,
+                            contentDescription = stringResource(R.string.habits_open_insights, habit.title),
+                            modifier = Modifier.size(21.dp),
                         )
                     }
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.habits_edit)) },
-                        leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
-                        onClick = {
-                            menuExpanded = false
-                            onEdit()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                stringResource(
-                                    if (habit.image == null) {
-                                        R.string.habits_add_image
-                                    } else {
-                                        R.string.habits_change_image
-                                    },
-                                ),
-                            )
-                        },
-                        leadingIcon = { Icon(Icons.Rounded.PhotoLibrary, contentDescription = null) },
-                        onClick = {
-                            menuExpanded = false
-                            onChooseImage()
-                        },
-                        modifier = Modifier.testTag("habit_image_action_${habit.title}"),
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.habits_archive)) },
-                        leadingIcon = { Icon(Icons.Rounded.Archive, contentDescription = null) },
-                        onClick = {
-                            menuExpanded = false
-                            onArchive()
-                        },
-                        modifier = Modifier.testTag("archive_habit_${habit.title}"),
-                    )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun HabitCompletionIcon(
+    completed: Boolean,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+) {
+    Icon(
+        imageVector = if (completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+        contentDescription = contentDescription,
+        tint = if (completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier,
+    )
 }
 
 @Composable

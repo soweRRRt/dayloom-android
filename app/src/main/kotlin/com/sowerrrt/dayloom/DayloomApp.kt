@@ -229,7 +229,7 @@ internal fun AppLockedContent(
         DayloomCard(Modifier.fillMaxWidth()) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
             ) {
                 DayloomLogo(Modifier.size(72.dp))
                 Icon(
@@ -529,7 +529,7 @@ private fun DayloomBottomBar(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .height(80.dp),
+                    .height(72.dp),
         ) {
             val indicatorColor = MaterialTheme.colorScheme.primaryContainer
             Canvas(Modifier.fillMaxSize()) {
@@ -707,7 +707,7 @@ private fun MoreScreen(
         DayloomTopBar(stringResource(R.string.more_title))
         Column(
             modifier = Modifier.padding(horizontal = DayloomSpacing.md),
-            verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
         ) {
             Text(
                 stringResource(R.string.more_description),

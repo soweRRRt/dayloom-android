@@ -136,8 +136,13 @@ fun SettingsScreen(
         )
         LazyColumn(
             modifier = Modifier.testTag("settings_list"),
-            contentPadding = PaddingValues(start = DayloomSpacing.md, end = DayloomSpacing.md, bottom = 104.dp),
-            verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+            contentPadding =
+                PaddingValues(
+                    start = DayloomSpacing.md,
+                    end = DayloomSpacing.md,
+                    bottom = DayloomSpacing.lg,
+                ),
+            verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
         ) {
             item {
                 SettingsSection(stringResource(R.string.settings_appearance)) {
