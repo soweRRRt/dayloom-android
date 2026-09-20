@@ -724,7 +724,7 @@ private fun PlanRow(
                             .fillMaxWidth()
                             .height(112.dp)
                             .clickable(onClick = onChooseImage)
-                            .testTag("plan_image_action_${plan.title}"),
+                            .testTag("plan_image_preview_${plan.title}"),
                 )
             }
             Row(
@@ -780,6 +780,22 @@ private fun PlanRow(
                         )
                     }
                 }
+                IconButton(
+                    onClick = onChooseImage,
+                    modifier = Modifier.testTag("plan_image_action_${plan.title}"),
+                ) {
+                    Icon(
+                        Icons.Rounded.PhotoLibrary,
+                        contentDescription =
+                            stringResource(
+                                if (plan.image == null) {
+                                    R.string.planner_add_image
+                                } else {
+                                    R.string.planner_change_image
+                                },
+                            ),
+                    )
+                }
                 Box {
                     IconButton(
                         onClick = { menuExpanded = true },
@@ -830,7 +846,6 @@ private fun PlanRow(
                                 menuExpanded = false
                                 onChooseImage()
                             },
-                            modifier = Modifier.testTag("plan_image_action_${plan.title}"),
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.planner_delete)) },

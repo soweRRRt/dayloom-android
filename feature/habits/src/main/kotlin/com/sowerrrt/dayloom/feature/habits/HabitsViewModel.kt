@@ -8,6 +8,7 @@ import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.HabitPreset
 import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.Weekday
+import com.sowerrrt.dayloom.core.model.isScheduledOn
 import com.sowerrrt.dayloom.core.model.toHabitPresetOrNull
 import com.sowerrrt.dayloom.core.model.toStorageValue
 import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
@@ -37,8 +38,11 @@ data class HabitsUiState(
     val hasImageError: Boolean = false,
     val presets: List<HabitPreset> = emptyList(),
 ) {
+    val scheduledToday: List<Habit>
+        get() = habits.filter { it.isScheduledOn(todayEpochDay) }
+
     val completedToday: Int
-        get() = habits.count { todayEpochDay in it.completedEpochDays }
+        get() = scheduledToday.count { todayEpochDay in it.completedEpochDays }
 }
 
 @HiltViewModel
@@ -214,16 +218,33 @@ class HabitsViewModel
         }
 
         fun toggleCompletion(id: EntityId) {
-            val today = mutableUiState.value.todayEpochDay
-            updateHabits { repository.toggleCompletion(id, today) }
+            toggleCompletion(id, mutableUiState.value.todayEpochDay)
+        }
+
+        fun toggleCompletion(
+            id: EntityId,
+            epochDay: Long,
+        ) {
+            if (epochDay > mutableUiState.value.todayEpochDay) return
+            if (mutableUiState.value.habits.none { it.id == id && it.isScheduledOn(epochDay) }) return
+            updateHabits { repository.toggleCompletion(id, epochDay) }
         }
 
         fun setProgress(
             id: EntityId,
             progress: String,
         ) {
-            val today = mutableUiState.value.todayEpochDay
-            updateHabits { repository.setProgress(id, today, progress) }
+            setProgress(id, mutableUiState.value.todayEpochDay, progress)
+        }
+
+        fun setProgress(
+            id: EntityId,
+            epochDay: Long,
+            progress: String,
+        ) {
+            if (epochDay > mutableUiState.value.todayEpochDay) return
+            if (mutableUiState.value.habits.none { it.id == id && it.isScheduledOn(epochDay) }) return
+            updateHabits { repository.setProgress(id, epochDay, progress) }
         }
 
         fun archiveHabit(id: EntityId) {

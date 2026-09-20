@@ -36,6 +36,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HabitsViewModelTest {
@@ -135,6 +136,45 @@ class HabitsViewModelTest {
             assertEquals(8 * 60 + 30, habit.reminderMinutesOfDay)
             assertEquals("10000", habit.targetAmount)
             assertEquals("steps", habit.targetUnit)
+        }
+
+    @Test
+    fun `past scheduled day can be completed but future and unscheduled days cannot`() =
+        runTest(dispatcher) {
+            val repository = FakeHabitsRepository()
+            val today = LocalDate.now().toEpochDay()
+            repository.createHabit(
+                title = "Read",
+                scheduledWeekdays = Weekday.entries.toSet(),
+                startEpochDay = today - 7,
+                reminderMinutesOfDay = null,
+            )
+            val viewModel =
+                HabitsViewModel(
+                    repository,
+                    FakeNotificationScheduler(),
+                    FakeAttachmentRepository(),
+                    FakeSettingsRepository(),
+                )
+            runCurrent()
+            val id =
+                viewModel.uiState.value.habits
+                    .single()
+                    .id
+
+            viewModel.toggleCompletion(id, today - 1)
+            runCurrent()
+            viewModel.toggleCompletion(id, today + 1)
+            runCurrent()
+            viewModel.toggleCompletion(id, today - 8)
+            runCurrent()
+
+            assertEquals(
+                setOf(today - 1),
+                viewModel.uiState.value.habits
+                    .single()
+                    .completedEpochDays,
+            )
         }
 }
 

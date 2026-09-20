@@ -13,9 +13,11 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.test.espresso.Espresso.closeSoftKeyboard
 import androidx.test.espresso.Espresso.pressBack
 import org.junit.Rule
 import org.junit.Test
+import java.time.LocalDate
 
 class NavigationUiTest {
     @get:Rule
@@ -113,6 +115,7 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("habit_month_days").performTextInput("3, 15")
         composeRule.onNodeWithTag("save_habit").performClick()
 
+        composeRule.onNodeWithTag("habit_view_all").performClick()
         composeRule
             .onNodeWithTag("habits_list")
             .performScrollToNode(hasTestTag("habit_toggle_$title"))
@@ -137,12 +140,11 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("calendar_habit_$habitTitle").assertExists()
         composeRule.onNodeWithTag("create_plan").performClick()
         composeRule.onNodeWithTag("plan_name_input").performTextInput(planTitle)
+        closeSoftKeyboard()
         composeRule.onNodeWithTag("save_plan").performClick()
         waitUntilScrollable("planner_list", "plan_$planTitle")
         composeRule.onNodeWithTag("plan_$planTitle").assertExists()
-        composeRule.onNodeWithTag("plan_more_$planTitle").performClick()
         composeRule.onNodeWithTag("plan_image_action_$planTitle").assertExists()
-        pressBack()
         composeRule.onNodeWithTag("plan_toggle_$planTitle").performClick()
 
         composeRule.activityRule.scenario.recreate()
@@ -217,6 +219,27 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("save_habit_progress").performClick()
 
         waitForTag("habit_status_${title}_completed", useUnmergedTree = true)
+    }
+
+    @Test
+    fun habitHistoryShowsInsightsAndAllowsCompletion() {
+        val title = "History habit ${System.currentTimeMillis()}"
+        val today = LocalDate.now().toEpochDay()
+        composeRule.onNodeWithTag("primary_nav_habits").performClick()
+        composeRule.onNodeWithTag("create_habit").performClick()
+        composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("save_habit").performClick()
+        waitForTag("habit_toggle_$title")
+
+        composeRule.onNodeWithTag("habit_view_history").performClick()
+        composeRule.onNodeWithTag("habit_analytics").assertExists()
+        waitUntilScrollable("habits_list", "habit_history_${title}_$today")
+        composeRule.onNodeWithTag("habit_history_${title}_$today").performClick()
+
+        waitForTag(
+            "habit_history_status_${title}_${today}_completed",
+            useUnmergedTree = true,
+        )
     }
 
     @Test

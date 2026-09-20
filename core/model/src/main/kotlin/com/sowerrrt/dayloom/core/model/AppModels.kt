@@ -171,6 +171,38 @@ fun Habit.bestStreak(): Int {
     return best
 }
 
+data class HabitPeriodStats(
+    val scheduledCount: Int,
+    val completedCount: Int,
+) {
+    val completionPercent: Int
+        get() = if (scheduledCount == 0) 0 else (completedCount * 100f / scheduledCount).toInt()
+}
+
+fun Habit.periodStats(
+    fromEpochDay: Long,
+    toEpochDay: Long,
+): HabitPeriodStats {
+    if (toEpochDay < fromEpochDay) return HabitPeriodStats(0, 0)
+    val scheduledDays = (fromEpochDay..toEpochDay).filter(::isScheduledOn)
+    return HabitPeriodStats(
+        scheduledCount = scheduledDays.size,
+        completedCount = scheduledDays.count(completedEpochDays::contains),
+    )
+}
+
+fun List<Habit>.periodStats(
+    fromEpochDay: Long,
+    toEpochDay: Long,
+): HabitPeriodStats =
+    map { it.periodStats(fromEpochDay, toEpochDay) }
+        .fold(HabitPeriodStats(0, 0)) { total, habit ->
+            HabitPeriodStats(
+                scheduledCount = total.scheduledCount + habit.scheduledCount,
+                completedCount = total.completedCount + habit.completedCount,
+            )
+        }
+
 @Serializable
 data class PlanItem(
     val id: EntityId,
