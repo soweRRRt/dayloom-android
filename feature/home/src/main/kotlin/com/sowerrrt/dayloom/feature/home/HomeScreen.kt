@@ -8,6 +8,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -301,11 +302,34 @@ private fun SectionHeader(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        TextButton(
-            onClick = onAction,
-            contentPadding = PaddingValues(horizontal = DayloomSpacing.sm),
+        Box(
+            modifier =
+                Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primaryContainer,
+                                MaterialTheme.colorScheme.secondaryContainer,
+                            ),
+                        ),
+                    ).clickable(onClick = onAction)
+                    .testTag("home_open_calendar"),
+            contentAlignment = Alignment.Center,
         ) {
-            Text(action, maxLines = 1)
+            Icon(
+                Icons.Rounded.CalendarMonth,
+                contentDescription = action,
+                modifier = Modifier.size(23.dp),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Icon(
+                Icons.Rounded.ArrowForward,
+                contentDescription = null,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp).size(11.dp),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
         }
     }
 }

@@ -7,6 +7,7 @@
     <string name="habits_today_progress">%1$d of %2$d completed today</string>
     <string name="habits_completed_today">Completed today</string>
     <string name="habits_tap_to_complete">Tap to complete today</string>
+    <string name="habits_completion_hint">Tap a card to mark it</string>
     <string name="habits_mark_complete">Mark %1$s complete</string>
     <string name="habits_mark_incomplete">Mark %1$s incomplete</string>
     <string name="habits_create_title">New habit</string>

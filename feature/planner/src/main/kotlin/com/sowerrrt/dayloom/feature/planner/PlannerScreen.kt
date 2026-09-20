@@ -30,11 +30,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -744,6 +746,7 @@ private fun WeekCalendar(
                     Icon(Icons.Rounded.ChevronRight, contentDescription = stringResource(R.string.planner_next_week))
                 }
             }
+            CalendarLegend()
             AnimatedContent(
                 targetState = weekStart.toEpochDay(),
                 transitionSpec = {
@@ -831,6 +834,7 @@ private fun MonthCalendar(
             TextButton(onClick = onToday, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                 Text(stringResource(R.string.planner_today))
             }
+            CalendarLegend()
             Row(Modifier.fillMaxWidth()) {
                 java.time.DayOfWeek.entries.forEach { dayOfWeek ->
                     Text(
@@ -904,9 +908,18 @@ private fun CalendarDay(
     modifier: Modifier = Modifier,
 ) {
     val shape = MaterialTheme.shapes.small
+    val activityCount = habitCount + planCount
     val background by
         animateColorAsState(
-            targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+            targetValue =
+                when {
+                    selected -> MaterialTheme.colorScheme.primaryContainer
+                    activityCount > 0 ->
+                        MaterialTheme.colorScheme.surfaceVariant.copy(
+                            alpha = 0.18f + activityCount.coerceAtMost(6) * 0.035f,
+                        )
+                    else -> Color.Transparent
+                },
             animationSpec = tween(DayloomMotion.STANDARD_MILLIS),
             label = "calendarDayBackground",
         )
@@ -944,29 +957,78 @@ private fun CalendarDay(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(date.dayOfMonth.toString(), style = MaterialTheme.typography.bodyMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             if (habitCount > 0) {
-                CalendarDot(MaterialTheme.colorScheme.primary, completedHabitCount == habitCount)
+                CalendarActivityBar(
+                    color = MaterialTheme.colorScheme.primary,
+                    progress = completedHabitCount.toFloat() / habitCount,
+                    modifier = Modifier.testTag("calendar_habit_progress_${date.toEpochDay()}"),
+                )
             }
             if (planCount > 0) {
-                CalendarDot(MaterialTheme.colorScheme.secondary, completedPlanCount == planCount)
+                CalendarActivityBar(
+                    color = MaterialTheme.colorScheme.secondary,
+                    progress = completedPlanCount.toFloat() / planCount,
+                    modifier = Modifier.testTag("calendar_plan_progress_${date.toEpochDay()}"),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun CalendarDot(
+private fun CalendarActivityBar(
     color: Color,
-    completed: Boolean,
+    progress: Float,
+    modifier: Modifier = Modifier,
 ) {
     Box(
-        Modifier
-            .size(
-                if (completed) 6.dp else 5.dp,
-            ).clip(CircleShape)
-            .background(color.copy(alpha = if (completed) 1f else 0.48f)),
-    )
+        modifier
+            .width(22.dp)
+            .height(3.dp)
+            .clip(CircleShape)
+            .background(color.copy(alpha = 0.22f)),
+    ) {
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(progress.coerceIn(0f, 1f))
+                .background(color),
+        )
+    }
+}
+
+@Composable
+private fun CalendarLegend() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CalendarLegendItem(MaterialTheme.colorScheme.primary, stringResource(R.string.planner_habits_section))
+        Spacer(Modifier.width(DayloomSpacing.md))
+        CalendarLegendItem(MaterialTheme.colorScheme.secondary, stringResource(R.string.planner_plans_section))
+    }
+}
+
+@Composable
+private fun CalendarLegendItem(
+    color: Color,
+    label: String,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+    ) {
+        Box(
+            Modifier
+                .width(18.dp)
+                .height(4.dp)
+                .clip(CircleShape)
+                .background(color),
+        )
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }
 
 @Composable

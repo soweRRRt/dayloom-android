@@ -1,5 +1,6 @@
 package com.sowerrrt.dayloom.feature.lists
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,10 +28,15 @@ import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.FormatListBulleted
+import androidx.compose.material.icons.rounded.FormatListNumbered
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Luggage
+import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Notes
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.ShoppingCart
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilterChip
@@ -177,11 +183,6 @@ fun ListsScreen(viewModel: ListsViewModel = hiltViewModel()) {
     if (showListEditor) {
         ListEditorDialog(
             list = editingList,
-            customKinds =
-                state.lists
-                    .map(DayList::customKind)
-                    .filter(String::isNotBlank)
-                    .toSet(),
             onDismiss = { showListEditor = false },
             onSave = { title, kind, customKind ->
                 val list = editingList
@@ -316,21 +317,29 @@ private fun ListOverviewCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
             ) {
-                Icon(kindIcon(list.kind), contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+                Icon(listIcon(list), contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
                 Column(Modifier.weight(1f)) {
                     Text(list.title, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        list.customKind.ifBlank { kindLabel(list.kind) },
+                        kindLabel(list.kind),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                Text(stringResource(R.string.lists_progress, completed, total))
+                Text(
+                    if (list.kind == ListKind.GENERAL) {
+                        stringResource(R.string.lists_progress, completed, total)
+                    } else {
+                        stringResource(R.string.lists_items_count, total)
+                    },
+                )
             }
-            LinearProgressIndicator(
-                progress = { if (total == 0) 0f else completed.toFloat() / total },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (list.kind == ListKind.GENERAL) {
+                LinearProgressIndicator(
+                    progress = { if (total == 0) 0f else completed.toFloat() / total },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
@@ -357,21 +366,29 @@ private fun ListDetails(
             DayloomCard(Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(kindIcon(list.kind), contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+                        Icon(listIcon(list), contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
                         Spacer(Modifier.size(DayloomSpacing.sm))
                         Text(
-                            list.customKind.ifBlank { kindLabel(list.kind) },
+                            kindLabel(list.kind),
                             style = MaterialTheme.typography.titleMedium,
                         )
                         Spacer(Modifier.weight(1f))
-                        Text(stringResource(R.string.lists_progress, completed, list.items.size))
+                        Text(
+                            if (list.kind == ListKind.GENERAL) {
+                                stringResource(R.string.lists_progress, completed, list.items.size)
+                            } else {
+                                stringResource(R.string.lists_items_count, list.items.size)
+                            },
+                        )
                     }
-                    LinearProgressIndicator(
-                        progress = {
-                            if (list.items.isEmpty()) 0f else completed.toFloat() / list.items.size
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    if (list.kind == ListKind.GENERAL) {
+                        LinearProgressIndicator(
+                            progress = {
+                                if (list.items.isEmpty()) 0f else completed.toFloat() / list.items.size
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
         }
@@ -410,6 +427,8 @@ private fun ListDetails(
                 Box(Modifier.animateItem()) {
                     ListItemRow(
                         item = item,
+                        index = index,
+                        kind = list.kind,
                         canMoveUp = index > 0,
                         canMoveDown = index < list.items.lastIndex,
                         onToggle = { onToggle(item) },
@@ -427,6 +446,8 @@ private fun ListDetails(
 @Composable
 private fun ListItemRow(
     item: DayListItem,
+    index: Int,
+    kind: ListKind,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onToggle: () -> Unit,
@@ -438,17 +459,49 @@ private fun ListItemRow(
     DayloomCard(Modifier.fillMaxWidth().testTag("list_item_${item.title}")) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onToggle, modifier = Modifier.testTag("list_item_toggle_${item.title}")) {
-                    Icon(
-                        if (item.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-                        contentDescription = stringResource(R.string.lists_toggle_item, item.title),
-                        tint =
-                            if (item.completed) {
-                                MaterialTheme.colorScheme.tertiary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                    )
+                when (kind) {
+                    ListKind.GENERAL -> {
+                        IconButton(
+                            onClick = onToggle,
+                            modifier = Modifier.testTag("list_item_toggle_${item.title}"),
+                        ) {
+                            Icon(
+                                if (item.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                                contentDescription = stringResource(R.string.lists_toggle_item, item.title),
+                                tint =
+                                    if (item.completed) {
+                                        MaterialTheme.colorScheme.tertiary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                            )
+                        }
+                    }
+                    ListKind.SHOPPING -> {
+                        Box(
+                            modifier = Modifier.size(48.dp).testTag("list_item_number_${item.title}"),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                "${index + 1}.",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                    ListKind.PACKING -> {
+                        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                            Box(
+                                Modifier
+                                    .size(8.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.primary,
+                                        androidx.compose.foundation.shape.CircleShape,
+                                    ),
+                            )
+                        }
+                    }
+                    ListKind.IDEAS -> Spacer(Modifier.size(12.dp))
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -497,13 +550,17 @@ private fun ListItemRow(
 @Composable
 private fun ListEditorDialog(
     list: DayList?,
-    customKinds: Set<String>,
     onDismiss: () -> Unit,
     onSave: (String, ListKind, String) -> Unit,
 ) {
     var title by remember(list?.id) { mutableStateOf(list?.title.orEmpty()) }
     var kind by remember(list?.id) { mutableStateOf(list?.kind ?: ListKind.GENERAL) }
-    var customKind by remember(list?.id) { mutableStateOf(list?.customKind.orEmpty()) }
+    var accentIcon by
+        remember(list?.id) {
+            mutableStateOf(
+                iconFromStorage(list?.customKind.orEmpty()) ?: defaultAccentIcon(list?.kind ?: ListKind.GENERAL),
+            )
+        }
     AlertDialog(
         modifier = Modifier.dayloomDialogMotion(),
         onDismissRequest = onDismiss,
@@ -524,18 +581,23 @@ private fun ListEditorDialog(
                     singleLine = true,
                 )
                 Text(stringResource(R.string.lists_kind_label), style = MaterialTheme.typography.titleMedium)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+                Text(
+                    stringResource(R.string.lists_kind_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                ) {
                     ListKind.entries.forEach { candidate ->
                         FilterChip(
-                            selected = kind == candidate && customKind.isBlank(),
-                            onClick = {
-                                kind = candidate
-                                customKind = ""
-                            },
+                            selected = kind == candidate,
+                            onClick = { kind = candidate },
                             label = { Text(kindLabel(candidate)) },
                             leadingIcon = {
                                 Icon(
-                                    kindIcon(candidate),
+                                    styleIcon(candidate),
                                     contentDescription = null,
                                     tint =
                                         if (kind == candidate) {
@@ -549,36 +611,37 @@ private fun ListEditorDialog(
                         )
                     }
                 }
-                OutlinedTextField(
-                    value = customKind,
-                    onValueChange = {
-                        customKind = it.take(MAX_CUSTOM_KIND_LENGTH)
-                        if (customKind.isNotBlank()) kind = ListKind.GENERAL
-                    },
-                    modifier = Modifier.fillMaxWidth().testTag("custom_list_kind_input"),
-                    label = { Text(stringResource(R.string.lists_custom_kind_label)) },
-                    supportingText = { Text(stringResource(R.string.lists_custom_kind_description)) },
-                    singleLine = true,
+                Text(stringResource(R.string.lists_icon_label), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.lists_icon_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (customKinds.isNotEmpty()) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs)) {
-                        customKinds.sorted().forEach { savedKind ->
-                            FilterChip(
-                                selected = customKind == savedKind,
-                                onClick = {
-                                    customKind = savedKind
-                                    kind = ListKind.GENERAL
-                                },
-                                label = { Text(savedKind) },
-                            )
-                        }
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                ) {
+                    ListAccentIcon.entries.forEach { candidate ->
+                        FilterChip(
+                            selected = accentIcon == candidate,
+                            onClick = { accentIcon = candidate },
+                            label = { Text(iconLabel(candidate)) },
+                            leadingIcon = {
+                                Icon(
+                                    accentIcon(candidate),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.tertiary,
+                                )
+                            },
+                            modifier = Modifier.testTag("list_icon_${candidate.name.lowercase()}"),
+                        )
                     }
                 }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(title, kind, customKind) },
+                onClick = { onSave(title, kind, accentIcon.storageValue()) },
                 enabled = title.isNotBlank(),
                 modifier = Modifier.testTag("save_list"),
             ) {
@@ -708,13 +771,16 @@ private fun DeleteDialog(
     )
 }
 
-private fun kindIcon(kind: ListKind): ImageVector =
+private fun styleIcon(kind: ListKind): ImageVector =
     when (kind) {
         ListKind.GENERAL -> Icons.Rounded.Checklist
-        ListKind.SHOPPING -> Icons.Rounded.ShoppingCart
-        ListKind.PACKING -> Icons.Rounded.Luggage
-        ListKind.IDEAS -> Icons.Rounded.Lightbulb
+        ListKind.SHOPPING -> Icons.Rounded.FormatListNumbered
+        ListKind.PACKING -> Icons.Rounded.FormatListBulleted
+        ListKind.IDEAS -> Icons.Rounded.Notes
     }
+
+private fun listIcon(list: DayList): ImageVector =
+    iconFromStorage(list.customKind)?.let(::accentIcon) ?: accentIcon(defaultAccentIcon(list.kind))
 
 @Composable
 private fun kindLabel(kind: ListKind): String =
@@ -727,8 +793,56 @@ private fun kindLabel(kind: ListKind): String =
         },
     )
 
+private enum class ListAccentIcon {
+    CHECK,
+    CART,
+    TRIP,
+    IDEA,
+    STAR,
+    BOOK,
+}
+
+private fun accentIcon(icon: ListAccentIcon): ImageVector =
+    when (icon) {
+        ListAccentIcon.CHECK -> Icons.Rounded.Checklist
+        ListAccentIcon.CART -> Icons.Rounded.ShoppingCart
+        ListAccentIcon.TRIP -> Icons.Rounded.Luggage
+        ListAccentIcon.IDEA -> Icons.Rounded.Lightbulb
+        ListAccentIcon.STAR -> Icons.Rounded.Star
+        ListAccentIcon.BOOK -> Icons.Rounded.MenuBook
+    }
+
+private fun defaultAccentIcon(kind: ListKind): ListAccentIcon =
+    when (kind) {
+        ListKind.GENERAL -> ListAccentIcon.CHECK
+        ListKind.SHOPPING -> ListAccentIcon.CART
+        ListKind.PACKING -> ListAccentIcon.TRIP
+        ListKind.IDEAS -> ListAccentIcon.IDEA
+    }
+
+@Composable
+private fun iconLabel(icon: ListAccentIcon): String =
+    stringResource(
+        when (icon) {
+            ListAccentIcon.CHECK -> R.string.lists_icon_check
+            ListAccentIcon.CART -> R.string.lists_icon_cart
+            ListAccentIcon.TRIP -> R.string.lists_icon_trip
+            ListAccentIcon.IDEA -> R.string.lists_icon_idea
+            ListAccentIcon.STAR -> R.string.lists_icon_star
+            ListAccentIcon.BOOK -> R.string.lists_icon_book
+        },
+    )
+
+private fun ListAccentIcon.storageValue(): String = "$LIST_ICON_PREFIX$name"
+
+private fun iconFromStorage(value: String): ListAccentIcon? =
+    value
+        .takeIf { it.startsWith(LIST_ICON_PREFIX) }
+        ?.removePrefix(LIST_ICON_PREFIX)
+        ?.let { stored -> ListAccentIcon.entries.firstOrNull { it.name == stored } }
+
 private const val MAX_LIST_TITLE_LENGTH = 80
-private const val MAX_CUSTOM_KIND_LENGTH = 40
+private const val LIST_ICON_PREFIX = "icon:"
 private const val MAX_ITEM_TITLE_LENGTH = 120
 private const val MAX_QUANTITY_LENGTH = 32
 private const val MAX_NOTE_LENGTH = 500

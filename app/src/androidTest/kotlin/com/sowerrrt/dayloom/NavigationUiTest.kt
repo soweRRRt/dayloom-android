@@ -32,6 +32,12 @@ class NavigationUiTest {
     }
 
     @Test
+    fun homeCalendarShortcutOpensPlanner() {
+        composeRule.onNodeWithTag("home_open_calendar").performClick()
+        composeRule.onNodeWithTag("planner_screen").assertExists()
+    }
+
+    @Test
     fun habitCanBeCreatedCompletedAndRestored() {
         val title = "Read before bed ${System.currentTimeMillis()}"
         composeRule.onNodeWithTag("primary_nav_habits").performClick()
@@ -46,7 +52,7 @@ class NavigationUiTest {
         composeRule.onNodeWithText(title).assertExists()
         composeRule.onNodeWithTag("habit_target_$title", useUnmergedTree = true).assertExists()
         composeRule.onNodeWithTag("habit_more_$title").performClick()
-        composeRule.onNodeWithTag("habit_image_action_$title").assertExists()
+        composeRule.onAllNodesWithTag("habit_image_action_$title").assertCountEquals(0)
         pressBack()
 
         composeRule.onNodeWithTag("habit_toggle_$title").performClick()
@@ -124,6 +130,7 @@ class NavigationUiTest {
     @Test
     fun calendarCombinesHabitsAndPlansAndRestoresThem() {
         val suffix = System.currentTimeMillis()
+        val todayEpochDay = LocalDate.now().toEpochDay()
         val habitTitle = "Calendar habit $suffix"
         val planTitle = "Calendar plan $suffix"
 
@@ -135,6 +142,7 @@ class NavigationUiTest {
 
         composeRule.onNodeWithTag("primary_nav_planner").performClick()
         composeRule.onNodeWithTag("month_calendar").assertExists()
+        composeRule.onNodeWithTag("calendar_habit_progress_$todayEpochDay", useUnmergedTree = true).assertExists()
         waitUntilScrollable("planner_list", "calendar_habit_$habitTitle")
         composeRule.onNodeWithTag("calendar_habit_$habitTitle").assertExists()
         composeRule.onNodeWithTag("create_plan").performClick()
@@ -143,6 +151,7 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("save_plan").performClick()
         waitUntilScrollable("planner_list", "plan_$planTitle")
         composeRule.onNodeWithTag("plan_$planTitle").assertExists()
+        composeRule.onNodeWithTag("calendar_plan_progress_$todayEpochDay", useUnmergedTree = true).assertExists()
         composeRule.onNodeWithTag("plan_image_action_$planTitle").assertExists()
         composeRule.onNodeWithTag("plan_toggle_$planTitle").performClick()
 
@@ -351,12 +360,12 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("primary_nav_lists").performClick()
         composeRule.onNodeWithTag("create_list").performClick()
         composeRule.onNodeWithTag("list_name_input").performTextInput(listTitle)
-        composeRule.onNodeWithTag("list_kind_shopping").performClick()
-        composeRule.onNodeWithTag("list_kind_shopping").assertIsSelected()
-        composeRule.onNodeWithTag("custom_list_kind_input").performScrollTo().performTextInput("Errands")
+        composeRule.onNodeWithTag("list_kind_general").assertIsSelected()
+        composeRule.onNodeWithTag("list_icon_cart").performScrollTo().performClick()
+        composeRule.onNodeWithTag("list_icon_cart").assertIsSelected()
         composeRule.onNodeWithTag("save_list").performClick()
         composeRule.onNodeWithTag("list_details").assertExists()
-        composeRule.onNodeWithText("Errands").assertExists()
+        composeRule.onNodeWithText("Checklist").assertExists()
 
         composeRule.onNodeWithTag("create_list_item").performClick()
         composeRule.onNodeWithTag("list_item_name_input").performTextInput(itemTitle)
@@ -370,6 +379,28 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("list_item_$itemTitle").assertExists()
         composeRule.onNodeWithTag("list_item_quantity_$itemTitle").assertTextContains("2 cartons", substring = true)
         composeRule.onNodeWithTag("list_item_note_$itemTitle").assertTextContains("Unsweetened")
+    }
+
+    @Test
+    fun numberedListShowsNumbersInsteadOfCheckboxes() {
+        val suffix = System.currentTimeMillis()
+        val listTitle = "Reading order $suffix"
+        val itemTitle = "First chapter $suffix"
+
+        composeRule.onNodeWithTag("primary_nav_lists").performClick()
+        composeRule.onNodeWithTag("create_list").performClick()
+        composeRule.onNodeWithTag("list_name_input").performTextInput(listTitle)
+        composeRule.onNodeWithTag("list_kind_shopping").performClick()
+        composeRule.onNodeWithTag("list_kind_shopping").assertIsSelected()
+        composeRule.onNodeWithTag("list_icon_book").performScrollTo().performClick()
+        composeRule.onNodeWithTag("save_list").performClick()
+
+        composeRule.onNodeWithTag("create_list_item").performClick()
+        composeRule.onNodeWithTag("list_item_name_input").performTextInput(itemTitle)
+        composeRule.onNodeWithTag("save_list_item").performClick()
+
+        composeRule.onNodeWithTag("list_item_number_$itemTitle").assertExists()
+        composeRule.onAllNodesWithTag("list_item_toggle_$itemTitle").assertCountEquals(0)
     }
 
     @Test
