@@ -11,6 +11,7 @@ fun List<PlanItem>.activePlanReminders(
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): List<ScheduledNotification> =
     mapNotNull { plan ->
+        if (!plan.reminderEnabled) return@mapNotNull null
         val minutes = plan.reminderMinutesOfDay ?: return@mapNotNull null
         val today =
             java.time.Instant

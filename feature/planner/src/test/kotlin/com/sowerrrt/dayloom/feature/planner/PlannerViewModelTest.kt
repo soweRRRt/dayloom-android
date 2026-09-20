@@ -10,6 +10,7 @@ import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.PlanItem
+import com.sowerrrt.dayloom.core.model.PlanRepeat
 import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
@@ -193,6 +194,32 @@ class PlannerViewModelTest {
         }
 
     @Test
+    fun `plan time can be saved without scheduling a notification`() =
+        runTest(dispatcher) {
+            val selectedDay = LocalDate.now().plusDays(1).toEpochDay()
+            val plannerRepository = FakePlannerRepository()
+            val scheduler = FakeNotificationScheduler()
+            val viewModel =
+                PlannerViewModel(
+                    FakeHabitsRepository(LocalDate.now().toEpochDay()),
+                    plannerRepository,
+                    scheduler,
+                    FakeAttachmentRepository(),
+                    FakeSettingsRepository(),
+                )
+            runCurrent()
+            viewModel.selectDate(selectedDay)
+
+            viewModel.createPlan("Deep work", 9 * 60, reminderEnabled = false)
+            runCurrent()
+
+            val plan = plannerRepository.loadPlans().single()
+            assertEquals(9 * 60, plan.reminderMinutesOfDay)
+            assertFalse(plan.reminderEnabled)
+            assertTrue(scheduler.notifications.isEmpty())
+        }
+
+    @Test
     fun `only future incomplete plans become reminders`() {
         val zone = ZoneId.of("UTC")
         val today = LocalDate.of(2030, 1, 2)
@@ -207,10 +234,18 @@ class PlannerViewModelTest {
                 PlanItem(EntityId("past"), "Past", today.toEpochDay(), 1L, reminderMinutesOfDay = 9 * 60),
                 PlanItem(EntityId("future"), "Future", today.toEpochDay(), 2L, reminderMinutesOfDay = 18 * 60),
                 PlanItem(
+                    EntityId("silent"),
+                    "Silent",
+                    today.toEpochDay(),
+                    3L,
+                    reminderMinutesOfDay = 19 * 60,
+                    reminderEnabled = false,
+                ),
+                PlanItem(
                     EntityId("done"),
                     "Done",
                     today.plusDays(1).toEpochDay(),
-                    3L,
+                    4L,
                     completed = true,
                     reminderMinutesOfDay = 10 * 60,
                 ),
@@ -284,6 +319,23 @@ private class FakePlannerRepository : PlannerRepository {
         title: String,
         dateEpochDay: Long,
         reminderMinutesOfDay: Int?,
+    ): List<PlanItem> =
+        createPlan(
+            title,
+            dateEpochDay,
+            reminderMinutesOfDay,
+            PlanRepeat.NONE,
+            null,
+            reminderMinutesOfDay != null,
+        )
+
+    override suspend fun createPlan(
+        title: String,
+        dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
+        repeat: PlanRepeat,
+        repeatUntilEpochDay: Long?,
+        reminderEnabled: Boolean,
     ): List<PlanItem> {
         plans =
             plans +
@@ -293,6 +345,9 @@ private class FakePlannerRepository : PlannerRepository {
                 dateEpochDay = dateEpochDay,
                 createdAtEpochMillis = 1L,
                 reminderMinutesOfDay = reminderMinutesOfDay,
+                reminderEnabled = reminderEnabled && reminderMinutesOfDay != null,
+                repeat = repeat,
+                repeatUntilEpochDay = repeatUntilEpochDay,
             )
         return plans
     }

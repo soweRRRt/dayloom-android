@@ -11,6 +11,7 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -79,6 +80,26 @@ class FilePlannerRepositoryTest {
         }
 
     @Test
+    fun `plan time can be stored with notification disabled`() =
+        runTest {
+            val directory = temporaryFolder.newFolder("silent-time")
+            val repository = FilePlannerRepository(directory, idFactory = { EntityId("silent-plan") })
+
+            repository.createPlan(
+                title = "Deep work",
+                dateEpochDay = TEST_EPOCH_DAY,
+                reminderMinutesOfDay = 9 * 60,
+                repeat = PlanRepeat.NONE,
+                repeatUntilEpochDay = null,
+                reminderEnabled = false,
+            )
+
+            val restored = FilePlannerRepository(directory).loadPlans().single()
+            assertEquals(9 * 60, restored.reminderMinutesOfDay)
+            assertFalse(restored.reminderEnabled)
+        }
+
+    @Test
     fun `schema one plan is upgraded without losing completion`() =
         runTest {
             val directory = temporaryFolder.newFolder("migration")
@@ -92,6 +113,7 @@ class FilePlannerRepositoryTest {
                     "title": "Legacy plan",
                     "dateEpochDay": 21000,
                     "createdAtEpochMillis": 100,
+                    "reminderMinutesOfDay": 600,
                     "completed": true
                   }]}
                 }
@@ -102,6 +124,8 @@ class FilePlannerRepositoryTest {
 
             assertEquals(PlanRepeat.NONE, restored.repeat)
             assertTrue(restored.completed)
+            assertEquals(600, restored.reminderMinutesOfDay)
+            assertTrue(restored.reminderEnabled)
             assertEquals(
                 2,
                 Json

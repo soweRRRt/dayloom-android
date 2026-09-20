@@ -40,6 +40,7 @@ data class DemoPlan(
     val reminderMinutesOfDay: Int? = null,
     val image: DemoImage? = null,
     val repeat: PlanRepeat = PlanRepeat.NONE,
+    val reminderEnabled: Boolean = reminderMinutesOfDay != null,
 )
 
 data class DemoList(
@@ -219,6 +220,8 @@ class LocalDemoContentRepository(
                         todayEpochDay + demo.dayOffset,
                         demo.reminderMinutesOfDay,
                         demo.repeat,
+                        null,
+                        demo.reminderEnabled,
                     )
                 plan = current.last { it.title == demo.title }
                 if (demo.completed) current = plannerRepository.toggleCompletion(plan.id)

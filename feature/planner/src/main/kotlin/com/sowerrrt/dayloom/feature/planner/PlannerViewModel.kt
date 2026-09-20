@@ -167,10 +167,20 @@ class PlannerViewModel
             title: String,
             reminderMinutesOfDay: Int?,
             repeat: PlanRepeat = PlanRepeat.NONE,
+            reminderEnabled: Boolean = reminderMinutesOfDay != null,
         ) {
             if (title.isBlank()) return
             val day = mutableUiState.value.selectedEpochDay
-            updatePlans { plannerRepository.createPlan(title, day, reminderMinutesOfDay, repeat) }
+            updatePlans {
+                plannerRepository.createPlan(
+                    title,
+                    day,
+                    reminderMinutesOfDay,
+                    repeat,
+                    null,
+                    reminderEnabled,
+                )
+            }
         }
 
         fun updatePlan(
@@ -178,20 +188,32 @@ class PlannerViewModel
             title: String,
             reminderMinutesOfDay: Int?,
             repeat: PlanRepeat = PlanRepeat.NONE,
+            reminderEnabled: Boolean = reminderMinutesOfDay != null,
         ) {
             if (title.isBlank()) return
             val day = mutableUiState.value.selectedEpochDay
-            updatePlans { plannerRepository.updatePlan(id, title, day, reminderMinutesOfDay, repeat) }
+            updatePlans {
+                plannerRepository.updatePlan(
+                    id,
+                    title,
+                    day,
+                    reminderMinutesOfDay,
+                    repeat,
+                    null,
+                    reminderEnabled,
+                )
+            }
         }
 
         fun savePreset(
             title: String,
             reminderMinutesOfDay: Int?,
             repeat: PlanRepeat = PlanRepeat.NONE,
+            reminderEnabled: Boolean = reminderMinutesOfDay != null,
         ) {
             val normalized = title.trim()
             if (normalized.isEmpty()) return
-            val preset = PlanPreset(normalized, reminderMinutesOfDay, repeat)
+            val preset = PlanPreset(normalized, reminderMinutesOfDay, repeat, reminderEnabled)
             viewModelScope.launch {
                 removeStoredPlanPresets(normalized)
                 settingsRepository.addPreset(PresetType.PLAN, preset.toStorageValue())
@@ -215,7 +237,7 @@ class PlannerViewModel
         }
 
         fun createFromPreset(preset: PlanPreset) {
-            createPlan(preset.title, preset.reminderMinutesOfDay, preset.repeat)
+            createPlan(preset.title, preset.reminderMinutesOfDay, preset.repeat, preset.reminderEnabled)
         }
 
         fun togglePlan(id: EntityId) {

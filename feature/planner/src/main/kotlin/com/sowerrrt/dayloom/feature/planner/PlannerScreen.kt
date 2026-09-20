@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
@@ -56,6 +57,7 @@ import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -155,6 +157,7 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                     onUsePreset = { preset ->
                         if (
                             preset.reminderMinutesOfDay != null &&
+                            preset.reminderEnabled &&
                             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
                             PackageManager.PERMISSION_GRANTED
@@ -183,10 +186,11 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
             presets = state.presets,
             onSavePreset = viewModel::savePreset,
             onRemovePreset = viewModel::removePreset,
-            onSave = { title, reminderMinutesOfDay, repeat ->
+            onSave = { title, reminderMinutesOfDay, repeat, reminderEnabled ->
                 val plan = editingPlan
                 if (
                     reminderMinutesOfDay != null &&
+                    reminderEnabled &&
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
                     PackageManager.PERMISSION_GRANTED
@@ -194,9 +198,9 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
                 if (plan == null) {
-                    viewModel.createPlan(title, reminderMinutesOfDay, repeat)
+                    viewModel.createPlan(title, reminderMinutesOfDay, repeat, reminderEnabled)
                 } else {
-                    viewModel.updatePlan(plan.id, title, reminderMinutesOfDay, repeat)
+                    viewModel.updatePlan(plan.id, title, reminderMinutesOfDay, repeat, reminderEnabled)
                 }
                 showPlanDialog = false
             },
@@ -759,7 +763,7 @@ private fun PlanRow(
                             modifier = Modifier.testTag("plan_reminder_${plan.title}"),
                         ) {
                             Icon(
-                                Icons.Rounded.NotificationsActive,
+                                Icons.Rounded.Schedule,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp),
                                 tint = MaterialTheme.colorScheme.secondary,
@@ -769,6 +773,14 @@ private fun PlanRow(
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.secondary,
                             )
+                            if (plan.reminderEnabled) {
+                                Icon(
+                                    Icons.Rounded.NotificationsActive,
+                                    contentDescription = stringResource(R.string.planner_notification_enabled),
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                )
+                            }
                         }
                     }
                     if (plan.repeat != PlanRepeat.NONE) {
@@ -893,12 +905,13 @@ private fun PlanEditorDialog(
     onChooseImage: (PlanItem) -> Unit,
     onRemoveImage: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
     presets: List<PlanPreset>,
-    onSavePreset: (String, Int?, PlanRepeat) -> Unit,
+    onSavePreset: (String, Int?, PlanRepeat, Boolean) -> Unit,
     onRemovePreset: (PlanPreset) -> Unit,
-    onSave: (String, Int?, PlanRepeat) -> Unit,
+    onSave: (String, Int?, PlanRepeat, Boolean) -> Unit,
 ) {
     var title by remember(plan?.id) { mutableStateOf(plan?.title.orEmpty()) }
     var reminderMinutesOfDay by remember(plan?.id) { mutableStateOf(plan?.reminderMinutesOfDay) }
+    var reminderEnabled by remember(plan?.id) { mutableStateOf(plan?.reminderEnabled ?: false) }
     var repeat by remember(plan?.id) { mutableStateOf(plan?.repeat ?: PlanRepeat.NONE) }
     val locale = currentLocale()
     val context = LocalContext.current
@@ -929,6 +942,7 @@ private fun PlanEditorDialog(
                                 onClick = {
                                     title = preset.title
                                     reminderMinutesOfDay = preset.reminderMinutesOfDay
+                                    reminderEnabled = preset.reminderEnabled && preset.reminderMinutesOfDay != null
                                     repeat = preset.repeat
                                 },
                                 label = { Text(preset.title) },
@@ -976,7 +990,7 @@ private fun PlanEditorDialog(
                         },
                         modifier = Modifier.testTag("set_plan_reminder"),
                     ) {
-                        Icon(Icons.Rounded.NotificationsActive, contentDescription = null)
+                        Icon(Icons.Rounded.Schedule, contentDescription = null)
                         Text(
                             if (reminderMinutesOfDay == null) {
                                 stringResource(R.string.planner_add_reminder)
@@ -988,15 +1002,47 @@ private fun PlanEditorDialog(
                     }
                     if (reminderMinutesOfDay != null) {
                         TextButton(
-                            onClick = { reminderMinutesOfDay = null },
+                            onClick = {
+                                reminderMinutesOfDay = null
+                                reminderEnabled = false
+                            },
                             modifier = Modifier.testTag("clear_plan_reminder"),
                         ) {
                             Text(stringResource(R.string.planner_remove_reminder))
                         }
                     }
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            stringResource(R.string.planner_notification),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            stringResource(
+                                if (reminderMinutesOfDay == null) {
+                                    R.string.planner_notification_time_required
+                                } else {
+                                    R.string.planner_notification_description
+                                },
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = reminderEnabled && reminderMinutesOfDay != null,
+                        onCheckedChange = { reminderEnabled = it },
+                        enabled = reminderMinutesOfDay != null,
+                        modifier = Modifier.testTag("plan_notification_toggle"),
+                    )
+                }
                 TextButton(
-                    onClick = { onSavePreset(title, reminderMinutesOfDay, repeat) },
+                    onClick = { onSavePreset(title, reminderMinutesOfDay, repeat, reminderEnabled) },
                     enabled = title.isNotBlank(),
                     modifier = Modifier.testTag("save_plan_preset"),
                 ) {
@@ -1066,7 +1112,7 @@ private fun PlanEditorDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(title, reminderMinutesOfDay, repeat) },
+                onClick = { onSave(title, reminderMinutesOfDay, repeat, reminderEnabled) },
                 enabled = title.isNotBlank(),
                 modifier = Modifier.testTag("save_plan"),
             ) {

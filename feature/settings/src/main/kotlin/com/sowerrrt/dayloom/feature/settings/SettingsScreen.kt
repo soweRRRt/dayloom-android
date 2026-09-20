@@ -702,7 +702,11 @@ private fun rememberDemoContent(): DemoContent =
                 DemoPlan(stringResource(R.string.settings_example_plan_review), 0, completed = true),
                 DemoPlan(stringResource(R.string.settings_example_plan_groceries), 0),
                 DemoPlan(stringResource(R.string.settings_example_plan_call), 1),
-                DemoPlan(stringResource(R.string.settings_example_plan_dentist), 3),
+                DemoPlan(
+                    stringResource(R.string.settings_example_plan_dentist),
+                    3,
+                    reminderMinutesOfDay = 14 * 60,
+                ),
                 DemoPlan(
                     title = stringResource(R.string.settings_example_plan_weekly_review),
                     dayOffset = 0,
@@ -713,6 +717,7 @@ private fun rememberDemoContent(): DemoContent =
                     1,
                     reminderMinutesOfDay = 18 * 60,
                     image = DemoImage.LAPTOP,
+                    reminderEnabled = false,
                 ),
             ),
         lists =

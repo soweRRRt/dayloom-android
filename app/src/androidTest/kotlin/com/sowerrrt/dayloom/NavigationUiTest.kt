@@ -181,10 +181,11 @@ class NavigationUiTest {
     }
 
     @Test
-    fun planEditorOffersLocalReminderTime() {
+    fun planEditorSeparatesExactTimeAndNotification() {
         composeRule.onNodeWithTag("primary_nav_planner").performClick()
         composeRule.onNodeWithTag("create_plan").performClick()
         composeRule.onNodeWithTag("set_plan_reminder").assertExists()
+        composeRule.onNodeWithTag("plan_notification_toggle").assertExists()
     }
 
     @Test

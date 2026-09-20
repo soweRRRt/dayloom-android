@@ -25,9 +25,13 @@
     <string name="planner_edit_title">Edit plan</string>
     <string name="planner_name_label">What are you planning?</string>
     <string name="planner_reminder">Exact time (optional)</string>
-    <string name="planner_reminder_description">The time is shown in your plan and also schedules a local reminder. Android may deliver it slightly later to preserve battery.</string>
+    <string name="planner_reminder_description">The time is shown in the calendar and used to order your day. You can add it without enabling a notification.</string>
     <string name="planner_add_reminder">Add a time</string>
     <string name="planner_remove_reminder">Remove</string>
+    <string name="planner_notification">Notification</string>
+    <string name="planner_notification_description">Remind me at this time. Android may deliver it slightly later to preserve battery.</string>
+    <string name="planner_notification_time_required">Choose an exact time first to enable a notification.</string>
+    <string name="planner_notification_enabled">Notification enabled</string>
     <string name="planner_add_image">Add photo</string>
     <string name="planner_change_image">Replace photo</string>
     <string name="planner_remove_image">Remove plan photo</string>

@@ -25,9 +25,13 @@
     <string name="planner_edit_title">Редактирование плана</string>
     <string name="planner_name_label">Что планируем?</string>
     <string name="planner_reminder">Точное время (необязательно)</string>
-    <string name="planner_reminder_description">Время показывается в плане и одновременно создаёт локальное напоминание. Android может доставить его немного позже из-за энергосбережения.</string>
+    <string name="planner_reminder_description">Время показывается в календаре и используется для порядка дел. Его можно указать без уведомления.</string>
     <string name="planner_add_reminder">Добавить время</string>
     <string name="planner_remove_reminder">Убрать</string>
+    <string name="planner_notification">Уведомление</string>
+    <string name="planner_notification_description">Напомнить в выбранное время. Android может доставить уведомление немного позже из-за энергосбережения.</string>
+    <string name="planner_notification_time_required">Сначала выберите точное время, чтобы включить уведомление.</string>
+    <string name="planner_notification_enabled">Уведомление включено</string>
     <string name="planner_add_image">Добавить фото</string>
     <string name="planner_change_image">Заменить фото</string>
     <string name="planner_remove_image">Удалить фото плана</string>

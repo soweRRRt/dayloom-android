@@ -27,6 +27,15 @@ interface PlannerRepository {
         repeatUntilEpochDay: Long? = null,
     ): List<PlanItem> = createPlan(title, dateEpochDay, reminderMinutesOfDay)
 
+    suspend fun createPlan(
+        title: String,
+        dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
+        repeat: PlanRepeat,
+        repeatUntilEpochDay: Long?,
+        reminderEnabled: Boolean,
+    ): List<PlanItem> = createPlan(title, dateEpochDay, reminderMinutesOfDay, repeat, repeatUntilEpochDay)
+
     suspend fun updatePlan(
         id: EntityId,
         title: String,
@@ -42,6 +51,16 @@ interface PlannerRepository {
         repeat: PlanRepeat,
         repeatUntilEpochDay: Long? = null,
     ): List<PlanItem> = updatePlan(id, title, dateEpochDay, reminderMinutesOfDay)
+
+    suspend fun updatePlan(
+        id: EntityId,
+        title: String,
+        dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
+        repeat: PlanRepeat,
+        repeatUntilEpochDay: Long?,
+        reminderEnabled: Boolean,
+    ): List<PlanItem> = updatePlan(id, title, dateEpochDay, reminderMinutesOfDay, repeat, repeatUntilEpochDay)
 
     suspend fun toggleCompletion(id: EntityId): List<PlanItem>
 
@@ -129,6 +148,23 @@ class FilePlannerRepository(
         reminderMinutesOfDay: Int?,
         repeat: PlanRepeat,
         repeatUntilEpochDay: Long?,
+    ): List<PlanItem> =
+        createPlan(
+            title = title,
+            dateEpochDay = dateEpochDay,
+            reminderMinutesOfDay = reminderMinutesOfDay,
+            repeat = repeat,
+            repeatUntilEpochDay = repeatUntilEpochDay,
+            reminderEnabled = reminderMinutesOfDay != null,
+        )
+
+    override suspend fun createPlan(
+        title: String,
+        dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
+        repeat: PlanRepeat,
+        repeatUntilEpochDay: Long?,
+        reminderEnabled: Boolean,
     ): List<PlanItem> {
         val normalizedTitle = normalize(title)
         validateReminder(reminderMinutesOfDay)
@@ -144,6 +180,7 @@ class FilePlannerRepository(
                                 dateEpochDay = dateEpochDay,
                                 createdAtEpochMillis = clock(),
                                 reminderMinutesOfDay = reminderMinutesOfDay,
+                                reminderEnabled = reminderEnabled && reminderMinutesOfDay != null,
                                 repeat = repeat,
                                 repeatUntilEpochDay = repeatUntilEpochDay,
                             ),
@@ -175,6 +212,25 @@ class FilePlannerRepository(
         reminderMinutesOfDay: Int?,
         repeat: PlanRepeat,
         repeatUntilEpochDay: Long?,
+    ): List<PlanItem> =
+        updatePlan(
+            id = id,
+            title = title,
+            dateEpochDay = dateEpochDay,
+            reminderMinutesOfDay = reminderMinutesOfDay,
+            repeat = repeat,
+            repeatUntilEpochDay = repeatUntilEpochDay,
+            reminderEnabled = reminderMinutesOfDay != null,
+        )
+
+    override suspend fun updatePlan(
+        id: EntityId,
+        title: String,
+        dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
+        repeat: PlanRepeat,
+        repeatUntilEpochDay: Long?,
+        reminderEnabled: Boolean,
     ): List<PlanItem> {
         val normalizedTitle = normalize(title)
         validateReminder(reminderMinutesOfDay)
@@ -184,6 +240,7 @@ class FilePlannerRepository(
                 title = normalizedTitle,
                 dateEpochDay = dateEpochDay,
                 reminderMinutesOfDay = reminderMinutesOfDay,
+                reminderEnabled = reminderEnabled && reminderMinutesOfDay != null,
                 repeat = repeat,
                 repeatUntilEpochDay = repeatUntilEpochDay,
             )

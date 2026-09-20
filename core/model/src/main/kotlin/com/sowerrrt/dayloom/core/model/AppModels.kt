@@ -212,6 +212,7 @@ data class PlanItem(
     val createdAtEpochMillis: Long,
     val completed: Boolean = false,
     val reminderMinutesOfDay: Int? = null,
+    val reminderEnabled: Boolean = true,
     val image: AttachmentRef? = null,
     val repeat: PlanRepeat = PlanRepeat.NONE,
     val repeatUntilEpochDay: Long? = null,
