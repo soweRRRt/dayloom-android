@@ -5,6 +5,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -103,6 +105,7 @@ import com.sowerrrt.dayloom.feature.settings.SettingsScreen
 import com.sowerrrt.dayloom.feature.vault.VaultScreen
 import com.sowerrrt.dayloom.feature.wishlist.WishlistScreen
 import kotlinx.coroutines.delay
+import kotlin.math.abs
 
 @Composable
 fun DayloomApp(
@@ -476,26 +479,65 @@ private fun DayloomBottomBar(
     navController: NavHostController,
     sections: List<BottomSection>,
 ) {
+    val destinations = primaryDestinations(sections)
+    val selectedIndex = destinations.indexOfFirst { it.matches(currentRoute) }.coerceAtLeast(0)
+    val destinationOrder = destinations.map(NavItem::route)
+    val indicatorPosition =
+        remember(destinationOrder) {
+            Animatable(selectedIndex.toFloat())
+        }
+    LaunchedEffect(selectedIndex, destinationOrder) {
+        indicatorPosition.animateTo(
+            targetValue = selectedIndex.toFloat(),
+            animationSpec = spring(dampingRatio = 0.72f, stiffness = 230f),
+        )
+    }
+
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
         tonalElevation = 0.dp,
     ) {
-        primaryDestinations(sections).forEach { destination ->
-            NavigationBarItem(
-                selected = destination.matches(currentRoute),
-                onClick = { navController.navigateSingleTop(destination.route) },
-                icon = { AnimatedNavigationIcon(destination.icon, destination.matches(currentRoute)) },
-                label = { Text(destination.label) },
-                colors =
-                    NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    ),
-                modifier = Modifier.testTag("primary_nav_${destination.route}"),
-            )
+        BoxWithConstraints(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(80.dp),
+        ) {
+            val itemWidthPx = constraints.maxWidth / destinations.size.toFloat()
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = MaterialTheme.shapes.extraLarge,
+                modifier =
+                    Modifier
+                        .size(width = 64.dp, height = 32.dp)
+                        .graphicsLayer {
+                            val speed = (abs(indicatorPosition.velocity) / 8f).coerceIn(0f, 1f)
+                            translationX =
+                                itemWidthPx * (indicatorPosition.value + 0.5f) - size.width / 2f
+                            translationY = 12.dp.toPx()
+                            scaleX = 1f + speed * 0.48f
+                            scaleY = 1f - speed * 0.1f
+                        },
+            ) {}
+            Row(Modifier.fillMaxSize()) {
+                destinations.forEach { destination ->
+                    NavigationBarItem(
+                        selected = destination.matches(currentRoute),
+                        onClick = { navController.navigateSingleTop(destination.route) },
+                        icon = { AnimatedNavigationIcon(destination.icon, destination.matches(currentRoute)) },
+                        label = { Text(destination.label) },
+                        colors =
+                            NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = Color.Transparent,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                        modifier = Modifier.testTag("primary_nav_${destination.route}"),
+                    )
+                }
+            }
         }
     }
 }
