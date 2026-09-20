@@ -250,7 +250,9 @@ private fun HomeContent(
             if (!state.isLoading && todayItems.isEmpty()) {
                 item { TodayEmptyCard(onOpenHabits, onOpenPlanner) }
             } else {
-                items(todayItems, key = TodayRowData::key) { item -> TodayRow(item) }
+                items(todayItems, key = TodayRowData::key) { item ->
+                    Box(Modifier.animateItem()) { TodayRow(item) }
+                }
             }
             item {
                 Text(
@@ -259,15 +261,20 @@ private fun HomeContent(
                     style = MaterialTheme.typography.titleLarge,
                 )
             }
-            items(visibleCards.chunked(2)) { cardRow ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
-                ) {
-                    cardRow.forEach { (section, data) ->
-                        ModuleSummaryCard(section, data, Modifier.weight(1f))
+            items(
+                items = visibleCards.chunked(2),
+                key = { row -> row.joinToString(separator = "-") { it.first.name } },
+            ) { cardRow ->
+                Box(Modifier.animateItem()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
+                    ) {
+                        cardRow.forEach { (section, data) ->
+                            ModuleSummaryCard(section, data, Modifier.weight(1f))
+                        }
+                        if (cardRow.size == 1) Spacer(Modifier.weight(1f))
                     }
-                    if (cardRow.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }

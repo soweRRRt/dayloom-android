@@ -94,6 +94,7 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomMotion
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTheme
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
+import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
 import com.sowerrrt.dayloom.core.model.AccentPalette
 import com.sowerrrt.dayloom.core.model.AppLanguage
 import com.sowerrrt.dayloom.core.model.AppSettings
@@ -408,6 +409,7 @@ internal fun UpdateAvailableDialog(
     onLater: () -> Unit,
 ) {
     AlertDialog(
+        modifier = Modifier.dayloomDialogMotion(),
         onDismissRequest = onLater,
         title = {
             Text(

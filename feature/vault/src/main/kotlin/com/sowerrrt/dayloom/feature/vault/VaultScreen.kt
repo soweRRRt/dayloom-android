@@ -77,6 +77,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
+import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.VaultEntry
 import com.sowerrrt.dayloom.core.security.LockedContent
@@ -308,6 +309,7 @@ fun VaultScreen(
     }
     state.error?.let { error ->
         AlertDialog(
+            modifier = Modifier.dayloomDialogMotion(),
             onDismissRequest = viewModel::clearError,
             title = { Text(stringResource(R.string.vault_error_title)) },
             text = { Text(stringResource(error.messageResource())) },
@@ -572,6 +574,7 @@ private fun VaultEditorDialog(
     var passwordVisible by remember { mutableStateOf(false) }
     var passwordLength by remember { mutableIntStateOf(20) }
     AlertDialog(
+        modifier = Modifier.dayloomDialogMotion(),
         onDismissRequest = onDismiss,
         title = { Text(stringResource(if (entry == null) R.string.vault_create_title else R.string.vault_edit_title)) },
         text = {
@@ -699,6 +702,7 @@ private fun ConfirmationDialog(
     onConfirm: () -> Unit,
 ) {
     AlertDialog(
+        modifier = Modifier.dayloomDialogMotion(),
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(description) },

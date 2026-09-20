@@ -68,6 +68,7 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomButton
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
+import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
 import com.sowerrrt.dayloom.core.model.AccentPalette
 import com.sowerrrt.dayloom.core.model.AppLanguage
 import com.sowerrrt.dayloom.core.model.BottomSection
@@ -452,6 +453,7 @@ fun SettingsScreen(
         }
         if (showClearConfirmation) {
             AlertDialog(
+                modifier = Modifier.dayloomDialogMotion(),
                 onDismissRequest = { showClearConfirmation = false },
                 title = { Text(stringResource(R.string.settings_data_clear_confirm_title)) },
                 text = { Text(stringResource(R.string.settings_data_clear_confirm_description)) },
@@ -481,6 +483,7 @@ fun SettingsScreen(
         }
         pendingImportUri?.let { uri ->
             AlertDialog(
+                modifier = Modifier.dayloomDialogMotion(),
                 onDismissRequest = { pendingImportUri = null },
                 title = { Text(stringResource(R.string.settings_data_import_confirm_title)) },
                 text = { Text(stringResource(R.string.settings_data_import_confirm_description)) },

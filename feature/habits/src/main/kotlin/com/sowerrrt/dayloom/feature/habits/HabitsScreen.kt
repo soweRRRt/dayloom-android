@@ -92,6 +92,7 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomButton
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
+import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.HabitPreset
@@ -290,6 +291,7 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
 
     pendingArchive?.let { habit ->
         AlertDialog(
+            modifier = Modifier.dayloomDialogMotion(),
             onDismissRequest = { pendingArchive = null },
             title = { Text(stringResource(R.string.habits_archive_title)) },
             text = { Text(stringResource(R.string.habits_archive_description, habit.title)) },
@@ -553,11 +555,13 @@ private fun HabitsList(
                     }
                 }
                 items(visibleHabits, key = { "archived-${it.id.value}" }) { habit ->
-                    ArchivedHabitRow(
-                        habit = habit,
-                        imagePath = state.imagePaths[habit.id],
-                        onRestore = { onRestore(habit.id) },
-                    )
+                    Box(Modifier.animateItem()) {
+                        ArchivedHabitRow(
+                            habit = habit,
+                            imagePath = state.imagePaths[habit.id],
+                            onRestore = { onRestore(habit.id) },
+                        )
+                    }
                 }
             } else if (viewMode == HabitViewMode.HISTORY) {
                 item { HabitAnalyticsCard(state.copy(habits = matchingActive)) }
@@ -565,12 +569,14 @@ private fun HabitsList(
                     items = (0L until HISTORY_DAYS).map { state.todayEpochDay - it },
                     key = { "history-$it" },
                 ) { epochDay ->
-                    HabitHistoryDayCard(
-                        habits = matchingActive.filter { it.isScheduledOn(epochDay) },
-                        epochDay = epochDay,
-                        onToggle = { habit -> onToggleHistory(habit.id, epochDay) },
-                        onProgress = { habit -> onProgress(habit, epochDay) },
-                    )
+                    Box(Modifier.animateItem()) {
+                        HabitHistoryDayCard(
+                            habits = matchingActive.filter { it.isScheduledOn(epochDay) },
+                            epochDay = epochDay,
+                            onToggle = { habit -> onToggleHistory(habit.id, epochDay) },
+                            onProgress = { habit -> onProgress(habit, epochDay) },
+                        )
+                    }
                 }
             } else {
                 item {
@@ -635,19 +641,21 @@ private fun HabitsList(
                     }
                 }
                 items(visibleHabits, key = { it.id.value }) { habit ->
-                    HabitRow(
-                        habit = habit,
-                        completed = state.todayEpochDay in habit.completedEpochDays,
-                        scheduledToday = habit.isScheduledOn(state.todayEpochDay),
-                        onToggle = { onToggle(habit.id) },
-                        onEdit = { onEdit(habit) },
-                        onArchive = { onArchive(habit) },
-                        onProgress = { onProgress(habit, state.todayEpochDay) },
-                        onInsights = { onInsights(habit) },
-                        onChooseImage = { onChooseImage(habit) },
-                        imagePath = state.imagePaths[habit.id],
-                        todayEpochDay = state.todayEpochDay,
-                    )
+                    Box(Modifier.animateItem()) {
+                        HabitRow(
+                            habit = habit,
+                            completed = state.todayEpochDay in habit.completedEpochDays,
+                            scheduledToday = habit.isScheduledOn(state.todayEpochDay),
+                            onToggle = { onToggle(habit.id) },
+                            onEdit = { onEdit(habit) },
+                            onArchive = { onArchive(habit) },
+                            onProgress = { onProgress(habit, state.todayEpochDay) },
+                            onInsights = { onInsights(habit) },
+                            onChooseImage = { onChooseImage(habit) },
+                            imagePath = state.imagePaths[habit.id],
+                            todayEpochDay = state.todayEpochDay,
+                        )
+                    }
                 }
             }
         }
@@ -1387,6 +1395,7 @@ private fun HabitProgressDialog(
 ) {
     var value by remember(habit.id, epochDay) { mutableStateOf(habit.progressByEpochDay[epochDay].orEmpty()) }
     AlertDialog(
+        modifier = Modifier.dayloomDialogMotion(),
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.habits_progress_title, habit.title)) },
         text = {
@@ -1472,6 +1481,7 @@ private fun HabitEditorDialog(
     val intervalDays = repeatEveryDaysText.toIntOrNull()
     val monthDays = parseMonthDays(scheduledMonthDaysText)
     AlertDialog(
+        modifier = Modifier.dayloomDialogMotion(),
         onDismissRequest = onDismiss,
         title = {
             Text(

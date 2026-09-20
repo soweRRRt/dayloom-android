@@ -63,6 +63,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
+import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
 import com.sowerrrt.dayloom.core.model.DayList
 import com.sowerrrt.dayloom.core.model.DayListItem
 import com.sowerrrt.dayloom.core.model.ListItemPreset
@@ -272,7 +273,9 @@ private fun ListsOverview(
                 )
             }
             itemsIndexed(state.lists, key = { _, list -> list.id.value }) { _, list ->
-                ListOverviewCard(list = list, onClick = { onOpenList(list) })
+                Box(Modifier.animateItem()) {
+                    ListOverviewCard(list = list, onClick = { onOpenList(list) })
+                }
             }
         }
     }
@@ -405,16 +408,18 @@ private fun ListDetails(
             }
         } else {
             itemsIndexed(list.items, key = { _, item -> item.id.value }) { index, item ->
-                ListItemRow(
-                    item = item,
-                    canMoveUp = index > 0,
-                    canMoveDown = index < list.items.lastIndex,
-                    onToggle = { onToggle(item) },
-                    onEdit = { onEdit(item) },
-                    onDelete = { onDelete(item) },
-                    onMoveUp = { onMove(item, -1) },
-                    onMoveDown = { onMove(item, 1) },
-                )
+                Box(Modifier.animateItem()) {
+                    ListItemRow(
+                        item = item,
+                        canMoveUp = index > 0,
+                        canMoveDown = index < list.items.lastIndex,
+                        onToggle = { onToggle(item) },
+                        onEdit = { onEdit(item) },
+                        onDelete = { onDelete(item) },
+                        onMoveUp = { onMove(item, -1) },
+                        onMoveDown = { onMove(item, 1) },
+                    )
+                }
             }
         }
     }
@@ -501,6 +506,7 @@ private fun ListEditorDialog(
     var kind by remember(list?.id) { mutableStateOf(list?.kind ?: ListKind.GENERAL) }
     var customKind by remember(list?.id) { mutableStateOf(list?.customKind.orEmpty()) }
     AlertDialog(
+        modifier = Modifier.dayloomDialogMotion(),
         onDismissRequest = onDismiss,
         title = {
             Text(stringResource(if (list == null) R.string.lists_create_title else R.string.lists_edit_title))
@@ -597,6 +603,7 @@ private fun ItemEditorDialog(
     var quantity by remember(item?.id) { mutableStateOf(item?.quantity.orEmpty()) }
     var note by remember(item?.id) { mutableStateOf(item?.note.orEmpty()) }
     AlertDialog(
+        modifier = Modifier.dayloomDialogMotion(),
         onDismissRequest = onDismiss,
         title = {
             Text(stringResource(if (item == null) R.string.lists_add_item_title else R.string.lists_edit_item_title))
@@ -686,6 +693,7 @@ private fun DeleteDialog(
     onConfirm: () -> Unit,
 ) {
     AlertDialog(
+        modifier = Modifier.dayloomDialogMotion(),
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(description) },

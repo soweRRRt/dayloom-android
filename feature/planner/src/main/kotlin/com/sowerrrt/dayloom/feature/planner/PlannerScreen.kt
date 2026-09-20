@@ -6,8 +6,16 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -77,6 +85,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -93,6 +102,7 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomMotion
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
+import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.model.PlanPreset
@@ -246,6 +256,7 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
 
     pendingArchive?.let { plan ->
         AlertDialog(
+            modifier = Modifier.dayloomDialogMotion(),
             onDismissRequest = { pendingArchive = null },
             title = { Text(stringResource(R.string.planner_archive_title)) },
             text = { Text(stringResource(R.string.planner_archive_description, plan.title)) },
@@ -414,12 +425,14 @@ private fun PlannerContent(
                 item { EmptyDayCard(stringResource(R.string.planner_no_habits)) }
             } else {
                 items(state.selectedHabits, key = { "habit-${it.id.value}" }) { habit ->
-                    CalendarHabitRow(
-                        habit = habit,
-                        epochDay = state.selectedEpochDay,
-                        canComplete = state.selectedEpochDay <= state.todayEpochDay,
-                        onToggle = { onToggleHabit(habit.id) },
-                    )
+                    Box(Modifier.animateItem()) {
+                        CalendarHabitRow(
+                            habit = habit,
+                            epochDay = state.selectedEpochDay,
+                            canComplete = state.selectedEpochDay <= state.todayEpochDay,
+                            onToggle = { onToggleHabit(habit.id) },
+                        )
+                    }
                 }
             }
             item { SectionTitle(stringResource(R.string.planner_plans_section), MaterialTheme.colorScheme.secondary) }
@@ -467,28 +480,32 @@ private fun PlannerContent(
                 }
             } else if (showArchivedPlans) {
                 items(visiblePlans, key = { "archived-plan-${it.id.value}" }) { plan ->
-                    ArchivedPlanRow(
-                        plan = plan,
-                        imagePath = state.planImagePaths[plan.id],
-                        onRestore = { onRestorePlan(plan.id) },
-                    )
+                    Box(Modifier.animateItem()) {
+                        ArchivedPlanRow(
+                            plan = plan,
+                            imagePath = state.planImagePaths[plan.id],
+                            onRestore = { onRestorePlan(plan.id) },
+                        )
+                    }
                 }
             } else {
                 items(visiblePlans, key = { "plan-${it.id.value}" }) { plan ->
                     val displayEpochDay =
                         plan.displayEpochDay(planDateFilter, state.selectedEpochDay, state.todayEpochDay)
-                    PlanRow(
-                        plan = plan,
-                        completed = plan.isCompletedOn(displayEpochDay),
-                        displayEpochDay = displayEpochDay,
-                        onToggle = { onTogglePlan(plan.id, displayEpochDay) },
-                        onMoveTomorrow = { onMovePlan(plan.id, 1) },
-                        onMoveNextWeek = { onMovePlan(plan.id, 7) },
-                        onEdit = { onEditPlan(plan) },
-                        onArchive = { onArchivePlan(plan) },
-                        onChooseImage = { onChoosePlanImage(plan) },
-                        imagePath = state.planImagePaths[plan.id],
-                    )
+                    Box(Modifier.animateItem()) {
+                        PlanRow(
+                            plan = plan,
+                            completed = plan.isCompletedOn(displayEpochDay),
+                            displayEpochDay = displayEpochDay,
+                            onToggle = { onTogglePlan(plan.id, displayEpochDay) },
+                            onMoveTomorrow = { onMovePlan(plan.id, 1) },
+                            onMoveNextWeek = { onMovePlan(plan.id, 7) },
+                            onEdit = { onEditPlan(plan) },
+                            onArchive = { onArchivePlan(plan) },
+                            onChooseImage = { onChoosePlanImage(plan) },
+                            imagePath = state.planImagePaths[plan.id],
+                        )
+                    }
                 }
             }
         }
@@ -673,7 +690,6 @@ private fun WeekCalendar(
 ) {
     val selected = LocalDate.ofEpochDay(state.selectedEpochDay)
     val weekStart = selected.minusDays((selected.dayOfWeek.value - 1).toLong())
-    val days = (0L..6L).map(weekStart::plusDays)
     DayloomCard(Modifier.fillMaxWidth().testTag("week_calendar")) {
         Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
             Row(
@@ -685,39 +701,62 @@ private fun WeekCalendar(
                     Icon(Icons.Rounded.ChevronLeft, contentDescription = stringResource(R.string.planner_previous_week))
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        weekLabel(days.first(), days.last(), locale),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
+                    Crossfade(
+                        targetState = weekStart,
+                        animationSpec = tween(DayloomMotion.QUICK_MILLIS),
+                        label = "weekLabel",
+                    ) { visibleWeekStart ->
+                        Text(
+                            weekLabel(visibleWeekStart, visibleWeekStart.plusDays(6), locale),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
                     TextButton(onClick = onToday) { Text(stringResource(R.string.planner_today)) }
                 }
                 IconButton(onClick = { onSelectDate(selected.plusWeeks(1).toEpochDay()) }) {
                     Icon(Icons.Rounded.ChevronRight, contentDescription = stringResource(R.string.planner_next_week))
                 }
             }
-            Row(Modifier.fillMaxWidth()) {
-                days.forEach { date ->
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Text(
-                            date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        CalendarDay(
-                            date = date,
-                            selected = date == selected,
-                            today = date.toEpochDay() == state.todayEpochDay,
-                            habitCount = state.habitCount(date.toEpochDay()),
-                            planCount = state.planCount(date.toEpochDay()),
-                            completedHabitCount = state.completedHabitCount(date.toEpochDay()),
-                            completedPlanCount = state.completedPlanCount(date.toEpochDay()),
-                            onClick = { onSelectDate(date.toEpochDay()) },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+            AnimatedContent(
+                targetState = weekStart.toEpochDay(),
+                transitionSpec = {
+                    val direction = if (targetState >= initialState) 1 else -1
+                    (
+                        slideInHorizontally(tween(DayloomMotion.STANDARD_MILLIS)) { direction * it / 3 } +
+                            fadeIn(tween(DayloomMotion.STANDARD_MILLIS))
+                    ).togetherWith(
+                        slideOutHorizontally(tween(DayloomMotion.STANDARD_MILLIS)) { -direction * it / 3 } +
+                            fadeOut(tween(DayloomMotion.QUICK_MILLIS)),
+                    )
+                },
+                label = "calendarWeek",
+            ) { visibleWeekStartEpochDay ->
+                val visibleDays =
+                    (0L..6L).map { LocalDate.ofEpochDay(visibleWeekStartEpochDay).plusDays(it) }
+                Row(Modifier.fillMaxWidth()) {
+                    visibleDays.forEach { date ->
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            CalendarDay(
+                                date = date,
+                                selected = date == selected,
+                                today = date.toEpochDay() == state.todayEpochDay,
+                                habitCount = state.habitCount(date.toEpochDay()),
+                                planCount = state.planCount(date.toEpochDay()),
+                                completedHabitCount = state.completedHabitCount(date.toEpochDay()),
+                                completedPlanCount = state.completedPlanCount(date.toEpochDay()),
+                                onClick = { onSelectDate(date.toEpochDay()) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
                 }
             }
@@ -735,28 +774,6 @@ private fun MonthCalendar(
     onToday: () -> Unit,
 ) {
     val month = state.displayedMonth
-    val firstDay = month.atDay(1)
-    val leadingEmptyDays = firstDay.dayOfWeek.value - 1
-    val cells = List(leadingEmptyDays) { null } + (1..month.lengthOfMonth()).map(month::atDay)
-    val rows = cells.chunked(7)
-    val habitCounts =
-        remember(state.habits, month) {
-            cells.filterNotNull().associate { date -> date.toEpochDay() to state.habitCount(date.toEpochDay()) }
-        }
-    val planCounts =
-        remember(state.plans, month) {
-            cells.filterNotNull().associate { date -> date.toEpochDay() to state.planCount(date.toEpochDay()) }
-        }
-    val completedHabitCounts =
-        remember(state.habits, month) {
-            cells.filterNotNull().associate { date ->
-                date.toEpochDay() to state.completedHabitCount(date.toEpochDay())
-            }
-        }
-    val completedPlanCounts =
-        remember(state.plans, month) {
-            cells.filterNotNull().associate { date -> date.toEpochDay() to state.completedPlanCount(date.toEpochDay()) }
-        }
     DayloomCard(Modifier.fillMaxWidth().testTag("month_calendar")) {
         Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
             Row(
@@ -770,7 +787,13 @@ private fun MonthCalendar(
                         contentDescription = stringResource(R.string.planner_previous_month),
                     )
                 }
-                Text(monthLabel(month, locale), style = MaterialTheme.typography.titleLarge)
+                Crossfade(
+                    targetState = month,
+                    animationSpec = tween(DayloomMotion.QUICK_MILLIS),
+                    label = "monthLabel",
+                ) { visibleMonth ->
+                    Text(monthLabel(visibleMonth, locale), style = MaterialTheme.typography.titleLarge)
+                }
                 IconButton(onClick = onNextMonth) {
                     Icon(
                         Icons.Rounded.ChevronRight,
@@ -792,11 +815,26 @@ private fun MonthCalendar(
                     )
                 }
             }
-            Crossfade(
-                targetState = rows,
-                animationSpec = tween(DayloomMotion.STANDARD_MILLIS),
+            AnimatedContent(
+                targetState = month,
+                transitionSpec = {
+                    val direction = if (targetState >= initialState) 1 else -1
+                    (
+                        slideInHorizontally(tween(DayloomMotion.STANDARD_MILLIS)) { direction * it / 3 } +
+                            fadeIn(tween(DayloomMotion.STANDARD_MILLIS))
+                    ).togetherWith(
+                        slideOutHorizontally(tween(DayloomMotion.STANDARD_MILLIS)) { -direction * it / 3 } +
+                            fadeOut(tween(DayloomMotion.QUICK_MILLIS)),
+                    )
+                },
                 label = "calendarMonth",
-            ) { visibleRows ->
+            ) { visibleMonth ->
+                val firstDay = visibleMonth.atDay(1)
+                val leadingEmptyDays = firstDay.dayOfWeek.value - 1
+                val cells =
+                    List<LocalDate?>(leadingEmptyDays) { null } +
+                        (1..visibleMonth.lengthOfMonth()).map(visibleMonth::atDay)
+                val visibleRows = cells.chunked(7)
                 Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xxs)) {
                     visibleRows.forEach { week ->
                         Row(Modifier.fillMaxWidth()) {
@@ -809,10 +847,10 @@ private fun MonthCalendar(
                                         date = date,
                                         selected = date.toEpochDay() == state.selectedEpochDay,
                                         today = date.toEpochDay() == state.todayEpochDay,
-                                        habitCount = habitCounts[date.toEpochDay()] ?: 0,
-                                        planCount = planCounts[date.toEpochDay()] ?: 0,
-                                        completedHabitCount = completedHabitCounts[date.toEpochDay()] ?: 0,
-                                        completedPlanCount = completedPlanCounts[date.toEpochDay()] ?: 0,
+                                        habitCount = state.habitCount(date.toEpochDay()),
+                                        planCount = state.planCount(date.toEpochDay()),
+                                        completedHabitCount = state.completedHabitCount(date.toEpochDay()),
+                                        completedPlanCount = state.completedPlanCount(date.toEpochDay()),
                                         onClick = { onSelectDate(date.toEpochDay()) },
                                         modifier = Modifier.weight(1f),
                                     )
@@ -839,19 +877,38 @@ private fun CalendarDay(
     modifier: Modifier = Modifier,
 ) {
     val shape = MaterialTheme.shapes.small
-    val background = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-    val borderModifier =
-        if (today && !selected) {
-            Modifier.border(1.dp, MaterialTheme.colorScheme.primary, shape)
-        } else {
-            Modifier
-        }
+    val background by
+        animateColorAsState(
+            targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+            animationSpec = tween(DayloomMotion.STANDARD_MILLIS),
+            label = "calendarDayBackground",
+        )
+    val borderColor by
+        animateColorAsState(
+            targetValue =
+                if (today && !selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    Color.Transparent
+                },
+            animationSpec = tween(DayloomMotion.STANDARD_MILLIS),
+            label = "calendarDayBorder",
+        )
+    val scale by
+        animateFloatAsState(
+            targetValue = if (selected) 1.04f else 1f,
+            animationSpec = tween(DayloomMotion.QUICK_MILLIS),
+            label = "calendarDayScale",
+        )
     Column(
         modifier =
             modifier
                 .aspectRatio(1f)
                 .padding(2.dp)
-                .then(borderModifier)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }.border(1.dp, borderColor, shape)
                 .clip(shape)
                 .background(background)
                 .clickable(onClick = onClick)
@@ -1276,6 +1333,7 @@ private fun PlanEditorDialog(
     val savedIntervalDays = if (scheduleMode == PlanScheduleMode.INTERVAL) intervalDays else null
     val savedMonthDays = if (scheduleMode == PlanScheduleMode.MONTH_DAYS) monthDays else emptySet()
     AlertDialog(
+        modifier = Modifier.dayloomDialogMotion(),
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null) },
         title = {

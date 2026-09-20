@@ -71,6 +71,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
+import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
 import com.sowerrrt.dayloom.core.model.WishContribution
 import com.sowerrrt.dayloom.core.model.WishGoal
 import com.sowerrrt.dayloom.core.model.WishPriority
@@ -276,11 +277,13 @@ private fun WishlistOverview(
                 )
             }
             items(state.goals, key = { it.id.value }) { goal ->
-                WishCard(
-                    goal = goal,
-                    imagePath = state.imagePaths[goal.id],
-                    onClick = { onOpenGoal(goal) },
-                )
+                Box(Modifier.animateItem()) {
+                    WishCard(
+                        goal = goal,
+                        imagePath = state.imagePaths[goal.id],
+                        onClick = { onOpenGoal(goal) },
+                    )
+                }
             }
         }
     }
@@ -522,11 +525,13 @@ private fun WishDetails(
             }
         } else {
             items(goal.contributions.asReversed(), key = { it.id.value }) { contribution ->
-                ContributionRow(
-                    contribution = contribution,
-                    currencyCode = goal.currencyCode,
-                    onDelete = { onDeleteContribution(contribution) },
-                )
+                Box(Modifier.animateItem()) {
+                    ContributionRow(
+                        contribution = contribution,
+                        currencyCode = goal.currencyCode,
+                        onDelete = { onDeleteContribution(contribution) },
+                    )
+                }
             }
         }
     }
@@ -590,6 +595,7 @@ private fun GoalEditorDialog(
             purchaseUrlIsValid
 
     AlertDialog(
+        modifier = Modifier.dayloomDialogMotion(),
         onDismissRequest = onDismiss,
         title = {
             Text(stringResource(if (goal == null) R.string.wishlist_create_title else R.string.wishlist_edit_title))
@@ -730,6 +736,7 @@ private fun ContributionDialog(
     var note by rememberSaveable { mutableStateOf("") }
     val parsedAmount = parseAmountToMinor(amount)
     AlertDialog(
+        modifier = Modifier.dayloomDialogMotion(),
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.wishlist_contribution_title)) },
         text = {
@@ -772,6 +779,7 @@ private fun DeleteDialog(
     onConfirm: () -> Unit,
 ) {
     AlertDialog(
+        modifier = Modifier.dayloomDialogMotion(),
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(description) },
