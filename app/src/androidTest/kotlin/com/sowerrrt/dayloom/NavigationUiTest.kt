@@ -1,5 +1,6 @@
 package com.sowerrrt.dayloom
 
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
@@ -11,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.espresso.Espresso.closeSoftKeyboard
@@ -203,6 +205,46 @@ class NavigationUiTest {
 
         waitUntilScrollable("planner_list", "plan_$title")
         composeRule.onNodeWithTag("plan_repeat_value_$title").assertExists()
+    }
+
+    @Test
+    fun planCanBeFoundFilteredArchivedAndRestored() {
+        val suffix = System.currentTimeMillis()
+        val title = "Searchable plan $suffix"
+        val note = "blue folder $suffix"
+        composeRule.onNodeWithTag("primary_nav_planner").performClick()
+        composeRule.onNodeWithTag("create_plan").performClick()
+        composeRule.onNodeWithTag("plan_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("plan_note_input").performTextInput(note)
+        composeRule.onNodeWithTag("save_plan").performClick()
+        waitUntilScrollable("planner_list", "plan_$title")
+
+        composeRule.onNodeWithTag("plan_search").performScrollTo().performTextInput(note)
+        closeSoftKeyboard()
+        waitUntilScrollable("planner_list", "plan_$title")
+        composeRule
+            .onNodeWithTag("plan_status_open")
+            .performScrollTo()
+            .performClick()
+            .assertIsSelected()
+        composeRule
+            .onNodeWithTag("plan_time_without_time")
+            .performScrollTo()
+            .performClick()
+            .assertIsSelected()
+        composeRule.onNodeWithTag("plan_sort").performScrollTo().performClick()
+        composeRule.onNodeWithTag("plan_sort_name").performClick()
+
+        composeRule.onNodeWithTag("planner_list").performScrollToNode(hasTestTag("plan_$title"))
+        composeRule.onNodeWithTag("plan_more_$title").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("archive_plan_$title")
+        composeRule.onNodeWithTag("archive_plan_$title").performScrollTo().performClick()
+        composeRule.onNodeWithTag("confirm_archive_plan").performClick()
+        composeRule.onNodeWithTag("plan_view_archived").performScrollTo().performClick()
+        waitUntilScrollable("planner_list", "archived_plan_$title")
+        composeRule.onNodeWithTag("restore_plan_$title").performScrollTo().performClick()
+        composeRule.onNodeWithTag("plan_view_active").performScrollTo().performClick()
+        waitUntilScrollable("planner_list", "plan_$title")
     }
 
     @Test

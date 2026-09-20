@@ -20,7 +20,17 @@ class BackupCodecTest {
                 createdAtEpochMillis = 123,
                 settings = AppSettings(appLanguage = AppLanguage.RUSSIAN),
                 habits = emptyList(),
-                plans = listOf(PlanItem(EntityId.random(), "Plan", 20_000, 100)),
+                plans =
+                    listOf(
+                        PlanItem(
+                            id = EntityId.random(),
+                            title = "Plan",
+                            dateEpochDay = 20_000,
+                            createdAtEpochMillis = 100,
+                            note = "Preserved in export",
+                            archived = true,
+                        ),
+                    ),
                 lists = emptyList(),
                 goals = emptyList(),
                 attachments =

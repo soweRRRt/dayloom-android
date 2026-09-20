@@ -12,6 +12,10 @@ import java.io.File
 interface PlannerRepository {
     suspend fun loadPlans(): List<PlanItem>
 
+    suspend fun loadArchivedPlans(): List<PlanItem> = emptyList()
+
+    suspend fun loadAllPlans(): List<PlanItem> = loadPlans()
+
     suspend fun replaceAll(plans: List<PlanItem>): List<PlanItem> =
         error("This planner repository does not support replacement")
 
@@ -50,6 +54,30 @@ interface PlannerRepository {
         scheduledMonthDays: Set<Int>,
     ): List<PlanItem> =
         createPlan(title, dateEpochDay, reminderMinutesOfDay, repeat, repeatUntilEpochDay, reminderEnabled)
+
+    suspend fun createPlanDetails(
+        title: String,
+        note: String,
+        dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
+        repeat: PlanRepeat,
+        repeatUntilEpochDay: Long?,
+        reminderEnabled: Boolean,
+        scheduledWeekdays: Set<Weekday>,
+        repeatEveryDays: Int?,
+        scheduledMonthDays: Set<Int>,
+    ): List<PlanItem> =
+        createPlan(
+            title,
+            dateEpochDay,
+            reminderMinutesOfDay,
+            repeat,
+            repeatUntilEpochDay,
+            reminderEnabled,
+            scheduledWeekdays,
+            repeatEveryDays,
+            scheduledMonthDays,
+        )
 
     suspend fun updatePlan(
         id: EntityId,
@@ -91,6 +119,32 @@ interface PlannerRepository {
     ): List<PlanItem> =
         updatePlan(id, title, dateEpochDay, reminderMinutesOfDay, repeat, repeatUntilEpochDay, reminderEnabled)
 
+    suspend fun updatePlanDetails(
+        id: EntityId,
+        title: String,
+        note: String,
+        dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
+        repeat: PlanRepeat,
+        repeatUntilEpochDay: Long?,
+        reminderEnabled: Boolean,
+        scheduledWeekdays: Set<Weekday>,
+        repeatEveryDays: Int?,
+        scheduledMonthDays: Set<Int>,
+    ): List<PlanItem> =
+        updatePlan(
+            id,
+            title,
+            dateEpochDay,
+            reminderMinutesOfDay,
+            repeat,
+            repeatUntilEpochDay,
+            reminderEnabled,
+            scheduledWeekdays,
+            repeatEveryDays,
+            scheduledMonthDays,
+        )
+
     suspend fun toggleCompletion(id: EntityId): List<PlanItem>
 
     suspend fun toggleCompletion(
@@ -107,6 +161,12 @@ interface PlannerRepository {
         id: EntityId,
         image: AttachmentRef?,
     ): List<PlanItem>
+
+    suspend fun archivePlan(id: EntityId): List<PlanItem> =
+        error("This planner repository does not support archiving plans")
+
+    suspend fun restorePlan(id: EntityId): List<PlanItem> =
+        error("This planner repository does not support restoring archived plans")
 
     suspend fun deletePlan(id: EntityId): List<PlanItem>
 }
@@ -135,18 +195,23 @@ class FilePlannerRepository(
                 ),
         )
 
-    override suspend fun loadPlans(): List<PlanItem> = store.read().sortedPlans()
+    override suspend fun loadPlans(): List<PlanItem> = store.read().activePlans()
+
+    override suspend fun loadArchivedPlans(): List<PlanItem> = store.read().archivedPlans()
+
+    override suspend fun loadAllPlans(): List<PlanItem> = store.read().plans.sortedPlans()
 
     override suspend fun replaceAll(plans: List<PlanItem>): List<PlanItem> {
         require(plans.map(PlanItem::id).distinct().size == plans.size) { "Plan IDs must be unique" }
         plans.forEach { plan ->
             normalize(plan.title)
+            normalizeNote(plan.note)
             validateReminder(plan.reminderMinutesOfDay)
             validateRepeat(plan.dateEpochDay, plan.repeatUntilEpochDay)
             validateSchedule(plan.scheduledWeekdays, plan.repeatEveryDays, plan.scheduledMonthDays)
         }
         store.write(PlannerSnapshot(plans))
-        return plans.sortedWith(compareBy(PlanItem::dateEpochDay, PlanItem::createdAtEpochMillis))
+        return plans.filterNot(PlanItem::archived).sortedPlans()
     }
 
     override suspend fun createPlan(
@@ -169,7 +234,7 @@ class FilePlannerRepository(
                                 reminderMinutesOfDay = reminderMinutesOfDay,
                             ),
                 )
-            }.sortedPlans()
+            }.activePlans()
     }
 
     override suspend fun createPlan(
@@ -242,7 +307,47 @@ class FilePlannerRepository(
                                 scheduledMonthDays = scheduledMonthDays,
                             ),
                 )
-            }.sortedPlans()
+            }.activePlans()
+    }
+
+    override suspend fun createPlanDetails(
+        title: String,
+        note: String,
+        dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
+        repeat: PlanRepeat,
+        repeatUntilEpochDay: Long?,
+        reminderEnabled: Boolean,
+        scheduledWeekdays: Set<Weekday>,
+        repeatEveryDays: Int?,
+        scheduledMonthDays: Set<Int>,
+    ): List<PlanItem> {
+        val normalizedTitle = normalize(title)
+        val normalizedNote = normalizeNote(note)
+        validateReminder(reminderMinutesOfDay)
+        validateRepeat(dateEpochDay, repeatUntilEpochDay)
+        validateSchedule(scheduledWeekdays, repeatEveryDays, scheduledMonthDays)
+        return store
+            .update { snapshot ->
+                snapshot.copy(
+                    plans =
+                        snapshot.plans +
+                            PlanItem(
+                                id = idFactory(),
+                                title = normalizedTitle,
+                                note = normalizedNote,
+                                dateEpochDay = dateEpochDay,
+                                createdAtEpochMillis = clock(),
+                                reminderMinutesOfDay = reminderMinutesOfDay,
+                                reminderEnabled = reminderEnabled && reminderMinutesOfDay != null,
+                                repeat = repeat,
+                                repeatUntilEpochDay = repeatUntilEpochDay,
+                                scheduledWeekdays = scheduledWeekdays,
+                                repeatEveryDays = repeatEveryDays,
+                                scheduledMonthDays = scheduledMonthDays,
+                            ),
+                )
+            }.activePlans()
     }
 
     override suspend fun updatePlan(
@@ -258,6 +363,40 @@ class FilePlannerRepository(
                 title = normalizedTitle,
                 dateEpochDay = dateEpochDay,
                 reminderMinutesOfDay = reminderMinutesOfDay,
+            )
+        }
+    }
+
+    override suspend fun updatePlanDetails(
+        id: EntityId,
+        title: String,
+        note: String,
+        dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
+        repeat: PlanRepeat,
+        repeatUntilEpochDay: Long?,
+        reminderEnabled: Boolean,
+        scheduledWeekdays: Set<Weekday>,
+        repeatEveryDays: Int?,
+        scheduledMonthDays: Set<Int>,
+    ): List<PlanItem> {
+        val normalizedTitle = normalize(title)
+        val normalizedNote = normalizeNote(note)
+        validateReminder(reminderMinutesOfDay)
+        validateRepeat(dateEpochDay, repeatUntilEpochDay)
+        validateSchedule(scheduledWeekdays, repeatEveryDays, scheduledMonthDays)
+        return updateExisting(id) {
+            it.copy(
+                title = normalizedTitle,
+                note = normalizedNote,
+                dateEpochDay = dateEpochDay,
+                reminderMinutesOfDay = reminderMinutesOfDay,
+                reminderEnabled = reminderEnabled && reminderMinutesOfDay != null,
+                repeat = repeat,
+                repeatUntilEpochDay = repeatUntilEpochDay,
+                scheduledWeekdays = scheduledWeekdays,
+                repeatEveryDays = repeatEveryDays,
+                scheduledMonthDays = scheduledMonthDays,
             )
         }
     }
@@ -360,10 +499,16 @@ class FilePlannerRepository(
         image: AttachmentRef?,
     ): List<PlanItem> = updateExisting(id) { plan -> plan.copy(image = image) }
 
+    override suspend fun archivePlan(id: EntityId): List<PlanItem> =
+        updateExisting(id) { plan -> plan.copy(archived = true) }
+
+    override suspend fun restorePlan(id: EntityId): List<PlanItem> =
+        updateExisting(id) { plan -> plan.copy(archived = false) }
+
     override suspend fun deletePlan(id: EntityId): List<PlanItem> =
         store
             .update { snapshot -> snapshot.copy(plans = snapshot.plans.filterNot { it.id == id }) }
-            .sortedPlans()
+            .activePlans()
 
     private suspend fun updateExisting(
         id: EntityId,
@@ -373,12 +518,18 @@ class FilePlannerRepository(
             .update { snapshot ->
                 require(snapshot.plans.any { it.id == id }) { "Plan does not exist" }
                 snapshot.copy(plans = snapshot.plans.map { plan -> if (plan.id == id) transform(plan) else plan })
-            }.sortedPlans()
+            }.activePlans()
 
     private fun normalize(title: String): String {
         val normalized = title.trim()
         require(normalized.isNotEmpty()) { "Plan title must not be blank" }
         require(normalized.length <= MAX_TITLE_LENGTH) { "Plan title is too long" }
+        return normalized
+    }
+
+    private fun normalizeNote(note: String): String {
+        val normalized = note.trim()
+        require(normalized.length <= MAX_NOTE_LENGTH) { "Plan note is too long" }
         return normalized
     }
 
@@ -415,11 +566,17 @@ class FilePlannerRepository(
         require(scheduledMonthDays.all { it in 1..31 }) { "Plan month days are out of range" }
     }
 
-    private fun PlannerSnapshot.sortedPlans(): List<PlanItem> =
-        plans.sortedWith(compareBy(PlanItem::dateEpochDay, PlanItem::createdAtEpochMillis))
+    private fun PlannerSnapshot.activePlans(): List<PlanItem> = plans.filterNot(PlanItem::archived).sortedPlans()
+
+    private fun PlannerSnapshot.archivedPlans(): List<PlanItem> =
+        plans.filter(PlanItem::archived).sortedByDescending(PlanItem::createdAtEpochMillis)
+
+    private fun List<PlanItem>.sortedPlans(): List<PlanItem> =
+        sortedWith(compareBy(PlanItem::dateEpochDay, PlanItem::createdAtEpochMillis))
 
     private companion object {
         const val MAX_TITLE_LENGTH = 120
+        const val MAX_NOTE_LENGTH = 1000
         const val MINUTES_PER_DAY = 24 * 60
         const val MAX_REPEAT_INTERVAL_DAYS = 3650
     }

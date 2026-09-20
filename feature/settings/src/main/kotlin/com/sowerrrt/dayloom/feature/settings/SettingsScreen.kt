@@ -699,12 +699,17 @@ private fun rememberDemoContent(): DemoContent =
         plans =
             listOf(
                 DemoPlan(stringResource(R.string.settings_example_plan_review), 0, completed = true),
-                DemoPlan(stringResource(R.string.settings_example_plan_groceries), 0),
+                DemoPlan(
+                    stringResource(R.string.settings_example_plan_groceries),
+                    0,
+                    note = stringResource(R.string.settings_example_plan_groceries_note),
+                ),
                 DemoPlan(stringResource(R.string.settings_example_plan_call), 1),
                 DemoPlan(
                     stringResource(R.string.settings_example_plan_dentist),
                     3,
                     reminderMinutesOfDay = 14 * 60,
+                    note = stringResource(R.string.settings_example_plan_dentist_note),
                 ),
                 DemoPlan(
                     title = stringResource(R.string.settings_example_plan_weekly_review),

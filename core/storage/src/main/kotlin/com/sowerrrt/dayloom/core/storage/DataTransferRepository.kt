@@ -150,7 +150,7 @@ class LocalDataTransferRepository
 
         private suspend fun captureState(): TransferState {
             val habits = habitsRepository.loadAllHabits()
-            val plans = plannerRepository.loadPlans()
+            val plans = plannerRepository.loadAllPlans()
             val lists = listsRepository.loadLists()
             val goals = wishlistRepository.loadGoals()
             val references =

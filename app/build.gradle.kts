@@ -18,6 +18,7 @@ val hasReleaseSigning =
 android {
     namespace = "com.sowerrrt.dayloom"
     compileSdk = 36
+    testBuildType = "qa"
 
     defaultConfig {
         applicationId = "com.sowerrrt.dayloom"
@@ -40,6 +41,12 @@ android {
     }
 
     buildTypes {
+        create("qa") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".qa"
+            versionNameSuffix = "-qa"
+            matchingFallbacks += listOf("debug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -109,6 +116,8 @@ dependencies {
     androidTestImplementation(libs.androidx.test.espresso.core)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    add("qaImplementation", libs.androidx.compose.ui.tooling)
+    add("qaImplementation", libs.androidx.compose.ui.test.manifest)
 }
 
 kapt { correctErrorTypes = true }

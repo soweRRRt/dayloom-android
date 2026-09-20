@@ -210,6 +210,7 @@ data class PlanItem(
     val title: String,
     val dateEpochDay: Long,
     val createdAtEpochMillis: Long,
+    val note: String = "",
     val completed: Boolean = false,
     val reminderMinutesOfDay: Int? = null,
     val reminderEnabled: Boolean = true,
@@ -220,6 +221,7 @@ data class PlanItem(
     val scheduledWeekdays: Set<Weekday> = emptySet(),
     val repeatEveryDays: Int? = null,
     val scheduledMonthDays: Set<Int> = emptySet(),
+    val archived: Boolean = false,
 )
 
 @Serializable
@@ -231,7 +233,7 @@ enum class PlanRepeat {
 }
 
 fun PlanItem.occursOn(epochDay: Long): Boolean {
-    if (epochDay < dateEpochDay || repeatUntilEpochDay?.let { epochDay > it } == true) return false
+    if (archived || epochDay < dateEpochDay || repeatUntilEpochDay?.let { epochDay > it } == true) return false
     if (scheduledMonthDays.isNotEmpty()) {
         return LocalDate.ofEpochDay(epochDay).dayOfMonth in scheduledMonthDays
     }

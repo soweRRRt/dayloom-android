@@ -40,6 +40,7 @@ import javax.inject.Inject
 data class PlannerUiState(
     val habits: List<Habit> = emptyList(),
     val plans: List<PlanItem> = emptyList(),
+    val archivedPlans: List<PlanItem> = emptyList(),
     val selectedEpochDay: Long = LocalDate.now().toEpochDay(),
     val displayedMonth: YearMonth = YearMonth.now(),
     val todayEpochDay: Long = LocalDate.now().toEpochDay(),
@@ -77,6 +78,13 @@ data class PlannerUiState(
     fun completedPlanCount(epochDay: Long): Int = plans.count { it.occursOn(epochDay) && it.isCompletedOn(epochDay) }
 }
 
+private data class PlannerLoadedContent(
+    val habits: List<Habit>,
+    val plans: List<PlanItem>,
+    val archivedPlans: List<PlanItem>,
+    val presets: Set<String>,
+)
+
 @HiltViewModel
 class PlannerViewModel
     @Inject
@@ -106,10 +114,18 @@ class PlannerViewModel
                     coroutineScope {
                         val habits = async { habitsRepository.loadHabits() }
                         val plans = async { plannerRepository.loadPlans() }
+                        val archivedPlans = async { plannerRepository.loadArchivedPlans() }
                         val presets = async { settingsRepository.settings.first().planPresets }
-                        Triple(habits.await(), plans.await(), presets.await())
+                        PlannerLoadedContent(
+                            habits = habits.await(),
+                            plans = plans.await(),
+                            archivedPlans = archivedPlans.await(),
+                            presets = presets.await(),
+                        )
                     }
-                }.onSuccess { (habits, plans, presets) ->
+                }.onSuccess { content ->
+                    val habits = content.habits
+                    val plans = content.plans
                     val planReminderResult =
                         notificationScheduler.rescheduleAll(NotificationScope.PLANS, plans.activePlanReminders())
                     val habitReminderResult =
@@ -121,13 +137,17 @@ class PlannerViewModel
                         it.copy(
                             habits = habits,
                             plans = plans,
+                            archivedPlans = content.archivedPlans,
                             todayEpochDay = LocalDate.now().toEpochDay(),
                             isLoading = false,
                             hasError = false,
                             reminderSchedulingFailed =
                                 planReminderResult.isFailure || habitReminderResult.isFailure,
-                            planImagePaths = imagePaths(plans),
-                            presets = presets.mapNotNull(String::toPlanPresetOrNull).sortedBy { it.title.lowercase() },
+                            planImagePaths = imagePaths(plans + content.archivedPlans),
+                            presets =
+                                content.presets
+                                    .mapNotNull(String::toPlanPresetOrNull)
+                                    .sortedBy { it.title.lowercase() },
                         )
                     }
                 }.onFailure {
@@ -172,20 +192,22 @@ class PlannerViewModel
             scheduledWeekdays: Set<Weekday> = emptySet(),
             repeatEveryDays: Int? = null,
             scheduledMonthDays: Set<Int> = emptySet(),
+            note: String = "",
         ) {
             if (title.isBlank()) return
             val day = mutableUiState.value.selectedEpochDay
             updatePlans {
-                plannerRepository.createPlan(
-                    title,
-                    day,
-                    reminderMinutesOfDay,
-                    repeat,
-                    null,
-                    reminderEnabled,
-                    scheduledWeekdays,
-                    repeatEveryDays,
-                    scheduledMonthDays,
+                plannerRepository.createPlanDetails(
+                    title = title,
+                    note = note,
+                    dateEpochDay = day,
+                    reminderMinutesOfDay = reminderMinutesOfDay,
+                    repeat = repeat,
+                    repeatUntilEpochDay = null,
+                    reminderEnabled = reminderEnabled,
+                    scheduledWeekdays = scheduledWeekdays,
+                    repeatEveryDays = repeatEveryDays,
+                    scheduledMonthDays = scheduledMonthDays,
                 )
             }
         }
@@ -199,21 +221,23 @@ class PlannerViewModel
             scheduledWeekdays: Set<Weekday> = emptySet(),
             repeatEveryDays: Int? = null,
             scheduledMonthDays: Set<Int> = emptySet(),
+            note: String = "",
         ) {
             if (title.isBlank()) return
             val day = mutableUiState.value.selectedEpochDay
             updatePlans {
-                plannerRepository.updatePlan(
-                    id,
-                    title,
-                    day,
-                    reminderMinutesOfDay,
-                    repeat,
-                    null,
-                    reminderEnabled,
-                    scheduledWeekdays,
-                    repeatEveryDays,
-                    scheduledMonthDays,
+                plannerRepository.updatePlanDetails(
+                    id = id,
+                    title = title,
+                    note = note,
+                    dateEpochDay = day,
+                    reminderMinutesOfDay = reminderMinutesOfDay,
+                    repeat = repeat,
+                    repeatUntilEpochDay = null,
+                    reminderEnabled = reminderEnabled,
+                    scheduledWeekdays = scheduledWeekdays,
+                    repeatEveryDays = repeatEveryDays,
+                    scheduledMonthDays = scheduledMonthDays,
                 )
             }
         }
@@ -273,9 +297,11 @@ class PlannerViewModel
             )
         }
 
-        fun togglePlan(id: EntityId) {
-            val day = mutableUiState.value.selectedEpochDay
-            updatePlans { plannerRepository.toggleCompletion(id, day) }
+        fun togglePlan(
+            id: EntityId,
+            epochDay: Long = mutableUiState.value.selectedEpochDay,
+        ) {
+            updatePlans { plannerRepository.toggleCompletion(id, epochDay) }
         }
 
         fun movePlan(
@@ -284,6 +310,14 @@ class PlannerViewModel
         ) {
             val plan = mutableUiState.value.plans.firstOrNull { it.id == id } ?: return
             updatePlans { plannerRepository.movePlan(id, plan.dateEpochDay + days) }
+        }
+
+        fun archivePlan(id: EntityId) {
+            updatePlans { plannerRepository.archivePlan(id) }
+        }
+
+        fun restorePlan(id: EntityId) {
+            updatePlans { plannerRepository.restorePlan(id) }
         }
 
         fun deletePlan(id: EntityId) {
@@ -373,16 +407,17 @@ class PlannerViewModel
 
         private fun updatePlans(operation: suspend () -> List<PlanItem>) {
             viewModelScope.launch {
-                runCatching { operation() }
-                    .onSuccess { plans ->
+                runCatching { operation() to plannerRepository.loadArchivedPlans() }
+                    .onSuccess { (plans, archivedPlans) ->
                         val reminderResult =
                             notificationScheduler.rescheduleAll(NotificationScope.PLANS, plans.activePlanReminders())
                         mutableUiState.update {
                             it.copy(
                                 plans = plans,
+                                archivedPlans = archivedPlans,
                                 hasError = false,
                                 reminderSchedulingFailed = reminderResult.isFailure,
-                                planImagePaths = imagePaths(plans),
+                                planImagePaths = imagePaths(plans + archivedPlans),
                                 isChangingImage = false,
                                 hasImageError = false,
                             )
@@ -397,7 +432,7 @@ class PlannerViewModel
             mutableUiState.update {
                 it.copy(
                     plans = plans,
-                    planImagePaths = imagePaths(plans),
+                    planImagePaths = imagePaths(plans + it.archivedPlans),
                     hasError = false,
                     isChangingImage = false,
                     hasImageError = false,

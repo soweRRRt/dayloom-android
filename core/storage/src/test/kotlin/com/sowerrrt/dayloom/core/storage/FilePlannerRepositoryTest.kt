@@ -125,6 +125,42 @@ class FilePlannerRepositoryTest {
         }
 
     @Test
+    fun `plan archive preserves note attachment and schedule and can be restored`() =
+        runTest {
+            val directory = temporaryFolder.newFolder("archive")
+            val id = EntityId("archived-plan")
+            val repository = FilePlannerRepository(directory, idFactory = { id })
+            val image = AttachmentRef(EntityId("archive-image"), "receipt.png", "image/png")
+
+            repository.createPlanDetails(
+                title = "Renew insurance",
+                note = "Policy number is in the blue folder",
+                dateEpochDay = TEST_EPOCH_DAY,
+                reminderMinutesOfDay = 11 * 60,
+                repeat = PlanRepeat.NONE,
+                repeatUntilEpochDay = null,
+                reminderEnabled = true,
+                scheduledWeekdays = setOf(Weekday.MONDAY),
+                repeatEveryDays = null,
+                scheduledMonthDays = emptySet(),
+            )
+            repository.setImage(id, image)
+
+            assertTrue(repository.archivePlan(id).isEmpty())
+            val archived = FilePlannerRepository(directory).loadArchivedPlans().single()
+            assertEquals("Policy number is in the blue folder", archived.note)
+            assertEquals(image, archived.image)
+            assertEquals(setOf(Weekday.MONDAY), archived.scheduledWeekdays)
+            assertTrue(archived.archived)
+            assertEquals(archived, FilePlannerRepository(directory).loadAllPlans().single())
+
+            val restored = repository.restorePlan(id).single()
+            assertFalse(restored.archived)
+            assertEquals(image, restored.image)
+            assertEquals("Policy number is in the blue folder", restored.note)
+        }
+
+    @Test
     fun `plan accepts only one advanced schedule mode`() =
         runTest {
             val repository = FilePlannerRepository(temporaryFolder.newFolder("invalid-schedule"))

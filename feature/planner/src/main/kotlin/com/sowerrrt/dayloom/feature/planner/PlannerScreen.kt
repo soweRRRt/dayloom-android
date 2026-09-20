@@ -33,7 +33,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronLeft
@@ -45,7 +47,9 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
@@ -95,6 +99,7 @@ import com.sowerrrt.dayloom.core.model.PlanPreset
 import com.sowerrrt.dayloom.core.model.PlanRepeat
 import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.model.isCompletedOn
+import com.sowerrrt.dayloom.core.model.occursOn
 import com.sowerrrt.dayloom.core.ui.ErrorState
 import com.sowerrrt.dayloom.core.ui.LoadingState
 import com.sowerrrt.dayloom.core.ui.loadSampledImage
@@ -110,7 +115,7 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
     LaunchedEffect(Unit) { viewModel.onScreenEntered() }
     var showPlanDialog by rememberSaveable { mutableStateOf(false) }
     var editingPlan by remember { mutableStateOf<PlanItem?>(null) }
-    var pendingDelete by remember { mutableStateOf<PlanItem?>(null) }
+    var pendingArchive by remember { mutableStateOf<PlanItem?>(null) }
     var imageTarget by remember { mutableStateOf<PlanItem?>(null) }
     val context = LocalContext.current
     val notificationPermissionLauncher =
@@ -152,7 +157,8 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                         editingPlan = it
                         showPlanDialog = true
                     },
-                    onDeletePlan = { pendingDelete = it },
+                    onArchivePlan = { pendingArchive = it },
+                    onRestorePlan = viewModel::restorePlan,
                     onChoosePlanImage = { plan ->
                         imageTarget = plan
                         imagePicker.launch("image/*")
@@ -191,6 +197,7 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
             onRemovePreset = viewModel::removePreset,
             onSave = {
                 title,
+                note,
                 reminderMinutesOfDay,
                 repeat,
                 reminderEnabled,
@@ -217,6 +224,7 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                         scheduledWeekdays,
                         repeatEveryDays,
                         scheduledMonthDays,
+                        note,
                     )
                 } else {
                     viewModel.updatePlan(
@@ -228,6 +236,7 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                         scheduledWeekdays,
                         repeatEveryDays,
                         scheduledMonthDays,
+                        note,
                     )
                 }
                 showPlanDialog = false
@@ -235,26 +244,27 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
         )
     }
 
-    pendingDelete?.let { plan ->
+    pendingArchive?.let { plan ->
         AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text(stringResource(R.string.planner_delete_title)) },
-            text = { Text(stringResource(R.string.planner_delete_description, plan.title)) },
+            onDismissRequest = { pendingArchive = null },
+            title = { Text(stringResource(R.string.planner_archive_title)) },
+            text = { Text(stringResource(R.string.planner_archive_description, plan.title)) },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.deletePlan(plan.id)
-                        pendingDelete = null
+                        viewModel.archivePlan(plan.id)
+                        pendingArchive = null
                     },
+                    modifier = Modifier.testTag("confirm_archive_plan"),
                 ) {
                     Text(
-                        stringResource(R.string.planner_delete_confirm),
+                        stringResource(R.string.planner_archive_confirm),
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.planner_cancel)) }
+                TextButton(onClick = { pendingArchive = null }) { Text(stringResource(R.string.planner_cancel)) }
             },
         )
     }
@@ -269,17 +279,38 @@ private fun PlannerContent(
     onNextMonth: () -> Unit,
     onToday: () -> Unit,
     onToggleHabit: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
-    onTogglePlan: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
+    onTogglePlan: (com.sowerrrt.dayloom.core.model.EntityId, Long) -> Unit,
     onMovePlan: (com.sowerrrt.dayloom.core.model.EntityId, Long) -> Unit,
     onCreatePlan: () -> Unit,
     onEditPlan: (PlanItem) -> Unit,
-    onDeletePlan: (PlanItem) -> Unit,
+    onArchivePlan: (PlanItem) -> Unit,
+    onRestorePlan: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
     onChoosePlanImage: (PlanItem) -> Unit,
     onUsePreset: (PlanPreset) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val locale = currentLocale()
     var calendarMode by rememberSaveable { mutableStateOf(CalendarMode.MONTH) }
+    var showArchivedPlans by rememberSaveable { mutableStateOf(false) }
+    var planQuery by rememberSaveable { mutableStateOf("") }
+    var planDateFilter by rememberSaveable { mutableStateOf(PlanDateFilter.SELECTED) }
+    var planStatusFilter by rememberSaveable { mutableStateOf(PlanStatusFilter.ALL) }
+    var planTimeFilter by rememberSaveable { mutableStateOf(PlanTimeFilter.ALL) }
+    var planSortMode by rememberSaveable { mutableStateOf(PlanSortMode.TIME) }
+    val filteredPlans =
+        (if (showArchivedPlans) state.archivedPlans else state.plans)
+            .filter {
+                it.matchesQuery(planQuery.trim()) &&
+                    it.matchesDateFilter(planDateFilter, state.selectedEpochDay, state.todayEpochDay) &&
+                    it.matchesStatusFilter(
+                        planStatusFilter,
+                        planDateFilter,
+                        state.selectedEpochDay,
+                        state.todayEpochDay,
+                    ) &&
+                    it.matchesTimeFilter(planTimeFilter)
+            }
+    val visiblePlans = filteredPlans.sorted(planSortMode, planDateFilter, state.selectedEpochDay, state.todayEpochDay)
     Box(modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().testTag("planner_list"),
@@ -392,18 +423,69 @@ private fun PlannerContent(
                 }
             }
             item { SectionTitle(stringResource(R.string.planner_plans_section), MaterialTheme.colorScheme.secondary) }
-            if (state.selectedPlans.isEmpty()) {
-                item { EmptyDayCard(stringResource(R.string.planner_no_plans)) }
+            item {
+                PlanFilterPanel(
+                    showArchived = showArchivedPlans,
+                    onShowArchivedChange = { showArchivedPlans = it },
+                    query = planQuery,
+                    onQueryChange = { planQuery = it },
+                    dateFilter = planDateFilter,
+                    onDateFilterChange = { planDateFilter = it },
+                    statusFilter = planStatusFilter,
+                    onStatusFilterChange = { planStatusFilter = it },
+                    timeFilter = planTimeFilter,
+                    onTimeFilterChange = { planTimeFilter = it },
+                    sortMode = planSortMode,
+                    onSortModeChange = { planSortMode = it },
+                    onReset = {
+                        planQuery = ""
+                        planDateFilter = PlanDateFilter.SELECTED
+                        planStatusFilter = PlanStatusFilter.ALL
+                        planTimeFilter = PlanTimeFilter.ALL
+                        planSortMode = PlanSortMode.TIME
+                    },
+                )
+            }
+            if (visiblePlans.isEmpty()) {
+                item {
+                    EmptyDayCard(
+                        stringResource(
+                            if (showArchivedPlans && planQuery.isBlank()) {
+                                R.string.planner_archive_empty
+                            } else if (
+                                planQuery.isNotBlank() ||
+                                planDateFilter != PlanDateFilter.SELECTED ||
+                                planStatusFilter != PlanStatusFilter.ALL ||
+                                planTimeFilter != PlanTimeFilter.ALL
+                            ) {
+                                R.string.planner_filters_empty
+                            } else {
+                                R.string.planner_no_plans
+                            },
+                        ),
+                    )
+                }
+            } else if (showArchivedPlans) {
+                items(visiblePlans, key = { "archived-plan-${it.id.value}" }) { plan ->
+                    ArchivedPlanRow(
+                        plan = plan,
+                        imagePath = state.planImagePaths[plan.id],
+                        onRestore = { onRestorePlan(plan.id) },
+                    )
+                }
             } else {
-                items(state.selectedPlans, key = { "plan-${it.id.value}" }) { plan ->
+                items(visiblePlans, key = { "plan-${it.id.value}" }) { plan ->
+                    val displayEpochDay =
+                        plan.displayEpochDay(planDateFilter, state.selectedEpochDay, state.todayEpochDay)
                     PlanRow(
                         plan = plan,
-                        completed = plan.isCompletedOn(state.selectedEpochDay),
-                        onToggle = { onTogglePlan(plan.id) },
+                        completed = plan.isCompletedOn(displayEpochDay),
+                        displayEpochDay = displayEpochDay,
+                        onToggle = { onTogglePlan(plan.id, displayEpochDay) },
                         onMoveTomorrow = { onMovePlan(plan.id, 1) },
                         onMoveNextWeek = { onMovePlan(plan.id, 7) },
                         onEdit = { onEditPlan(plan) },
-                        onDelete = { onDeletePlan(plan) },
+                        onArchive = { onArchivePlan(plan) },
                         onChooseImage = { onChoosePlanImage(plan) },
                         imagePath = state.planImagePaths[plan.id],
                     )
@@ -415,6 +497,167 @@ private fun PlannerContent(
             modifier = Modifier.align(Alignment.BottomEnd).padding(DayloomSpacing.md).testTag("create_plan"),
         ) {
             Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.planner_action))
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PlanFilterPanel(
+    showArchived: Boolean,
+    onShowArchivedChange: (Boolean) -> Unit,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    dateFilter: PlanDateFilter,
+    onDateFilterChange: (PlanDateFilter) -> Unit,
+    statusFilter: PlanStatusFilter,
+    onStatusFilterChange: (PlanStatusFilter) -> Unit,
+    timeFilter: PlanTimeFilter,
+    onTimeFilterChange: (PlanTimeFilter) -> Unit,
+    sortMode: PlanSortMode,
+    onSortModeChange: (PlanSortMode) -> Unit,
+    onReset: () -> Unit,
+) {
+    var sortExpanded by remember { mutableStateOf(false) }
+    val hasCustomFilters =
+        query.isNotBlank() ||
+            dateFilter != PlanDateFilter.SELECTED ||
+            statusFilter != PlanStatusFilter.ALL ||
+            timeFilter != PlanTimeFilter.ALL ||
+            sortMode != PlanSortMode.TIME
+    DayloomCard(Modifier.fillMaxWidth().testTag("plan_filters")) {
+        Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+            ) {
+                FilterChip(
+                    selected = !showArchived,
+                    onClick = { onShowArchivedChange(false) },
+                    label = { Text(stringResource(R.string.planner_active_plans)) },
+                    modifier = Modifier.testTag("plan_view_active"),
+                )
+                FilterChip(
+                    selected = showArchived,
+                    onClick = { onShowArchivedChange(true) },
+                    label = { Text(stringResource(R.string.planner_archived_plans)) },
+                    leadingIcon = { Icon(Icons.Rounded.Archive, contentDescription = null) },
+                    modifier = Modifier.testTag("plan_view_archived"),
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.planner_search)) },
+                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                    trailingIcon =
+                        if (query.isNotEmpty()) {
+                            {
+                                IconButton(
+                                    onClick = { onQueryChange("") },
+                                    modifier = Modifier.testTag("plan_search_clear"),
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.planner_search_clear),
+                                    )
+                                }
+                            }
+                        } else {
+                            null
+                        },
+                    modifier = Modifier.weight(1f).testTag("plan_search"),
+                )
+                Box {
+                    IconButton(
+                        onClick = { sortExpanded = true },
+                        modifier = Modifier.testTag("plan_sort"),
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Rounded.Sort,
+                            contentDescription =
+                                stringResource(
+                                    R.string.planner_sort_description,
+                                    stringResource(sortMode.labelResource()),
+                                ),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = sortExpanded,
+                        onDismissRequest = { sortExpanded = false },
+                    ) {
+                        PlanSortMode.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(stringResource(option.labelResource())) },
+                                leadingIcon =
+                                    if (option == sortMode) {
+                                        { Icon(Icons.Rounded.CheckCircle, contentDescription = null) }
+                                    } else {
+                                        null
+                                    },
+                                onClick = {
+                                    onSortModeChange(option)
+                                    sortExpanded = false
+                                },
+                                modifier = Modifier.testTag("plan_sort_${option.name.lowercase()}"),
+                            )
+                        }
+                    }
+                }
+            }
+            Text(stringResource(R.string.planner_filter_date), style = MaterialTheme.typography.labelLarge)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+            ) {
+                PlanDateFilter.entries.forEach { option ->
+                    FilterChip(
+                        selected = dateFilter == option,
+                        onClick = { onDateFilterChange(option) },
+                        label = { Text(stringResource(option.labelResource())) },
+                        modifier = Modifier.testTag("plan_date_${option.name.lowercase()}"),
+                    )
+                }
+            }
+            Text(stringResource(R.string.planner_filter_status), style = MaterialTheme.typography.labelLarge)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+            ) {
+                PlanStatusFilter.entries.forEach { option ->
+                    FilterChip(
+                        selected = statusFilter == option,
+                        onClick = { onStatusFilterChange(option) },
+                        label = { Text(stringResource(option.labelResource())) },
+                        modifier = Modifier.testTag("plan_status_${option.name.lowercase()}"),
+                    )
+                }
+            }
+            Text(stringResource(R.string.planner_filter_time), style = MaterialTheme.typography.labelLarge)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+            ) {
+                PlanTimeFilter.entries.forEach { option ->
+                    FilterChip(
+                        selected = timeFilter == option,
+                        onClick = { onTimeFilterChange(option) },
+                        label = { Text(stringResource(option.labelResource())) },
+                        modifier = Modifier.testTag("plan_time_${option.name.lowercase()}"),
+                    )
+                }
+            }
+            if (hasCustomFilters) {
+                TextButton(onClick = onReset, modifier = Modifier.testTag("plan_filters_reset")) {
+                    Text(stringResource(R.string.planner_filters_reset))
+                }
+            }
         }
     }
 }
@@ -736,15 +979,61 @@ private fun CalendarHabitRow(
 }
 
 @Composable
+private fun ArchivedPlanRow(
+    plan: PlanItem,
+    imagePath: String?,
+    onRestore: () -> Unit,
+) {
+    DayloomCard(Modifier.fillMaxWidth().testTag("archived_plan_${plan.title}")) {
+        Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+            if (imagePath != null) {
+                LocalPlanImage(
+                    imagePath = imagePath,
+                    title = plan.title,
+                    modifier = Modifier.fillMaxWidth().height(96.dp),
+                )
+            }
+            Text(plan.title, style = MaterialTheme.typography.titleMedium)
+            if (plan.note.isNotBlank()) {
+                Text(
+                    plan.note,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                LocalDate.ofEpochDay(plan.dateEpochDay).format(
+                    DateTimeFormatter.ofPattern("d MMMM yyyy", currentLocale()),
+                ),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+            planScheduleLabel(plan)?.let { schedule ->
+                Text(schedule, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.tertiary)
+            }
+            OutlinedButton(
+                onClick = onRestore,
+                modifier = Modifier.fillMaxWidth().testTag("restore_plan_${plan.title}"),
+            ) {
+                Icon(Icons.Rounded.Restore, contentDescription = null)
+                Spacer(Modifier.size(DayloomSpacing.xs))
+                Text(stringResource(R.string.planner_restore))
+            }
+        }
+    }
+}
+
+@Composable
 private fun PlanRow(
     plan: PlanItem,
     completed: Boolean,
+    displayEpochDay: Long,
     imagePath: String?,
     onToggle: () -> Unit,
     onMoveTomorrow: () -> Unit,
     onMoveNextWeek: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit,
+    onArchive: () -> Unit,
     onChooseImage: () -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -786,6 +1075,21 @@ private fun PlanRow(
                         plan.title,
                         style = MaterialTheme.typography.titleMedium,
                         textDecoration = if (completed) TextDecoration.LineThrough else null,
+                    )
+                    if (plan.note.isNotBlank()) {
+                        Text(
+                            plan.note,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.testTag("plan_note_${plan.title}"),
+                        )
+                    }
+                    Text(
+                        LocalDate.ofEpochDay(displayEpochDay).format(
+                            DateTimeFormatter.ofPattern("d MMMM yyyy", currentLocale()),
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     plan.reminderMinutesOfDay?.let { reminderMinutes ->
                         Row(
@@ -891,12 +1195,13 @@ private fun PlanRow(
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.planner_delete)) },
-                            leadingIcon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null) },
+                            text = { Text(stringResource(R.string.planner_archive)) },
+                            leadingIcon = { Icon(Icons.Rounded.Archive, contentDescription = null) },
                             onClick = {
                                 menuExpanded = false
-                                onDelete()
+                                onArchive()
                             },
+                            modifier = Modifier.testTag("archive_plan_${plan.title}"),
                         )
                     }
                 }
@@ -938,9 +1243,10 @@ private fun PlanEditorDialog(
     presets: List<PlanPreset>,
     onSavePreset: (String, Int?, PlanRepeat, Boolean, Set<Weekday>, Int?, Set<Int>) -> Unit,
     onRemovePreset: (PlanPreset) -> Unit,
-    onSave: (String, Int?, PlanRepeat, Boolean, Set<Weekday>, Int?, Set<Int>) -> Unit,
+    onSave: (String, String, Int?, PlanRepeat, Boolean, Set<Weekday>, Int?, Set<Int>) -> Unit,
 ) {
     var title by remember(plan?.id) { mutableStateOf(plan?.title.orEmpty()) }
+    var note by remember(plan?.id) { mutableStateOf(plan?.note.orEmpty()) }
     var reminderMinutesOfDay by remember(plan?.id) { mutableStateOf(plan?.reminderMinutesOfDay) }
     var reminderEnabled by remember(plan?.id) { mutableStateOf(plan?.reminderEnabled ?: false) }
     var selectedDays by remember(plan?.id) {
@@ -991,6 +1297,15 @@ private fun PlanEditorDialog(
                     supportingText = { Text("${title.length}/$MAX_PLAN_TITLE_LENGTH") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("plan_name_input"),
+                )
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it.take(MAX_PLAN_NOTE_LENGTH) },
+                    label = { Text(stringResource(R.string.planner_note_label)) },
+                    supportingText = { Text("${note.length}/$MAX_PLAN_NOTE_LENGTH") },
+                    minLines = 2,
+                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth().testTag("plan_note_input"),
                 )
                 if (presets.isNotEmpty()) {
                     Text(stringResource(R.string.planner_presets), style = MaterialTheme.typography.titleMedium)
@@ -1262,6 +1577,7 @@ private fun PlanEditorDialog(
                 onClick = {
                     onSave(
                         title,
+                        note,
                         reminderMinutesOfDay,
                         PlanRepeat.NONE,
                         reminderEnabled,
@@ -1305,8 +1621,147 @@ private fun weekLabel(
 }
 
 private const val MAX_PLAN_TITLE_LENGTH = 120
+private const val MAX_PLAN_NOTE_LENGTH = 1000
 private const val DEFAULT_REMINDER_MINUTES = 9 * 60
 private const val MAX_REPEAT_INTERVAL_DAYS = 3650
+private const val PLAN_OCCURRENCE_LOOKAHEAD_DAYS = 3650L
+
+private enum class PlanDateFilter {
+    SELECTED,
+    TODAY,
+    UPCOMING,
+    ANY,
+}
+
+private enum class PlanStatusFilter {
+    ALL,
+    OPEN,
+    COMPLETED,
+}
+
+private enum class PlanTimeFilter {
+    ALL,
+    WITH_TIME,
+    WITHOUT_TIME,
+}
+
+private enum class PlanSortMode {
+    TIME,
+    DATE,
+    CREATED,
+    NAME,
+}
+
+private fun PlanDateFilter.labelResource(): Int =
+    when (this) {
+        PlanDateFilter.SELECTED -> R.string.planner_date_selected
+        PlanDateFilter.TODAY -> R.string.planner_date_today
+        PlanDateFilter.UPCOMING -> R.string.planner_date_upcoming
+        PlanDateFilter.ANY -> R.string.planner_date_any
+    }
+
+private fun PlanStatusFilter.labelResource(): Int =
+    when (this) {
+        PlanStatusFilter.ALL -> R.string.planner_status_all
+        PlanStatusFilter.OPEN -> R.string.planner_status_open
+        PlanStatusFilter.COMPLETED -> R.string.planner_status_completed
+    }
+
+private fun PlanTimeFilter.labelResource(): Int =
+    when (this) {
+        PlanTimeFilter.ALL -> R.string.planner_time_all
+        PlanTimeFilter.WITH_TIME -> R.string.planner_time_with
+        PlanTimeFilter.WITHOUT_TIME -> R.string.planner_time_without
+    }
+
+private fun PlanSortMode.labelResource(): Int =
+    when (this) {
+        PlanSortMode.TIME -> R.string.planner_sort_time
+        PlanSortMode.DATE -> R.string.planner_sort_date
+        PlanSortMode.CREATED -> R.string.planner_sort_created
+        PlanSortMode.NAME -> R.string.planner_sort_name
+    }
+
+private fun PlanItem.matchesQuery(query: String): Boolean =
+    query.isEmpty() || title.contains(query, ignoreCase = true) || note.contains(query, ignoreCase = true)
+
+private fun PlanItem.matchesDateFilter(
+    filter: PlanDateFilter,
+    selectedEpochDay: Long,
+    todayEpochDay: Long,
+): Boolean {
+    val schedule = if (archived) copy(archived = false) else this
+    return when (filter) {
+        PlanDateFilter.SELECTED -> schedule.occursOn(selectedEpochDay)
+        PlanDateFilter.TODAY -> schedule.occursOn(todayEpochDay)
+        PlanDateFilter.UPCOMING -> schedule.nextOccurrence(todayEpochDay) != null
+        PlanDateFilter.ANY -> true
+    }
+}
+
+private fun PlanItem.matchesStatusFilter(
+    filter: PlanStatusFilter,
+    dateFilter: PlanDateFilter,
+    selectedEpochDay: Long,
+    todayEpochDay: Long,
+): Boolean {
+    if (filter == PlanStatusFilter.ALL) return true
+    val completedOnDisplayDay = isCompletedOn(displayEpochDay(dateFilter, selectedEpochDay, todayEpochDay))
+    return if (filter == PlanStatusFilter.COMPLETED) completedOnDisplayDay else !completedOnDisplayDay
+}
+
+private fun PlanItem.matchesTimeFilter(filter: PlanTimeFilter): Boolean =
+    when (filter) {
+        PlanTimeFilter.ALL -> true
+        PlanTimeFilter.WITH_TIME -> reminderMinutesOfDay != null
+        PlanTimeFilter.WITHOUT_TIME -> reminderMinutesOfDay == null
+    }
+
+private fun PlanItem.displayEpochDay(
+    filter: PlanDateFilter,
+    selectedEpochDay: Long,
+    todayEpochDay: Long,
+): Long =
+    when (filter) {
+        PlanDateFilter.SELECTED -> selectedEpochDay
+        PlanDateFilter.TODAY -> todayEpochDay
+        PlanDateFilter.UPCOMING -> nextOccurrence(todayEpochDay) ?: dateEpochDay
+        PlanDateFilter.ANY ->
+            if (dateEpochDay >= todayEpochDay) {
+                dateEpochDay
+            } else {
+                nextOccurrence(todayEpochDay) ?: dateEpochDay
+            }
+    }
+
+private fun PlanItem.nextOccurrence(fromEpochDay: Long): Long? {
+    val schedule = if (archived) copy(archived = false) else this
+    val start = maxOf(fromEpochDay, dateEpochDay)
+    val maximum =
+        minOf(
+            repeatUntilEpochDay ?: (start + PLAN_OCCURRENCE_LOOKAHEAD_DAYS),
+            start + PLAN_OCCURRENCE_LOOKAHEAD_DAYS,
+        )
+    return (start..maximum).firstOrNull(schedule::occursOn)
+}
+
+private fun List<PlanItem>.sorted(
+    mode: PlanSortMode,
+    dateFilter: PlanDateFilter,
+    selectedEpochDay: Long,
+    todayEpochDay: Long,
+): List<PlanItem> =
+    when (mode) {
+        PlanSortMode.TIME ->
+            sortedWith(compareBy<PlanItem> { it.reminderMinutesOfDay ?: Int.MAX_VALUE }.thenBy { it.title.lowercase() })
+        PlanSortMode.DATE ->
+            sortedWith(
+                compareBy<PlanItem> { it.displayEpochDay(dateFilter, selectedEpochDay, todayEpochDay) }
+                    .thenBy { it.reminderMinutesOfDay ?: Int.MAX_VALUE },
+            )
+        PlanSortMode.CREATED -> sortedByDescending(PlanItem::createdAtEpochMillis)
+        PlanSortMode.NAME -> sortedBy { it.title.lowercase() }
+    }
 
 private enum class PlanScheduleMode(
     val labelResource: Int,

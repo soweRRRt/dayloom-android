@@ -44,6 +44,7 @@ data class DemoPlan(
     val scheduledWeekdays: Set<Weekday> = emptySet(),
     val repeatEveryDays: Int? = null,
     val scheduledMonthDays: Set<Int> = emptySet(),
+    val note: String = "",
 )
 
 data class DemoList(
@@ -214,24 +215,44 @@ class LocalDemoContentRepository(
         var current = plannerRepository.loadPlans()
         var entitiesAdded = 0
         var imagesAdded = 0
+        var detailsAdded = 0
         plans.forEach { demo ->
             var plan = current.firstOrNull { it.title == demo.title }
             if (plan == null) {
                 current =
-                    plannerRepository.createPlan(
-                        demo.title,
-                        todayEpochDay + demo.dayOffset,
-                        demo.reminderMinutesOfDay,
-                        demo.repeat,
-                        null,
-                        demo.reminderEnabled,
-                        demo.scheduledWeekdays,
-                        demo.repeatEveryDays,
-                        demo.scheduledMonthDays,
+                    plannerRepository.createPlanDetails(
+                        title = demo.title,
+                        note = demo.note,
+                        dateEpochDay = todayEpochDay + demo.dayOffset,
+                        reminderMinutesOfDay = demo.reminderMinutesOfDay,
+                        repeat = demo.repeat,
+                        repeatUntilEpochDay = null,
+                        reminderEnabled = demo.reminderEnabled,
+                        scheduledWeekdays = demo.scheduledWeekdays,
+                        repeatEveryDays = demo.repeatEveryDays,
+                        scheduledMonthDays = demo.scheduledMonthDays,
                     )
                 plan = current.last { it.title == demo.title }
                 if (demo.completed) current = plannerRepository.toggleCompletion(plan.id)
                 entitiesAdded++
+            }
+            if (demo.note.isNotBlank() && plan.note.isBlank()) {
+                current =
+                    plannerRepository.updatePlanDetails(
+                        id = plan.id,
+                        title = plan.title,
+                        note = demo.note,
+                        dateEpochDay = plan.dateEpochDay,
+                        reminderMinutesOfDay = plan.reminderMinutesOfDay,
+                        repeat = plan.repeat,
+                        repeatUntilEpochDay = plan.repeatUntilEpochDay,
+                        reminderEnabled = plan.reminderEnabled,
+                        scheduledWeekdays = plan.scheduledWeekdays,
+                        repeatEveryDays = plan.repeatEveryDays,
+                        scheduledMonthDays = plan.scheduledMonthDays,
+                    )
+                plan = current.first { it.id == plan.id }
+                detailsAdded++
             }
             if (plan.image == null && demo.image != null && attachmentRepository != null && demoImageSource != null) {
                 val asset = demoImageSource.load(demo.image)
@@ -240,7 +261,7 @@ class LocalDemoContentRepository(
                 imagesAdded++
             }
         }
-        return EntitySeedResult(entitiesAdded, imagesAdded)
+        return EntitySeedResult(entitiesAdded, imagesAdded, detailsAdded)
     }
 
     private suspend fun seedMissingLists(lists: List<DemoList>): ListSeedResult {
