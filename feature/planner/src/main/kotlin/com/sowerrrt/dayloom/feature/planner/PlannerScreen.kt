@@ -524,12 +524,11 @@ private fun CalendarHabitRow(
 ) {
     val completed = epochDay in habit.completedEpochDays
     DayloomCard(
-        Modifier
-            .fillMaxWidth()
-            .clickable(
-                enabled = canComplete,
-                onClick = onToggle,
-            ).testTag("calendar_habit_${habit.title}"),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag("calendar_habit_${habit.title}"),
+        onClick = onToggle.takeIf { canComplete },
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -355,10 +354,11 @@ private fun WishCard(
 ) {
     val progress = goalProgress(goal)
     DayloomCard(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .testTag("wish_${goal.title}"),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag("wish_${goal.title}"),
+        onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
             WishImageCover(

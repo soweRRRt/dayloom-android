@@ -4,12 +4,18 @@ import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -50,10 +56,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -70,6 +80,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.sowerrrt.dayloom.core.designsystem.DayloomAnimatedBackground
 import com.sowerrrt.dayloom.core.designsystem.DayloomButton
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomLogo
@@ -91,6 +102,7 @@ import com.sowerrrt.dayloom.feature.planner.PlannerScreen
 import com.sowerrrt.dayloom.feature.settings.SettingsScreen
 import com.sowerrrt.dayloom.feature.vault.VaultScreen
 import com.sowerrrt.dayloom.feature.wishlist.WishlistScreen
+import kotlinx.coroutines.delay
 
 @Composable
 fun DayloomApp(
@@ -108,12 +120,15 @@ fun DayloomApp(
         accentPalette = settings?.accentPalette ?: AccentPalette.VIOLET,
     ) {
         Surface(Modifier.fillMaxSize()) {
-            if (settings == null) {
-                StartupScreen()
-            } else if (!rootState.isAppUnlocked) {
-                AppLockScreen(rootState, rootViewModel)
-            } else {
-                DayloomShell(settings, updateState, updateViewModel)
+            Box(Modifier.fillMaxSize()) {
+                DayloomAnimatedBackground()
+                if (settings == null) {
+                    StartupScreen()
+                } else if (!rootState.isAppUnlocked) {
+                    AppLockScreen(rootState, rootViewModel)
+                } else {
+                    DayloomShell(settings, updateState, updateViewModel)
+                }
             }
         }
     }
@@ -299,7 +314,7 @@ private fun DayloomShell(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
     ) { outerPadding ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(outerPadding)) {
             val wide = maxWidth >= 720.dp
@@ -318,7 +333,7 @@ private fun DayloomShell(
                 Scaffold(
                     bottomBar = { DayloomBottomBar(currentRoute, navController, settings.bottomSections) },
                     contentWindowInsets = WindowInsets(0, 0, 0, 0),
-                    containerColor = MaterialTheme.colorScheme.background,
+                    containerColor = Color.Transparent,
                 ) { innerPadding ->
                     DayloomNavHost(
                         navController = navController,
@@ -391,14 +406,22 @@ private fun DayloomNavHost(
         startDestination = startRoute,
         modifier = modifier,
         enterTransition = {
-            fadeIn(tween(DayloomMotion.STANDARD_MILLIS)) +
-                scaleIn(tween(DayloomMotion.STANDARD_MILLIS), initialScale = 0.985f)
+            fadeIn(tween(DayloomMotion.STANDARD_MILLIS, delayMillis = 40)) +
+                slideInHorizontally(tween(DayloomMotion.EMPHASIZED_MILLIS)) { it / 12 } +
+                scaleIn(tween(DayloomMotion.EMPHASIZED_MILLIS), initialScale = 0.992f)
         },
-        exitTransition = { fadeOut(tween(DayloomMotion.QUICK_MILLIS)) },
-        popEnterTransition = { fadeIn(tween(DayloomMotion.STANDARD_MILLIS)) },
+        exitTransition = {
+            fadeOut(tween(DayloomMotion.QUICK_MILLIS)) +
+                slideOutHorizontally(tween(DayloomMotion.STANDARD_MILLIS)) { -it / 28 }
+        },
+        popEnterTransition = {
+            fadeIn(tween(DayloomMotion.STANDARD_MILLIS, delayMillis = 30)) +
+                slideInHorizontally(tween(DayloomMotion.EMPHASIZED_MILLIS)) { -it / 12 }
+        },
         popExitTransition = {
             fadeOut(tween(DayloomMotion.QUICK_MILLIS)) +
-                scaleOut(tween(DayloomMotion.QUICK_MILLIS), targetScale = 0.99f)
+                slideOutHorizontally(tween(DayloomMotion.STANDARD_MILLIS)) { it / 20 } +
+                scaleOut(tween(DayloomMotion.QUICK_MILLIS), targetScale = 0.992f)
         },
     ) {
         composable(Routes.HOME) {
@@ -426,6 +449,7 @@ private fun DayloomNavHost(
             SettingsScreen(
                 onCheckUpdates = updateViewModel::checkManually,
                 onApplyLanguage = ::applyAppLanguage,
+                onBack = navController::popBackStack,
             )
         }
     }
@@ -453,14 +477,14 @@ private fun DayloomBottomBar(
     sections: List<BottomSection>,
 ) {
     NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
         tonalElevation = 0.dp,
     ) {
         primaryDestinations(sections).forEach { destination ->
             NavigationBarItem(
                 selected = destination.matches(currentRoute),
                 onClick = { navController.navigateSingleTop(destination.route) },
-                icon = { Icon(destination.icon, contentDescription = null) },
+                icon = { AnimatedNavigationIcon(destination.icon, destination.matches(currentRoute)) },
                 label = { Text(destination.label) },
                 colors =
                     NavigationBarItemDefaults.colors(
@@ -482,12 +506,12 @@ private fun DayloomNavigationRail(
     navController: NavHostController,
     sections: List<BottomSection>,
 ) {
-    NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
+    NavigationRail(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)) {
         primaryDestinations(sections).forEach { destination ->
             NavigationRailItem(
                 selected = destination.matches(currentRoute),
                 onClick = { navController.navigateSingleTop(destination.route) },
-                icon = { Icon(destination.icon, contentDescription = null) },
+                icon = { AnimatedNavigationIcon(destination.icon, destination.matches(currentRoute)) },
                 label = { Text(destination.label) },
                 colors =
                     NavigationRailItemDefaults.colors(
@@ -499,6 +523,28 @@ private fun DayloomNavigationRail(
             )
         }
     }
+}
+
+@Composable
+private fun AnimatedNavigationIcon(
+    icon: ImageVector,
+    selected: Boolean,
+) {
+    val scale by
+        animateFloatAsState(
+            targetValue = if (selected) 1.12f else 1f,
+            animationSpec = spring(stiffness = 440f, dampingRatio = 0.68f),
+            label = "navigationIconScale",
+        )
+    Icon(
+        icon,
+        contentDescription = null,
+        modifier =
+            Modifier.graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
+    )
 }
 
 @Composable
@@ -562,9 +608,27 @@ private fun MoreScreen(
 ) {
     val items =
         listOf(
-            Triple(stringResource(R.string.more_wishlist), Icons.Rounded.Savings, onWishlist),
-            Triple(stringResource(R.string.more_vault), Icons.Rounded.Lock, onVault),
-            Triple(stringResource(R.string.more_settings), Icons.Rounded.Palette, onSettings),
+            MoreDestination(
+                title = stringResource(R.string.more_wishlist),
+                description = stringResource(R.string.more_wishlist_description),
+                icon = Icons.Rounded.Savings,
+                testTag = "more_wishlist",
+                onClick = onWishlist,
+            ),
+            MoreDestination(
+                title = stringResource(R.string.more_vault),
+                description = stringResource(R.string.more_vault_description),
+                icon = Icons.Rounded.Lock,
+                testTag = "more_vault",
+                onClick = onVault,
+            ),
+            MoreDestination(
+                title = stringResource(R.string.more_settings),
+                description = stringResource(R.string.more_settings_description),
+                icon = Icons.Rounded.Palette,
+                testTag = "more_settings",
+                onClick = onSettings,
+            ),
         )
     Column {
         DayloomTopBar(stringResource(R.string.more_title))
@@ -577,25 +641,56 @@ private fun MoreScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyLarge,
             )
-            items.forEachIndexed { index, (label, icon, action) ->
-                val testTag = listOf("more_wishlist", "more_vault", "more_settings")[index]
-                DayloomCard(
-                    Modifier
-                        .fillMaxWidth()
-                        .testTag(testTag)
-                        .clickable(onClick = action),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
-                    ) {
-                        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                        Icon(Icons.Rounded.ChevronRight, contentDescription = null)
-                    }
+            items.forEachIndexed { index, item -> MoreDestinationCard(item, index) }
+        }
+    }
+}
+
+@Composable
+private fun MoreDestinationCard(
+    item: MoreDestination,
+    index: Int,
+) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(index * 55L)
+        visible = true
+    }
+    AnimatedVisibility(
+        visible = visible,
+        enter =
+            fadeIn(tween(DayloomMotion.STANDARD_MILLIS)) +
+                slideInVertically(tween(DayloomMotion.EMPHASIZED_MILLIS)) { it / 4 },
+        exit = fadeOut(tween(DayloomMotion.QUICK_MILLIS)) + slideOutVertically { it / 8 },
+    ) {
+        DayloomCard(
+            modifier = Modifier.fillMaxWidth().testTag(item.testTag),
+            onClick = item.onClick,
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+            ) {
+                Icon(item.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xxs)) {
+                    Text(item.title, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        item.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
+                Icon(Icons.Rounded.ChevronRight, contentDescription = null)
             }
         }
     }
 }
+
+private data class MoreDestination(
+    val title: String,
+    val description: String,
+    val icon: ImageVector,
+    val testTag: String,
+    val onClick: () -> Unit,
+)

@@ -9,7 +9,6 @@ import android.os.PersistableBundle
 import android.provider.Settings
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -432,7 +431,10 @@ private fun VaultEntryCard(
     onOpen: () -> Unit,
     onFavorite: () -> Unit,
 ) {
-    DayloomCard(Modifier.fillMaxWidth().testTag("vault_entry_${entry.title}").clickable(onClick = onOpen)) {
+    DayloomCard(
+        modifier = Modifier.fillMaxWidth().testTag("vault_entry_${entry.title}"),
+        onClick = onOpen,
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs)) {
                 Text(entry.title, style = MaterialTheme.typography.titleMedium)

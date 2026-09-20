@@ -299,10 +299,11 @@ private fun ListOverviewCard(
     val completed = list.items.count(DayListItem::completed)
     val total = list.items.size
     DayloomCard(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .testTag("list_${list.title}"),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag("list_${list.title}"),
+        onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
             Row(

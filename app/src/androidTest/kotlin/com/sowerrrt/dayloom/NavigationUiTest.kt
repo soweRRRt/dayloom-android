@@ -251,6 +251,16 @@ class NavigationUiTest {
     }
 
     @Test
+    fun settingsHaveVisibleBackNavigation() {
+        composeRule.onNodeWithTag("primary_nav_more").performClick()
+        composeRule.onNodeWithTag("more_settings").performClick()
+
+        composeRule.onNodeWithTag("settings_back").assertExists().performClick()
+
+        composeRule.onNodeWithTag("more_settings").assertExists()
+    }
+
+    @Test
     fun settingsExposeCustomizableBottomNavigation() {
         composeRule.onNodeWithTag("primary_nav_more").performClick()
         composeRule.onNodeWithTag("more_settings").performClick()
@@ -277,6 +287,13 @@ class NavigationUiTest {
         composeRule.waitUntilSelected {
             composeRule.onNodeWithTag("language_russian").assertIsSelected()
             composeRule.onNodeWithText("Настройки").assertExists()
+        }
+
+        // Keep the shared emulator locale deterministic for tests that run after this one.
+        composeRule.onNodeWithTag("language_english").performClick()
+        composeRule.waitUntilSelected {
+            composeRule.onNodeWithTag("language_english").assertIsSelected()
+            composeRule.onNodeWithText("Settings").assertExists()
         }
     }
 

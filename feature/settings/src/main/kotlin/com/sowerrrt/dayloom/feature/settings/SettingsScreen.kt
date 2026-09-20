@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material3.AlertDialog
@@ -94,6 +95,7 @@ import java.time.format.DateTimeFormatter
 fun SettingsScreen(
     onCheckUpdates: () -> Unit,
     onApplyLanguage: (AppLanguage) -> Unit,
+    onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -120,7 +122,17 @@ fun SettingsScreen(
     var showClearConfirmation by remember { mutableStateOf(false) }
     val notificationPermissionStatus = rememberNotificationPermissionStatus()
     Column {
-        DayloomTopBar(stringResource(R.string.settings_title))
+        DayloomTopBar(
+            title = stringResource(R.string.settings_title),
+            navigationIcon = {
+                IconButton(onClick = onBack, modifier = Modifier.testTag("settings_back")) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = stringResource(R.string.settings_back),
+                    )
+                }
+            },
+        )
         LazyColumn(
             modifier = Modifier.testTag("settings_list"),
             contentPadding = PaddingValues(start = DayloomSpacing.md, end = DayloomSpacing.md, bottom = 104.dp),

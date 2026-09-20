@@ -426,10 +426,11 @@ private fun HabitRow(
             stringResource(R.string.habits_mark_complete, habit.title)
         }
     DayloomCard(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onToggle)
-            .testTag("habit_toggle_${habit.title}"),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag("habit_toggle_${habit.title}"),
+        onClick = onToggle,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),

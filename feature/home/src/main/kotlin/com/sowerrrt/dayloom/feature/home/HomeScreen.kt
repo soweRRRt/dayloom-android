@@ -1,16 +1,20 @@
 package com.sowerrrt.dayloom.feature.home
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -37,6 +41,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -47,6 +53,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomMotion
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTheme
@@ -189,6 +196,19 @@ private fun HomeContent(
 private fun WelcomeCard(state: HomeUiState) {
     val primary = MaterialTheme.colorScheme.primary
     val secondary = MaterialTheme.colorScheme.secondary
+    val tertiary = MaterialTheme.colorScheme.tertiary
+    val gradientTransition = rememberInfiniteTransition(label = "welcomeGradient")
+    val gradientShift by
+        gradientTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec =
+                infiniteRepeatable(
+                    animation = tween(8_000, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+            label = "welcomeGradientShift",
+        )
     val total = state.habitsToday + state.plansToday
     val completed = state.habitsCompletedToday + state.plansCompletedToday
     val progressTarget = if (total == 0) 0f else completed.toFloat() / total
@@ -207,8 +227,22 @@ private fun WelcomeCard(state: HomeUiState) {
         Column(
             modifier =
                 Modifier
-                    .background(Brush.linearGradient(listOf(primary, secondary)))
-                    .padding(DayloomSpacing.lg),
+                    .drawBehind {
+                        val travel = size.width * 0.34f
+                        drawRect(
+                            brush =
+                                Brush.linearGradient(
+                                    colors = listOf(primary, secondary, tertiary),
+                                    start = Offset(-travel + travel * gradientShift, 0f),
+                                    end = Offset(size.width + travel * gradientShift, size.height),
+                                ),
+                        )
+                        drawCircle(
+                            color = Color.White.copy(alpha = 0.055f),
+                            radius = size.minDimension * 0.74f,
+                            center = Offset(size.width * (0.18f + 0.52f * gradientShift), 0f),
+                        )
+                    }.padding(DayloomSpacing.lg),
             verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),
         ) {
             Text(
@@ -272,19 +306,15 @@ private fun ModuleSummaryCard(
     data: HomeCardData,
     modifier: Modifier = Modifier,
 ) {
-    Card(
+    DayloomCard(
         modifier =
             modifier
                 .height(148.dp)
-                .testTag("home_card_${section.name.lowercase()}")
-                .clickable(onClick = data.onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = MaterialTheme.shapes.large,
+                .testTag("home_card_${section.name.lowercase()}"),
+        onClick = data.onClick,
     ) {
         Column(
-            modifier = Modifier.padding(DayloomSpacing.md),
+            modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Row(
