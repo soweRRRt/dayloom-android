@@ -149,11 +149,52 @@ class FileHabitsRepositoryTest {
             val archived = FileHabitsRepository(directory).loadArchivedHabits().single()
             assertEquals("Morning run", archived.title)
             assertEquals("run.png", archived.image?.displayName)
+            assertTrue(archived.archivedAtEpochMillis != null)
 
             val restored = FileHabitsRepository(directory).restoreHabit(id).single()
             assertEquals("Morning run", restored.title)
             assertEquals("run.png", restored.image?.displayName)
+            assertEquals(null, restored.archivedAtEpochMillis)
             assertTrue(FileHabitsRepository(directory).loadArchivedHabits().isEmpty())
+        }
+
+    @Test
+    fun `expired habits are deleted independently after seven days`() =
+        runTest {
+            val directory = temporaryFolder.newFolder("archive-retention")
+            var now = 1_000L
+            val ids = ArrayDeque(listOf(EntityId("old-habit"), EntityId("recent-habit")))
+            val deletedAttachments = mutableListOf<EntityId>()
+            val repository =
+                FileHabitsRepository(
+                    directory = directory,
+                    clock = { now },
+                    idFactory = { ids.removeFirst() },
+                    deleteAttachment = { id ->
+                        deletedAttachments += id
+                        true
+                    },
+                )
+            val oldImage = AttachmentRef(EntityId("old-image"), "old.png", "image/png")
+            val recentImage = AttachmentRef(EntityId("recent-image"), "recent.png", "image/png")
+
+            repository.createHabit("Old", Weekday.entries.toSet(), TEST_EPOCH_DAY)
+            repository.setImage(EntityId("old-habit"), oldImage)
+            repository.archiveHabit(EntityId("old-habit"))
+
+            now += DAY_MILLIS
+            repository.createHabit("Recent", Weekday.entries.toSet(), TEST_EPOCH_DAY)
+            repository.setImage(EntityId("recent-habit"), recentImage)
+            repository.archiveHabit(EntityId("recent-habit"))
+
+            now = 1_000L + ARCHIVE_RETENTION_MILLIS
+            assertEquals(listOf("Recent"), repository.loadArchivedHabits().map { it.title })
+            assertEquals(listOf(oldImage.id), deletedAttachments)
+            assertFalse(directory.resolve("habits.json.bak").readText().contains("old-habit"))
+
+            now += DAY_MILLIS
+            assertTrue(repository.loadArchivedHabits().isEmpty())
+            assertEquals(listOf(oldImage.id, recentImage.id), deletedAttachments)
         }
 
     @Test
@@ -190,13 +231,41 @@ class FileHabitsRepositoryTest {
             assertEquals(Weekday.entries.toSet(), restored.scheduledWeekdays)
             assertEquals(null, restored.reminderMinutesOfDay)
             assertEquals(
-                3,
+                4,
                 Json
                     .parseToJsonElement(directory.resolve("habits.json").readText())
                     .jsonObject["schemaVersion"]
                     ?.jsonPrimitive
                     ?.int,
             )
+        }
+
+    @Test
+    fun `legacy archived habit receives a fresh seven day retention period`() =
+        runTest {
+            val directory = temporaryFolder.newFolder("archive-migration")
+            var now = 50_000L
+            directory.resolve("habits.json").writeText(
+                """
+                {
+                  "schemaVersion": 3,
+                  "updatedAtEpochMillis": 123,
+                  "payload": {"habits": [{
+                    "id": "legacy-archive",
+                    "title": "Legacy archive",
+                    "createdAtEpochMillis": 100,
+                    "archived": true
+                  }]}
+                }
+                """.trimIndent(),
+            )
+            val repository = FileHabitsRepository(directory, clock = { now })
+
+            assertEquals(now, repository.loadArchivedHabits().single().archivedAtEpochMillis)
+            now += ARCHIVE_RETENTION_MILLIS - 1
+            assertEquals(1, repository.loadArchivedHabits().size)
+            now += 1
+            assertTrue(repository.loadArchivedHabits().isEmpty())
         }
 
     @Test
@@ -215,5 +284,7 @@ class FileHabitsRepositoryTest {
 
     private companion object {
         const val TEST_EPOCH_DAY = 20_000L
+        const val DAY_MILLIS = 24L * 60 * 60 * 1000
+        const val ARCHIVE_RETENTION_MILLIS = 7L * DAY_MILLIS
     }
 }

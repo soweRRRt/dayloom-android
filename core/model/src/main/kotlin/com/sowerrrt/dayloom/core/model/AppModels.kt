@@ -107,6 +107,7 @@ data class Habit(
     val targetUnit: String = "",
     val progressByEpochDay: Map<Long, String> = emptyMap(),
     val archived: Boolean = false,
+    val archivedAtEpochMillis: Long? = null,
 )
 
 @Serializable
@@ -222,6 +223,7 @@ data class PlanItem(
     val repeatEveryDays: Int? = null,
     val scheduledMonthDays: Set<Int> = emptySet(),
     val archived: Boolean = false,
+    val archivedAtEpochMillis: Long? = null,
 )
 
 @Serializable

@@ -61,13 +61,23 @@ object AppModule {
     @Singleton
     fun provideHabitsRepository(
         @ApplicationContext context: Context,
-    ): HabitsRepository = FileHabitsRepository(context.filesDir)
+        attachmentStore: AttachmentStore,
+    ): HabitsRepository =
+        FileHabitsRepository(
+            directory = context.filesDir,
+            deleteAttachment = attachmentStore::delete,
+        )
 
     @Provides
     @Singleton
     fun providePlannerRepository(
         @ApplicationContext context: Context,
-    ): PlannerRepository = FilePlannerRepository(context.filesDir)
+        attachmentStore: AttachmentStore,
+    ): PlannerRepository =
+        FilePlannerRepository(
+            directory = context.filesDir,
+            deleteAttachment = attachmentStore::delete,
+        )
 
     @Provides
     @Singleton

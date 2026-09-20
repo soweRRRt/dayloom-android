@@ -48,12 +48,12 @@
     <string name="planner_delete_confirm">Удалить</string>
     <string name="planner_archive">Архивировать план</string>
     <string name="planner_archive_title">Архивировать план?</string>
-    <string name="planner_archive_description">«%1$s» исчезнет из календаря, но сохранится в архиве вместе с фото и расписанием.</string>
+    <string name="planner_archive_description">«%1$s» исчезнет из календаря. План можно восстановить в течение 7 дней, затем он удалится навсегда вместе с вложением.</string>
     <string name="planner_archive_confirm">В архив</string>
     <string name="planner_restore">Вернуть в календарь</string>
     <string name="planner_active_plans">Активные</string>
     <string name="planner_archived_plans">Архив</string>
-    <string name="planner_archive_empty">Архив планов пока пуст.</string>
+    <string name="planner_archive_empty">Архивные планы хранятся 7 дней, затем каждый удаляется автоматически.</string>
     <string name="planner_search">Поиск по названию или заметкам</string>
     <string name="planner_search_clear">Очистить поиск планов</string>
     <string name="planner_filters_empty">По этим условиям планов нет. Сбросьте фильтры или измените запрос.</string>

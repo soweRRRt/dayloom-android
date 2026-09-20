@@ -43,7 +43,7 @@
     <string name="habits_edit">Edit habit</string>
     <string name="habits_archive">Archive habit</string>
     <string name="habits_archive_title">Archive habit?</string>
-    <string name="habits_archive_description">%1$s will disappear from active habits and the calendar. Its history will remain stored.</string>
+    <string name="habits_archive_description">%1$s will disappear from active habits and the calendar. It can be restored for 7 days, then it is permanently deleted.</string>
     <string name="habits_archive_confirm">Archive</string>
     <string name="weekday_monday_short">Mon</string>
     <string name="weekday_tuesday_short">Tue</string>
@@ -85,7 +85,7 @@
     <string name="habits_sort_name">Name</string>
     <string name="habits_sort_streak">Current streak</string>
     <string name="habits_sort_completion">30-day completion</string>
-    <string name="habits_archive_empty">Archived habits will appear here and can be restored at any time.</string>
+    <string name="habits_archive_empty">Archived habits stay here for 7 days, then each one is deleted automatically.</string>
     <string name="habits_archive_best_streak">Best streak: %1$d</string>
     <string name="habits_restore">Restore</string>
     <string name="habits_analytics_title">Your rhythm</string>

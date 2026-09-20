@@ -7,7 +7,15 @@ import com.sowerrrt.dayloom.core.model.PlanRepeat
 import com.sowerrrt.dayloom.core.model.PlannerSnapshot
 import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.model.isRecurring
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
+
+private const val ARCHIVE_RETENTION_MILLIS = 7L * 24 * 60 * 60 * 1000
 
 interface PlannerRepository {
     suspend fun loadPlans(): List<PlanItem>
@@ -175,14 +183,16 @@ class FilePlannerRepository(
     directory: File,
     private val clock: () -> Long = System::currentTimeMillis,
     private val idFactory: () -> EntityId = EntityId::random,
+    private val deleteAttachment: suspend (EntityId) -> Boolean = { true },
 ) : PlannerRepository {
     private val store =
         FileJsonStore(
             directory = directory,
             fileName = "planner.json",
             payloadSerializer = PlannerSnapshot.serializer(),
-            currentSchemaVersion = 2,
+            currentSchemaVersion = 3,
             defaultValue = ::PlannerSnapshot,
+            clock = clock,
             migrations =
                 mapOf(
                     1 to
@@ -192,14 +202,35 @@ class FilePlannerRepository(
                                     ("schemaVersion" to kotlinx.serialization.json.JsonPrimitive(2)),
                             )
                         },
+                    2 to
+                        StorageMigration { envelope ->
+                            val payload = requireNotNull(envelope["payload"]).jsonObject
+                            val migratedPlans =
+                                requireNotNull(payload["plans"]).jsonArray.map { element ->
+                                    val plan = element.jsonObject
+                                    if (
+                                        plan["archived"]?.jsonPrimitive?.content == "true" &&
+                                        "archivedAtEpochMillis" !in plan
+                                    ) {
+                                        JsonObject(plan + ("archivedAtEpochMillis" to JsonPrimitive(clock())))
+                                    } else {
+                                        plan
+                                    }
+                                }
+                            JsonObject(
+                                envelope +
+                                    ("schemaVersion" to JsonPrimitive(3)) +
+                                    ("payload" to JsonObject(payload + ("plans" to JsonArray(migratedPlans)))),
+                            )
+                        },
                 ),
         )
 
-    override suspend fun loadPlans(): List<PlanItem> = store.read().activePlans()
+    override suspend fun loadPlans(): List<PlanItem> = readWithoutExpiredArchives().activePlans()
 
-    override suspend fun loadArchivedPlans(): List<PlanItem> = store.read().archivedPlans()
+    override suspend fun loadArchivedPlans(): List<PlanItem> = readWithoutExpiredArchives().archivedPlans()
 
-    override suspend fun loadAllPlans(): List<PlanItem> = store.read().plans.sortedPlans()
+    override suspend fun loadAllPlans(): List<PlanItem> = readWithoutExpiredArchives().plans.sortedPlans()
 
     override suspend fun replaceAll(plans: List<PlanItem>): List<PlanItem> {
         require(plans.map(PlanItem::id).distinct().size == plans.size) { "Plan IDs must be unique" }
@@ -210,8 +241,18 @@ class FilePlannerRepository(
             validateRepeat(plan.dateEpochDay, plan.repeatUntilEpochDay)
             validateSchedule(plan.scheduledWeekdays, plan.repeatEveryDays, plan.scheduledMonthDays)
         }
-        store.write(PlannerSnapshot(plans))
-        return plans.filterNot(PlanItem::archived).sortedPlans()
+        val now = clock()
+        val normalized =
+            plans
+                .map { plan ->
+                    when {
+                        !plan.archived -> plan.copy(archivedAtEpochMillis = null)
+                        plan.archivedAtEpochMillis == null -> plan.copy(archivedAtEpochMillis = now)
+                        else -> plan
+                    }
+                }
+        store.write(PlannerSnapshot(normalized))
+        return readWithoutExpiredArchives().activePlans()
     }
 
     override suspend fun createPlan(
@@ -219,6 +260,7 @@ class FilePlannerRepository(
         dateEpochDay: Long,
         reminderMinutesOfDay: Int?,
     ): List<PlanItem> {
+        purgeExpiredArchives()
         val normalizedTitle = normalize(title)
         validateReminder(reminderMinutesOfDay)
         return store
@@ -284,6 +326,7 @@ class FilePlannerRepository(
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
     ): List<PlanItem> {
+        purgeExpiredArchives()
         val normalizedTitle = normalize(title)
         validateReminder(reminderMinutesOfDay)
         validateRepeat(dateEpochDay, repeatUntilEpochDay)
@@ -322,6 +365,7 @@ class FilePlannerRepository(
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
     ): List<PlanItem> {
+        purgeExpiredArchives()
         val normalizedTitle = normalize(title)
         val normalizedNote = normalizeNote(note)
         validateReminder(reminderMinutesOfDay)
@@ -500,10 +544,15 @@ class FilePlannerRepository(
     ): List<PlanItem> = updateExisting(id) { plan -> plan.copy(image = image) }
 
     override suspend fun archivePlan(id: EntityId): List<PlanItem> =
-        updateExisting(id) { plan -> plan.copy(archived = true) }
+        updateExisting(id) { plan ->
+            plan.copy(
+                archived = true,
+                archivedAtEpochMillis = plan.archivedAtEpochMillis ?: clock(),
+            )
+        }
 
     override suspend fun restorePlan(id: EntityId): List<PlanItem> =
-        updateExisting(id) { plan -> plan.copy(archived = false) }
+        updateExisting(id) { plan -> plan.copy(archived = false, archivedAtEpochMillis = null) }
 
     override suspend fun deletePlan(id: EntityId): List<PlanItem> =
         store
@@ -513,12 +562,42 @@ class FilePlannerRepository(
     private suspend fun updateExisting(
         id: EntityId,
         transform: (PlanItem) -> PlanItem,
-    ): List<PlanItem> =
-        store
+    ): List<PlanItem> {
+        purgeExpiredArchives()
+        return store
             .update { snapshot ->
                 require(snapshot.plans.any { it.id == id }) { "Plan does not exist" }
                 snapshot.copy(plans = snapshot.plans.map { plan -> if (plan.id == id) transform(plan) else plan })
             }.activePlans()
+    }
+
+    private suspend fun readWithoutExpiredArchives(): PlannerSnapshot = purgeExpiredArchives()
+
+    private suspend fun purgeExpiredArchives(): PlannerSnapshot {
+        val now = clock()
+        val current = store.read()
+        if (current.plans.none { it.archiveExpired(now) }) return current
+        var removedAny = false
+        var removedAttachments = emptyList<AttachmentRef>()
+        val updated =
+            store.update { snapshot ->
+                val expired = snapshot.plans.filter { it.archiveExpired(now) }
+                removedAny = expired.isNotEmpty()
+                removedAttachments = expired.mapNotNull(PlanItem::image)
+                snapshot.copy(plans = snapshot.plans.filterNot { it.archiveExpired(now) })
+            }
+        if (removedAny) store.write(updated)
+        val retainedAttachmentIds =
+            updated.plans
+                .mapNotNull(PlanItem::image)
+                .map(AttachmentRef::id)
+                .toSet()
+        removedAttachments
+            .distinctBy(AttachmentRef::id)
+            .filterNot { it.id in retainedAttachmentIds }
+            .forEach { attachment -> runCatching { deleteAttachment(attachment.id) } }
+        return updated
+    }
 
     private fun normalize(title: String): String {
         val normalized = title.trim()
@@ -581,3 +660,6 @@ class FilePlannerRepository(
         const val MAX_REPEAT_INTERVAL_DAYS = 3650
     }
 }
+
+private fun PlanItem.archiveExpired(nowEpochMillis: Long): Boolean =
+    archived && archivedAtEpochMillis?.let { nowEpochMillis - it >= ARCHIVE_RETENTION_MILLIS } == true

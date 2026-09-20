@@ -174,7 +174,7 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                     onProgress = { epochDay -> progressTarget = HabitProgressTarget(insightHabit, epochDay) },
                     modifier = Modifier.weight(1f),
                 )
-            state.habits.isEmpty() ->
+            state.habits.isEmpty() && state.archivedHabits.isEmpty() ->
                 EmptyHabits(
                     presets = state.presets,
                     onCreate = {

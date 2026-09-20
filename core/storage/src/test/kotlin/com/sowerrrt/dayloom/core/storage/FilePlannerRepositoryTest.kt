@@ -152,12 +152,53 @@ class FilePlannerRepositoryTest {
             assertEquals(image, archived.image)
             assertEquals(setOf(Weekday.MONDAY), archived.scheduledWeekdays)
             assertTrue(archived.archived)
+            assertTrue(archived.archivedAtEpochMillis != null)
             assertEquals(archived, FilePlannerRepository(directory).loadAllPlans().single())
 
             val restored = repository.restorePlan(id).single()
             assertFalse(restored.archived)
+            assertEquals(null, restored.archivedAtEpochMillis)
             assertEquals(image, restored.image)
             assertEquals("Policy number is in the blue folder", restored.note)
+        }
+
+    @Test
+    fun `expired plans are deleted independently after seven days`() =
+        runTest {
+            val directory = temporaryFolder.newFolder("archive-retention")
+            var now = 2_000L
+            val ids = ArrayDeque(listOf(EntityId("old-plan"), EntityId("recent-plan")))
+            val deletedAttachments = mutableListOf<EntityId>()
+            val repository =
+                FilePlannerRepository(
+                    directory = directory,
+                    clock = { now },
+                    idFactory = { ids.removeFirst() },
+                    deleteAttachment = { id ->
+                        deletedAttachments += id
+                        true
+                    },
+                )
+            val oldImage = AttachmentRef(EntityId("old-plan-image"), "old.png", "image/png")
+            val recentImage = AttachmentRef(EntityId("recent-plan-image"), "recent.png", "image/png")
+
+            repository.createPlan("Old", TEST_EPOCH_DAY)
+            repository.setImage(EntityId("old-plan"), oldImage)
+            repository.archivePlan(EntityId("old-plan"))
+
+            now += DAY_MILLIS
+            repository.createPlan("Recent", TEST_EPOCH_DAY)
+            repository.setImage(EntityId("recent-plan"), recentImage)
+            repository.archivePlan(EntityId("recent-plan"))
+
+            now = 2_000L + ARCHIVE_RETENTION_MILLIS
+            assertEquals(listOf("Recent"), repository.loadArchivedPlans().map { it.title })
+            assertEquals(listOf(oldImage.id), deletedAttachments)
+            assertFalse(directory.resolve("planner.json.bak").readText().contains("old-plan"))
+
+            now += DAY_MILLIS
+            assertTrue(repository.loadArchivedPlans().isEmpty())
+            assertEquals(listOf(oldImage.id, recentImage.id), deletedAttachments)
         }
 
     @Test
@@ -213,7 +254,7 @@ class FilePlannerRepositoryTest {
             assertEquals(600, restored.reminderMinutesOfDay)
             assertTrue(restored.reminderEnabled)
             assertEquals(
-                2,
+                3,
                 Json
                     .parseToJsonElement(directory.resolve("planner.json").readText())
                     .jsonObject["schemaVersion"]
@@ -238,5 +279,7 @@ class FilePlannerRepositoryTest {
 
     private companion object {
         const val TEST_EPOCH_DAY = 21_000L
+        const val DAY_MILLIS = 24L * 60 * 60 * 1000
+        const val ARCHIVE_RETENTION_MILLIS = 7L * DAY_MILLIS
     }
 }

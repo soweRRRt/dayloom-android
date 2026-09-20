@@ -15,6 +15,8 @@ import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 
+private const val ARCHIVE_RETENTION_MILLIS = 7L * 24 * 60 * 60 * 1000
+
 interface HabitsRepository {
     suspend fun loadHabits(): List<Habit>
 
@@ -73,14 +75,16 @@ class FileHabitsRepository(
     directory: File,
     private val clock: () -> Long = System::currentTimeMillis,
     private val idFactory: () -> EntityId = EntityId::random,
+    private val deleteAttachment: suspend (EntityId) -> Boolean = { true },
 ) : HabitsRepository {
     private val store =
         FileJsonStore(
             directory = directory,
             fileName = "habits.json",
             payloadSerializer = HabitsSnapshot.serializer(),
-            currentSchemaVersion = 3,
+            currentSchemaVersion = 4,
             defaultValue = ::HabitsSnapshot,
+            clock = clock,
             migrations =
                 mapOf(
                     1 to
@@ -119,14 +123,36 @@ class FileHabitsRepository(
                         StorageMigration { envelope ->
                             JsonObject(envelope + ("schemaVersion" to JsonPrimitive(3)))
                         },
+                    3 to
+                        StorageMigration { envelope ->
+                            val payload = requireNotNull(envelope["payload"]).jsonObject
+                            val migratedHabits =
+                                requireNotNull(payload["habits"]).jsonArray.map { element ->
+                                    val habit = element.jsonObject
+                                    if (
+                                        habit["archived"]?.jsonPrimitive?.content == "true" &&
+                                        "archivedAtEpochMillis" !in habit
+                                    ) {
+                                        JsonObject(habit + ("archivedAtEpochMillis" to JsonPrimitive(clock())))
+                                    } else {
+                                        habit
+                                    }
+                                }
+                            JsonObject(
+                                envelope +
+                                    ("schemaVersion" to JsonPrimitive(4)) +
+                                    ("payload" to JsonObject(payload + ("habits" to JsonArray(migratedHabits)))),
+                            )
+                        },
                 ),
         )
 
-    override suspend fun loadHabits(): List<Habit> = store.read().visibleHabits()
+    override suspend fun loadHabits(): List<Habit> = readWithoutExpiredArchives().visibleHabits()
 
-    override suspend fun loadArchivedHabits(): List<Habit> = store.read().archivedHabits()
+    override suspend fun loadArchivedHabits(): List<Habit> = readWithoutExpiredArchives().archivedHabits()
 
-    override suspend fun loadAllHabits(): List<Habit> = store.read().habits.sortedBy(Habit::createdAtEpochMillis)
+    override suspend fun loadAllHabits(): List<Habit> =
+        readWithoutExpiredArchives().habits.sortedBy(Habit::createdAtEpochMillis)
 
     override suspend fun replaceAll(habits: List<Habit>): List<Habit> {
         require(habits.map(Habit::id).distinct().size == habits.size) { "Habit IDs must be unique" }
@@ -143,8 +169,18 @@ class FileHabitsRepository(
                 "Habit progress is too long"
             }
         }
-        store.write(HabitsSnapshot(habits))
-        return habits.visibleHabits()
+        val now = clock()
+        val normalized =
+            habits
+                .map { habit ->
+                    when {
+                        !habit.archived -> habit.copy(archivedAtEpochMillis = null)
+                        habit.archivedAtEpochMillis == null -> habit.copy(archivedAtEpochMillis = now)
+                        else -> habit
+                    }
+                }
+        store.write(HabitsSnapshot(normalized))
+        return readWithoutExpiredArchives().visibleHabits()
     }
 
     override suspend fun createHabit(
@@ -157,6 +193,7 @@ class FileHabitsRepository(
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
     ): List<Habit> {
+        purgeExpiredArchives()
         val normalizedTitle = title.trim()
         val target = normalizeTarget(targetAmount, targetUnit)
         validate(normalizedTitle, scheduledWeekdays, repeatEveryDays, scheduledMonthDays, reminderMinutesOfDay)
@@ -208,10 +245,15 @@ class FileHabitsRepository(
     }
 
     override suspend fun archiveHabit(id: EntityId): List<Habit> =
-        updateExisting(id) { habit -> habit.copy(archived = true) }
+        updateExisting(id) { habit ->
+            habit.copy(
+                archived = true,
+                archivedAtEpochMillis = habit.archivedAtEpochMillis ?: clock(),
+            )
+        }
 
     override suspend fun restoreHabit(id: EntityId): List<Habit> =
-        updateExisting(id) { habit -> habit.copy(archived = false) }
+        updateExisting(id) { habit -> habit.copy(archived = false, archivedAtEpochMillis = null) }
 
     override suspend fun setImage(
         id: EntityId,
@@ -255,14 +297,44 @@ class FileHabitsRepository(
     private suspend fun updateExisting(
         id: EntityId,
         transform: (Habit) -> Habit,
-    ): List<Habit> =
-        store
+    ): List<Habit> {
+        purgeExpiredArchives()
+        return store
             .update { snapshot ->
                 require(snapshot.habits.any { it.id == id }) { "Habit does not exist" }
                 snapshot.copy(
                     habits = snapshot.habits.map { habit -> if (habit.id == id) transform(habit) else habit },
                 )
             }.visibleHabits()
+    }
+
+    private suspend fun readWithoutExpiredArchives(): HabitsSnapshot = purgeExpiredArchives()
+
+    private suspend fun purgeExpiredArchives(): HabitsSnapshot {
+        val now = clock()
+        val current = store.read()
+        if (current.habits.none { it.archiveExpired(now) }) return current
+        var removedAny = false
+        var removedAttachments = emptyList<AttachmentRef>()
+        val updated =
+            store.update { snapshot ->
+                val expired = snapshot.habits.filter { it.archiveExpired(now) }
+                removedAny = expired.isNotEmpty()
+                removedAttachments = expired.mapNotNull(Habit::image)
+                snapshot.copy(habits = snapshot.habits.filterNot { it.archiveExpired(now) })
+            }
+        if (removedAny) store.write(updated)
+        val retainedAttachmentIds =
+            updated.habits
+                .mapNotNull(Habit::image)
+                .map(AttachmentRef::id)
+                .toSet()
+        removedAttachments
+            .distinctBy(AttachmentRef::id)
+            .filterNot { it.id in retainedAttachmentIds }
+            .forEach { attachment -> runCatching { deleteAttachment(attachment.id) } }
+        return updated
+    }
 
     private fun validate(
         title: String,
@@ -323,5 +395,8 @@ class FileHabitsRepository(
         const val MAX_REPEAT_INTERVAL_DAYS = 3650
     }
 }
+
+private fun Habit.archiveExpired(nowEpochMillis: Long): Boolean =
+    archived && archivedAtEpochMillis?.let { nowEpochMillis - it >= ARCHIVE_RETENTION_MILLIS } == true
 
 private fun String.toComparableNumberOrNull(): Double? = replace(',', '.').toDoubleOrNull()

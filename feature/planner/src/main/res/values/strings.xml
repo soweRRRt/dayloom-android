@@ -48,12 +48,12 @@
     <string name="planner_delete_confirm">Delete</string>
     <string name="planner_archive">Archive plan</string>
     <string name="planner_archive_title">Archive plan?</string>
-    <string name="planner_archive_description">%1$s will leave the calendar and remain available in the archive with its photo and schedule.</string>
+    <string name="planner_archive_description">%1$s will leave the calendar. It can be restored for 7 days, then it and its attachment are permanently deleted.</string>
     <string name="planner_archive_confirm">Archive</string>
     <string name="planner_restore">Restore to calendar</string>
     <string name="planner_active_plans">Active</string>
     <string name="planner_archived_plans">Archive</string>
-    <string name="planner_archive_empty">The plan archive is empty.</string>
+    <string name="planner_archive_empty">Archived plans stay here for 7 days, then each one is deleted automatically.</string>
     <string name="planner_search">Search title or notes</string>
     <string name="planner_search_clear">Clear plan search</string>
     <string name="planner_filters_empty">No plans match these filters. Reset filters or change the search.</string>

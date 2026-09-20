@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextClearance
@@ -249,6 +250,7 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("plan_more_$title").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("archive_plan_$title")
         composeRule.onNodeWithTag("archive_plan_$title").performScrollTo().performClick()
+        composeRule.onNodeWithText("7 days", substring = true).assertExists()
         composeRule.onNodeWithTag("confirm_archive_plan").performClick()
         composeRule.onNodeWithTag("plan_view_archived").performScrollTo().performClick()
         waitUntilScrollable("planner_list", "archived_plan_$title")
@@ -329,6 +331,7 @@ class NavigationUiTest {
 
         waitUntilScrollable("habits_list", "habit_search")
         composeRule.onNodeWithTag("habit_search").performTextInput("Restore habit")
+        closeSoftKeyboard()
         waitUntilScrollable("habits_list", "habit_toggle_$title")
         composeRule.onNodeWithTag("habit_toggle_$title").assertExists()
 
@@ -338,9 +341,12 @@ class NavigationUiTest {
         waitUntilScrollable("habits_list", "habit_more_$title")
         composeRule.onNodeWithTag("habit_more_$title").performClick()
         composeRule.onNodeWithTag("archive_habit_$title").performClick()
+        composeRule.onNodeWithText("7 days", substring = true).assertExists()
         composeRule.onNodeWithTag("confirm_archive_habit").performClick()
 
-        waitUntilScrollable("habits_list", "habit_view_archived")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("habits_list").performScrollToIndex(0)
+        waitForTag("habit_view_archived")
         composeRule.onNodeWithTag("habit_view_archived").performClick()
         waitUntilScrollable("habits_list", "archived_habit_$title")
         composeRule.onNodeWithTag("restore_habit_$title").performClick()

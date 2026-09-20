@@ -43,7 +43,7 @@
     <string name="habits_edit">Изменить привычку</string>
     <string name="habits_archive">Архивировать привычку</string>
     <string name="habits_archive_title">Архивировать привычку?</string>
-    <string name="habits_archive_description">«%1$s» исчезнет из активных привычек и календаря. История выполнения останется сохранена.</string>
+    <string name="habits_archive_description">«%1$s» исчезнет из активных привычек и календаря. Её можно восстановить в течение 7 дней, затем она удалится навсегда.</string>
     <string name="habits_archive_confirm">Архивировать</string>
     <string name="weekday_monday_short">Пн</string>
     <string name="weekday_tuesday_short">Вт</string>
@@ -85,7 +85,7 @@
     <string name="habits_sort_name">По названию</string>
     <string name="habits_sort_streak">По текущей серии</string>
     <string name="habits_sort_completion">По выполнению за 30 дней</string>
-    <string name="habits_archive_empty">Архивные привычки появятся здесь — их можно восстановить в любой момент.</string>
+    <string name="habits_archive_empty">Архивные привычки хранятся здесь 7 дней, затем каждая удаляется автоматически.</string>
     <string name="habits_archive_best_streak">Лучшая серия: %1$d</string>
     <string name="habits_restore">Восстановить</string>
     <string name="habits_analytics_title">Ваш ритм</string>
