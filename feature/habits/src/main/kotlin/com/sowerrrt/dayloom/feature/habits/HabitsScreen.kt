@@ -4,9 +4,12 @@ import android.Manifest
 import android.app.TimePickerDialog
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,17 +28,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PhotoLibrary
@@ -92,6 +101,7 @@ import com.sowerrrt.dayloom.core.ui.ErrorState
 import com.sowerrrt.dayloom.core.ui.LoadingState
 import com.sowerrrt.dayloom.core.ui.loadSampledImage
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -105,6 +115,8 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
     var pendingArchive by remember { mutableStateOf<Habit?>(null) }
     var progressTarget by remember { mutableStateOf<HabitProgressTarget?>(null) }
     var imageTarget by remember { mutableStateOf<Habit?>(null) }
+    var insightHabitId by rememberSaveable { mutableStateOf<String?>(null) }
+    val insightHabit = state.habits.firstOrNull { it.id.value == insightHabitId }
     val context = LocalContext.current
     val notificationPermissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -115,8 +127,38 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
             imageTarget = null
         }
 
+    BackHandler(enabled = insightHabit != null) { insightHabitId = null }
+
     Column(Modifier.fillMaxSize().testTag("habits_screen")) {
-        DayloomTopBar(stringResource(R.string.habits_title))
+        DayloomTopBar(
+            title = insightHabit?.title ?: stringResource(R.string.habits_title),
+            navigationIcon = {
+                if (insightHabit != null) {
+                    IconButton(
+                        onClick = { insightHabitId = null },
+                        modifier = Modifier.testTag("habit_insights_back"),
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.habits_insights_back),
+                        )
+                    }
+                }
+            },
+            actions = {
+                if (insightHabit != null) {
+                    IconButton(
+                        onClick = {
+                            editingHabit = insightHabit
+                            showCreateDialog = true
+                        },
+                        modifier = Modifier.testTag("habit_insights_edit"),
+                    ) {
+                        Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.habits_edit))
+                    }
+                }
+            },
+        )
         when {
             state.isLoading -> LoadingState(Modifier.weight(1f))
             state.hasError ->
@@ -125,6 +167,14 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                     message = stringResource(R.string.habits_error_description),
                     retryLabel = stringResource(R.string.habits_retry),
                     onRetry = viewModel::refresh,
+                    modifier = Modifier.weight(1f),
+                )
+            insightHabit != null ->
+                HabitInsightsScreen(
+                    habit = insightHabit,
+                    todayEpochDay = state.todayEpochDay,
+                    onToggle = { epochDay -> viewModel.toggleCompletion(insightHabit.id, epochDay) },
+                    onProgress = { epochDay -> progressTarget = HabitProgressTarget(insightHabit, epochDay) },
                     modifier = Modifier.weight(1f),
                 )
             state.habits.isEmpty() ->
@@ -158,6 +208,7 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                     onArchive = { pendingArchive = it },
                     onProgress = { habit, epochDay -> progressTarget = HabitProgressTarget(habit, epochDay) },
                     onToggleHistory = viewModel::toggleCompletion,
+                    onInsights = { insightHabitId = it.id.value },
                     onChooseImage = { habit ->
                         imageTarget = habit
                         imagePicker.launch("image/*")
@@ -343,6 +394,7 @@ private fun HabitsList(
     state: HabitsUiState,
     onToggle: (EntityId) -> Unit,
     onToggleHistory: (EntityId, Long) -> Unit,
+    onInsights: (Habit) -> Unit,
     onEdit: (Habit) -> Unit,
     onArchive: (Habit) -> Unit,
     onProgress: (Habit, Long) -> Unit,
@@ -464,6 +516,7 @@ private fun HabitsList(
                         onEdit = { onEdit(habit) },
                         onArchive = { onArchive(habit) },
                         onProgress = { onProgress(habit, state.todayEpochDay) },
+                        onInsights = { onInsights(habit) },
                         onChooseImage = { onChooseImage(habit) },
                         imagePath = state.imagePaths[habit.id],
                         todayEpochDay = state.todayEpochDay,
@@ -477,6 +530,312 @@ private fun HabitsList(
         ) {
             Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.habits_action))
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HabitInsightsScreen(
+    habit: Habit,
+    todayEpochDay: Long,
+    onToggle: (Long) -> Unit,
+    onProgress: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var period by rememberSaveable(habit.id.value) { mutableStateOf(HabitInsightPeriod.MONTH) }
+    var monthOffset by rememberSaveable(habit.id.value) { mutableStateOf(0) }
+    val today = LocalDate.ofEpochDay(todayEpochDay)
+    val currentMonth = YearMonth.from(today)
+    val shownMonth = currentMonth.plusMonths(monthOffset.toLong())
+    val firstHabitMonth = YearMonth.from(LocalDate.ofEpochDay(habit.startEpochDay))
+    val fromEpochDay =
+        period.days?.let { days ->
+            maxOf(habit.startEpochDay, todayEpochDay - days + 1)
+        } ?: habit.startEpochDay
+    val stats = habit.periodStats(fromEpochDay, todayEpochDay)
+    val hasTarget = habit.targetAmount.isNotBlank() || habit.targetUnit.isNotBlank()
+    val locale = currentLocale()
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize().testTag("habit_insights_screen"),
+        contentPadding =
+            PaddingValues(
+                start = DayloomSpacing.md,
+                top = DayloomSpacing.sm,
+                end = DayloomSpacing.md,
+                bottom = DayloomSpacing.xl,
+            ),
+        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+    ) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+                Text(
+                    stringResource(R.string.habits_insights_period),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                ) {
+                    HabitInsightPeriod.entries.forEach { option ->
+                        FilterChip(
+                            selected = period == option,
+                            onClick = { period = option },
+                            label = { Text(stringResource(option.labelResource())) },
+                            modifier = Modifier.testTag("habit_insights_period_${option.name.lowercase()}"),
+                        )
+                    }
+                }
+            }
+        }
+        item {
+            DayloomCard(Modifier.fillMaxWidth().testTag("habit_insights_summary")) {
+                Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.habits_insights_completion),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Text(
+                                stringResource(
+                                    R.string.habits_analytics_summary,
+                                    stats.completedCount,
+                                    stats.scheduledCount,
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Text(
+                            "${stats.completionPercent}%",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.testTag("habit_insights_percent"),
+                        )
+                    }
+                    LinearProgressIndicator(
+                        progress = { stats.completionPercent / 100f },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+                    ) {
+                        InsightMetric(
+                            value = stats.completedCount.toString(),
+                            label = stringResource(R.string.habits_insights_completed),
+                            modifier = Modifier.weight(1f),
+                        )
+                        InsightMetric(
+                            value = habit.currentStreak(todayEpochDay).toString(),
+                            label = stringResource(R.string.habits_insights_current_streak),
+                            modifier = Modifier.weight(1f),
+                        )
+                        InsightMetric(
+                            value = habit.bestStreak().toString(),
+                            label = stringResource(R.string.habits_insights_best_streak),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+        }
+        item {
+            DayloomCard(Modifier.fillMaxWidth().testTag("habit_insights_calendar")) {
+                Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(
+                            onClick = { monthOffset-- },
+                            enabled = shownMonth > firstHabitMonth,
+                            modifier = Modifier.testTag("habit_insights_previous_month"),
+                        ) {
+                            Icon(
+                                Icons.Rounded.ChevronLeft,
+                                contentDescription = stringResource(R.string.habits_insights_previous_month),
+                            )
+                        }
+                        Text(
+                            shownMonth
+                                .atDay(1)
+                                .format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))
+                                .replaceFirstChar { it.titlecase(locale) },
+                            style = MaterialTheme.typography.titleLarge,
+                            textAlign = TextAlign.Center,
+                        )
+                        IconButton(
+                            onClick = { monthOffset++ },
+                            enabled = shownMonth < currentMonth,
+                            modifier = Modifier.testTag("habit_insights_next_month"),
+                        ) {
+                            Icon(
+                                Icons.Rounded.ChevronRight,
+                                contentDescription = stringResource(R.string.habits_insights_next_month),
+                            )
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth()) {
+                        Weekday.entries.forEach { weekday ->
+                            Text(
+                                weekdayShortLabel(weekday),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                    val leadingEmptyDays = shownMonth.atDay(1).dayOfWeek.value - 1
+                    val calendarDays =
+                        buildList<LocalDate?> {
+                            repeat(leadingEmptyDays) { add(null) }
+                            repeat(shownMonth.lengthOfMonth()) { day -> add(shownMonth.atDay(day + 1)) }
+                            while (size % 7 != 0) add(null)
+                        }
+                    calendarDays.chunked(7).forEach { week ->
+                        Row(Modifier.fillMaxWidth()) {
+                            week.forEach { date ->
+                                if (date == null) {
+                                    Spacer(Modifier.weight(1f).aspectRatio(1f))
+                                } else {
+                                    HabitCalendarDay(
+                                        habit = habit,
+                                        epochDay = date.toEpochDay(),
+                                        todayEpochDay = todayEpochDay,
+                                        hasTarget = hasTarget,
+                                        onToggle = onToggle,
+                                        onProgress = onProgress,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Text(
+                        stringResource(
+                            if (hasTarget) {
+                                R.string.habits_insights_calendar_hint_progress
+                            } else {
+                                R.string.habits_insights_calendar_hint_toggle
+                            },
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        item {
+            DayloomCard(Modifier.fillMaxWidth().testTag("habit_insights_schedule")) {
+                Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs)) {
+                    Text(
+                        stringResource(R.string.habits_insights_schedule),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(scheduleLabel(habit), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    habit.reminderMinutesOfDay?.let { reminder ->
+                        Text(
+                            stringResource(
+                                R.string.habits_insights_reminder,
+                                formatReminderTime(reminder, locale),
+                            ),
+                            color = MaterialTheme.colorScheme.secondary,
+                        )
+                    }
+                    if (hasTarget) {
+                        Text(
+                            stringResource(
+                                R.string.habits_target_value,
+                                habit.targetAmount,
+                                habit.targetUnit,
+                            ).trim(),
+                            color = MaterialTheme.colorScheme.tertiary,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InsightMetric(
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+    ) {
+        Text(value, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun HabitCalendarDay(
+    habit: Habit,
+    epochDay: Long,
+    todayEpochDay: Long,
+    hasTarget: Boolean,
+    onToggle: (Long) -> Unit,
+    onProgress: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheduled = habit.isScheduledOn(epochDay)
+    val completed = epochDay in habit.completedEpochDays
+    val editable = scheduled && epochDay <= todayEpochDay
+    val colors = MaterialTheme.colorScheme
+    val cellModifier =
+        modifier
+            .aspectRatio(1f)
+            .padding(3.dp)
+            .clip(CircleShape)
+            .then(
+                when {
+                    completed -> Modifier.background(colors.primary)
+                    scheduled && epochDay <= todayEpochDay ->
+                        Modifier
+                            .background(colors.secondaryContainer)
+                            .border(1.dp, colors.secondary.copy(alpha = 0.45f), CircleShape)
+                    epochDay == todayEpochDay -> Modifier.border(1.dp, colors.primary, CircleShape)
+                    else -> Modifier
+                },
+            ).then(
+                if (editable) {
+                    Modifier.clickable { if (hasTarget) onProgress(epochDay) else onToggle(epochDay) }
+                } else {
+                    Modifier
+                },
+            ).testTag(
+                "habit_insights_day_${epochDay}_${if (completed) "completed" else "open"}",
+            )
+    Box(cellModifier, contentAlignment = Alignment.Center) {
+        Text(
+            LocalDate.ofEpochDay(epochDay).dayOfMonth.toString(),
+            style = MaterialTheme.typography.bodyMedium,
+            color =
+                when {
+                    completed -> colors.onPrimary
+                    scheduled -> colors.onSecondaryContainer
+                    else -> colors.onSurfaceVariant.copy(alpha = 0.55f)
+                },
+        )
     }
 }
 
@@ -641,6 +1000,7 @@ private fun HabitRow(
     onEdit: () -> Unit,
     onArchive: () -> Unit,
     onProgress: () -> Unit,
+    onInsights: () -> Unit,
     onChooseImage: () -> Unit,
     imagePath: String?,
 ) {
@@ -752,6 +1112,15 @@ private fun HabitRow(
                         ),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            IconButton(
+                onClick = onInsights,
+                modifier = Modifier.testTag("habit_insights_${habit.title}"),
+            ) {
+                Icon(
+                    Icons.Rounded.Insights,
+                    contentDescription = stringResource(R.string.habits_open_insights, habit.title),
                 )
             }
             Box {
@@ -1303,6 +1672,15 @@ private enum class HabitViewMode {
     HISTORY,
 }
 
+private enum class HabitInsightPeriod(
+    val days: Long?,
+) {
+    WEEK(7),
+    MONTH(30),
+    QUARTER(90),
+    ALL(null),
+}
+
 private data class HabitProgressTarget(
     val habit: Habit,
     val epochDay: Long,
@@ -1313,6 +1691,14 @@ private fun HabitViewMode.labelResource(): Int =
         HabitViewMode.TODAY -> R.string.habits_view_today
         HabitViewMode.ALL -> R.string.habits_view_all
         HabitViewMode.HISTORY -> R.string.habits_view_history
+    }
+
+private fun HabitInsightPeriod.labelResource(): Int =
+    when (this) {
+        HabitInsightPeriod.WEEK -> R.string.habits_insights_7_days
+        HabitInsightPeriod.MONTH -> R.string.habits_insights_30_days
+        HabitInsightPeriod.QUARTER -> R.string.habits_insights_90_days
+        HabitInsightPeriod.ALL -> R.string.habits_insights_all_time
     }
 
 @Composable

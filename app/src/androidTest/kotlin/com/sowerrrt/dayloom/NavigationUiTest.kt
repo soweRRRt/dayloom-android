@@ -243,6 +243,28 @@ class NavigationUiTest {
     }
 
     @Test
+    fun habitDetailsShowPeriodStatsAndEditableCalendar() {
+        val title = "Insights habit ${System.currentTimeMillis()}"
+        val today = LocalDate.now().toEpochDay()
+        composeRule.onNodeWithTag("primary_nav_habits").performClick()
+        composeRule.onNodeWithTag("create_habit").performClick()
+        composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("save_habit").performClick()
+        waitUntilScrollable("habits_list", "habit_insights_$title")
+
+        composeRule.onNodeWithTag("habit_insights_$title").performClick()
+        composeRule.onNodeWithTag("habit_insights_screen").assertExists()
+        composeRule.onNodeWithTag("habit_insights_period_quarter").performClick()
+        composeRule.onNodeWithTag("habit_insights_summary").assertExists()
+        composeRule.onNodeWithTag("habit_insights_day_${today}_open").performClick()
+
+        waitForTag("habit_insights_day_${today}_completed")
+        composeRule.onNodeWithTag("habit_insights_back").performClick()
+        waitUntilScrollable("habits_list", "habit_toggle_$title")
+        waitForTag("habit_status_${title}_completed", useUnmergedTree = true)
+    }
+
+    @Test
     fun listAndItemCanBeCreatedCompletedAndRestored() {
         val suffix = System.currentTimeMillis()
         val listTitle = "Groceries $suffix"
