@@ -96,6 +96,7 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
     var editingHabit by remember { mutableStateOf<Habit?>(null) }
     var pendingArchive by remember { mutableStateOf<Habit?>(null) }
+    var progressTarget by remember { mutableStateOf<Habit?>(null) }
     var imageTarget by remember { mutableStateOf<Habit?>(null) }
     val context = LocalContext.current
     val notificationPermissionLauncher =
@@ -148,6 +149,7 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                         showCreateDialog = true
                     },
                     onArchive = { pendingArchive = it },
+                    onProgress = { progressTarget = it },
                     onChooseImage = { habit ->
                         imageTarget = habit
                         imagePicker.launch("image/*")
@@ -243,6 +245,18 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
             },
         )
     }
+
+    progressTarget?.let { habit ->
+        HabitProgressDialog(
+            habit = habit,
+            epochDay = state.todayEpochDay,
+            onDismiss = { progressTarget = null },
+            onSave = { value ->
+                viewModel.setProgress(habit.id, value)
+                progressTarget = null
+            },
+        )
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -322,6 +336,7 @@ private fun HabitsList(
     onToggle: (EntityId) -> Unit,
     onEdit: (Habit) -> Unit,
     onArchive: (Habit) -> Unit,
+    onProgress: (Habit) -> Unit,
     onChooseImage: (Habit) -> Unit,
     onCreate: () -> Unit,
     onUsePreset: (HabitPreset) -> Unit,
@@ -392,6 +407,7 @@ private fun HabitsList(
                     onToggle = { onToggle(habit.id) },
                     onEdit = { onEdit(habit) },
                     onArchive = { onArchive(habit) },
+                    onProgress = { onProgress(habit) },
                     onChooseImage = { onChooseImage(habit) },
                     imagePath = state.imagePaths[habit.id],
                     todayEpochDay = state.todayEpochDay,
@@ -415,6 +431,7 @@ private fun HabitRow(
     onToggle: () -> Unit,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
+    onProgress: () -> Unit,
     onChooseImage: () -> Unit,
     imagePath: String?,
 ) {
@@ -473,6 +490,10 @@ private fun HabitRow(
                         ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier =
+                        Modifier.testTag(
+                            "habit_status_${habit.title}_${if (completed) "completed" else "open"}",
+                        ),
                 )
                 Text(
                     text = scheduleLabel(habit),
@@ -501,7 +522,8 @@ private fun HabitRow(
                 if (habit.targetAmount.isNotBlank() || habit.targetUnit.isNotBlank()) {
                     Text(
                         stringResource(
-                            R.string.habits_target_value,
+                            R.string.habits_progress_value,
+                            habit.progressByEpochDay[todayEpochDay].orEmpty().ifBlank { "—" },
                             habit.targetAmount,
                             habit.targetUnit,
                         ).trim(),
@@ -532,6 +554,17 @@ private fun HabitRow(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false },
                 ) {
+                    if (habit.targetAmount.isNotBlank() || habit.targetUnit.isNotBlank()) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.habits_update_progress)) },
+                            leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                onProgress()
+                            },
+                            modifier = Modifier.testTag("habit_progress_${habit.title}"),
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.habits_edit)) },
                         leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
@@ -571,6 +604,46 @@ private fun HabitRow(
             }
         }
     }
+}
+
+@Composable
+private fun HabitProgressDialog(
+    habit: Habit,
+    epochDay: Long,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+) {
+    var value by remember(habit.id, epochDay) { mutableStateOf(habit.progressByEpochDay[epochDay].orEmpty()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.habits_progress_title, habit.title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+                Text(
+                    stringResource(R.string.habits_progress_goal, habit.targetAmount, habit.targetUnit).trim(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { value = it.take(MAX_TARGET_LENGTH) },
+                    label = { Text(stringResource(R.string.habits_progress_label)) },
+                    suffix = { if (habit.targetUnit.isNotBlank()) Text(habit.targetUnit) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("habit_progress_input"),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(value) },
+                modifier = Modifier.testTag("save_habit_progress"),
+            ) {
+                Text(stringResource(R.string.habits_save))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.habits_cancel)) } },
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)

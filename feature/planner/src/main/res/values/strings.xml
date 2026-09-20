@@ -48,4 +48,13 @@
     <string name="planner_quick_add">Quick add to the selected day</string>
     <string name="planner_save_preset">Save settings as preset</string>
     <string name="planner_remove_preset">Remove preset %1$s</string>
+    <string name="planner_repeat">Repeat</string>
+    <string name="planner_repeat_none">Once</string>
+    <string name="planner_repeat_daily">Daily</string>
+    <string name="planner_repeat_weekly">Weekly</string>
+    <string name="planner_repeat_monthly">Monthly</string>
+    <string name="planner_move_tomorrow">Move one day later</string>
+    <string name="planner_move_next_week">Move one week later</string>
+    <string name="planner_repeat_value">Repeats: %1$s</string>
+    <string name="planner_habit_progress">Progress: %1$s / %2$s %3$s</string>
 </resources>

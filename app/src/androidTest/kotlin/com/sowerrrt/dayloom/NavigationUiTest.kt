@@ -129,7 +129,7 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("create_habit").performClick()
         composeRule.onNodeWithTag("habit_name_input").performTextInput(habitTitle)
         composeRule.onNodeWithTag("save_habit").performClick()
-        waitForTag("habit_toggle_$habitTitle")
+        waitUntilScrollable("habits_list", "habit_toggle_$habitTitle")
 
         composeRule.onNodeWithTag("primary_nav_planner").performClick()
         composeRule.onNodeWithTag("month_calendar").assertExists()
@@ -186,6 +186,37 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("primary_nav_planner").performClick()
         composeRule.onNodeWithTag("create_plan").performClick()
         composeRule.onNodeWithTag("set_plan_reminder").assertExists()
+    }
+
+    @Test
+    fun recurringPlanCanBeCreatedFromEditor() {
+        val title = "Weekly plan ${System.currentTimeMillis()}"
+        composeRule.onNodeWithTag("primary_nav_planner").performClick()
+        composeRule.onNodeWithTag("create_plan").performClick()
+        composeRule.onNodeWithTag("plan_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("plan_repeat_weekly").performScrollTo().performClick()
+        composeRule.onNodeWithTag("save_plan").performClick()
+
+        waitUntilScrollable("planner_list", "plan_$title")
+        composeRule.onNodeWithTag("plan_repeat_value_$title").assertExists()
+    }
+
+    @Test
+    fun habitProgressCompletesNumericGoal() {
+        val title = "Progress habit ${System.currentTimeMillis()}"
+        composeRule.onNodeWithTag("primary_nav_habits").performClick()
+        composeRule.onNodeWithTag("create_habit").performClick()
+        composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("habit_target_amount").performScrollTo().performTextInput("5")
+        composeRule.onNodeWithTag("habit_target_unit").performScrollTo().performTextInput("times")
+        composeRule.onNodeWithTag("save_habit").performClick()
+        waitForTag("habit_toggle_$title")
+        composeRule.onNodeWithTag("habit_more_$title").performClick()
+        composeRule.onNodeWithTag("habit_progress_$title").performClick()
+        composeRule.onNodeWithTag("habit_progress_input").performTextInput("5")
+        composeRule.onNodeWithTag("save_habit_progress").performClick()
+
+        waitForTag("habit_status_${title}_completed", useUnmergedTree = true)
     }
 
     @Test
@@ -412,9 +443,12 @@ class NavigationUiTest {
         }
     }
 
-    private fun waitForTag(tag: String) {
+    private fun waitForTag(
+        tag: String,
+        useUnmergedTree: Boolean = false,
+    ) {
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithTag(tag, useUnmergedTree).fetchSemanticsNodes().isNotEmpty()
         }
     }
 

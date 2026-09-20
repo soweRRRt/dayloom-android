@@ -3,6 +3,7 @@ package com.sowerrrt.dayloom.core.storage
 import com.sowerrrt.dayloom.core.model.AttachmentRef
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.PlanItem
+import com.sowerrrt.dayloom.core.model.PlanRepeat
 import com.sowerrrt.dayloom.core.model.PlannerSnapshot
 import java.io.File
 
@@ -18,6 +19,14 @@ interface PlannerRepository {
         reminderMinutesOfDay: Int? = null,
     ): List<PlanItem>
 
+    suspend fun createPlan(
+        title: String,
+        dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
+        repeat: PlanRepeat,
+        repeatUntilEpochDay: Long? = null,
+    ): List<PlanItem> = createPlan(title, dateEpochDay, reminderMinutesOfDay)
+
     suspend fun updatePlan(
         id: EntityId,
         title: String,
@@ -25,7 +34,26 @@ interface PlannerRepository {
         reminderMinutesOfDay: Int? = null,
     ): List<PlanItem>
 
+    suspend fun updatePlan(
+        id: EntityId,
+        title: String,
+        dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
+        repeat: PlanRepeat,
+        repeatUntilEpochDay: Long? = null,
+    ): List<PlanItem> = updatePlan(id, title, dateEpochDay, reminderMinutesOfDay)
+
     suspend fun toggleCompletion(id: EntityId): List<PlanItem>
+
+    suspend fun toggleCompletion(
+        id: EntityId,
+        epochDay: Long,
+    ): List<PlanItem> = toggleCompletion(id)
+
+    suspend fun movePlan(
+        id: EntityId,
+        dateEpochDay: Long,
+    ): List<PlanItem> = error("This planner repository does not support moving plans")
 
     suspend fun setImage(
         id: EntityId,
@@ -45,8 +73,18 @@ class FilePlannerRepository(
             directory = directory,
             fileName = "planner.json",
             payloadSerializer = PlannerSnapshot.serializer(),
-            currentSchemaVersion = 1,
+            currentSchemaVersion = 2,
             defaultValue = ::PlannerSnapshot,
+            migrations =
+                mapOf(
+                    1 to
+                        StorageMigration { envelope ->
+                            kotlinx.serialization.json.JsonObject(
+                                envelope +
+                                    ("schemaVersion" to kotlinx.serialization.json.JsonPrimitive(2)),
+                            )
+                        },
+                ),
         )
 
     override suspend fun loadPlans(): List<PlanItem> = store.read().sortedPlans()
@@ -56,6 +94,7 @@ class FilePlannerRepository(
         plans.forEach { plan ->
             normalize(plan.title)
             validateReminder(plan.reminderMinutesOfDay)
+            validateRepeat(plan.dateEpochDay, plan.repeatUntilEpochDay)
         }
         store.write(PlannerSnapshot(plans))
         return plans.sortedWith(compareBy(PlanItem::dateEpochDay, PlanItem::createdAtEpochMillis))
@@ -84,6 +123,34 @@ class FilePlannerRepository(
             }.sortedPlans()
     }
 
+    override suspend fun createPlan(
+        title: String,
+        dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
+        repeat: PlanRepeat,
+        repeatUntilEpochDay: Long?,
+    ): List<PlanItem> {
+        val normalizedTitle = normalize(title)
+        validateReminder(reminderMinutesOfDay)
+        validateRepeat(dateEpochDay, repeatUntilEpochDay)
+        return store
+            .update { snapshot ->
+                snapshot.copy(
+                    plans =
+                        snapshot.plans +
+                            PlanItem(
+                                id = idFactory(),
+                                title = normalizedTitle,
+                                dateEpochDay = dateEpochDay,
+                                createdAtEpochMillis = clock(),
+                                reminderMinutesOfDay = reminderMinutesOfDay,
+                                repeat = repeat,
+                                repeatUntilEpochDay = repeatUntilEpochDay,
+                            ),
+                )
+            }.sortedPlans()
+    }
+
     override suspend fun updatePlan(
         id: EntityId,
         title: String,
@@ -101,8 +168,49 @@ class FilePlannerRepository(
         }
     }
 
+    override suspend fun updatePlan(
+        id: EntityId,
+        title: String,
+        dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
+        repeat: PlanRepeat,
+        repeatUntilEpochDay: Long?,
+    ): List<PlanItem> {
+        val normalizedTitle = normalize(title)
+        validateReminder(reminderMinutesOfDay)
+        validateRepeat(dateEpochDay, repeatUntilEpochDay)
+        return updateExisting(id) {
+            it.copy(
+                title = normalizedTitle,
+                dateEpochDay = dateEpochDay,
+                reminderMinutesOfDay = reminderMinutesOfDay,
+                repeat = repeat,
+                repeatUntilEpochDay = repeatUntilEpochDay,
+            )
+        }
+    }
+
     override suspend fun toggleCompletion(id: EntityId): List<PlanItem> =
         updateExisting(id) { it.copy(completed = !it.completed) }
+
+    override suspend fun toggleCompletion(
+        id: EntityId,
+        epochDay: Long,
+    ): List<PlanItem> =
+        updateExisting(id) { plan ->
+            if (plan.repeat == PlanRepeat.NONE) {
+                plan.copy(completed = !plan.completed)
+            } else {
+                val days = plan.completedEpochDays.toMutableSet()
+                if (!days.add(epochDay)) days.remove(epochDay)
+                plan.copy(completedEpochDays = days)
+            }
+        }
+
+    override suspend fun movePlan(
+        id: EntityId,
+        dateEpochDay: Long,
+    ): List<PlanItem> = updateExisting(id) { it.copy(dateEpochDay = dateEpochDay) }
 
     override suspend fun setImage(
         id: EntityId,
@@ -134,6 +242,15 @@ class FilePlannerRepository(
     private fun validateReminder(reminderMinutesOfDay: Int?) {
         require(reminderMinutesOfDay == null || reminderMinutesOfDay in 0 until MINUTES_PER_DAY) {
             "Reminder time must be within a day"
+        }
+    }
+
+    private fun validateRepeat(
+        dateEpochDay: Long,
+        repeatUntilEpochDay: Long?,
+    ) {
+        require(repeatUntilEpochDay == null || repeatUntilEpochDay >= dateEpochDay) {
+            "Repeat end must not precede the start date"
         }
     }
 

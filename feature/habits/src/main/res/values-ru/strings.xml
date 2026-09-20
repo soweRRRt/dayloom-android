@@ -61,6 +61,11 @@
     <string name="habits_target_amount">Значение</string>
     <string name="habits_target_unit">Единица</string>
     <string name="habits_target_value">Цель: %1$s %2$s</string>
+    <string name="habits_progress_value">Сегодня: %1$s / %2$s %3$s</string>
+    <string name="habits_update_progress">Указать прогресс за сегодня</string>
+    <string name="habits_progress_title">Прогресс: %1$s</string>
+    <string name="habits_progress_goal">Цель: %1$s %2$s</string>
+    <string name="habits_progress_label">Сделано сегодня</string>
     <string name="habits_unit_times">раз</string>
     <string name="habits_unit_steps">шагов</string>
     <string name="habits_unit_minutes">мин</string>

@@ -19,6 +19,7 @@ data class HabitPreset(
 data class PlanPreset(
     val title: String,
     val reminderMinutesOfDay: Int? = null,
+    val repeat: PlanRepeat = PlanRepeat.NONE,
 )
 
 @Serializable

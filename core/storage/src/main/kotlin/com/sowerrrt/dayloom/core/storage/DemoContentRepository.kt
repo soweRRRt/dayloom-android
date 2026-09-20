@@ -1,6 +1,7 @@
 package com.sowerrrt.dayloom.core.storage
 
 import com.sowerrrt.dayloom.core.model.ListKind
+import com.sowerrrt.dayloom.core.model.PlanRepeat
 import com.sowerrrt.dayloom.core.model.PresetType
 import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.model.WishPriority
@@ -29,6 +30,7 @@ data class DemoHabit(
     val targetUnit: String = "",
     val repeatEveryDays: Int? = null,
     val scheduledMonthDays: Set<Int> = emptySet(),
+    val progressToday: String = "",
 )
 
 data class DemoPlan(
@@ -37,6 +39,7 @@ data class DemoPlan(
     val completed: Boolean = false,
     val reminderMinutesOfDay: Int? = null,
     val image: DemoImage? = null,
+    val repeat: PlanRepeat = PlanRepeat.NONE,
 )
 
 data class DemoList(
@@ -185,6 +188,11 @@ class LocalDemoContentRepository(
                 habit = current.first { it.id == habit.id }
                 detailsAdded++
             }
+            if (demo.progressToday.isNotBlank() && habit.progressByEpochDay[todayEpochDay] == null) {
+                current = habitsRepository.setProgress(habit.id, todayEpochDay, demo.progressToday)
+                habit = current.first { it.id == habit.id }
+                detailsAdded++
+            }
             if (habit.image == null && demo.image != null && attachmentRepository != null && demoImageSource != null) {
                 val asset = demoImageSource.load(demo.image)
                 val attachment = attachmentRepository.importImage(asset.displayName, asset.mimeType, asset.bytes)
@@ -210,6 +218,7 @@ class LocalDemoContentRepository(
                         demo.title,
                         todayEpochDay + demo.dayOffset,
                         demo.reminderMinutesOfDay,
+                        demo.repeat,
                     )
                 plan = current.last { it.title == demo.title }
                 if (demo.completed) current = plannerRepository.toggleCompletion(plan.id)

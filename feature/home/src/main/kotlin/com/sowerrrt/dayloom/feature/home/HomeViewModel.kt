@@ -6,7 +6,9 @@ import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.model.isCompleted
+import com.sowerrrt.dayloom.core.model.isCompletedOn
 import com.sowerrrt.dayloom.core.model.isScheduledOn
+import com.sowerrrt.dayloom.core.model.occursOn
 import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
 import com.sowerrrt.dayloom.core.notifications.NotificationScope
 import com.sowerrrt.dayloom.core.notifications.activeHabitReminders
@@ -75,7 +77,7 @@ class HomeViewModel
                         val lists = async { listsRepository.loadLists() }
                         val wishes = async { wishlistRepository.loadGoals() }
                         val habits = allHabits.await().filter { it.isScheduledOn(today) }
-                        val plans = allPlans.await().filter { it.dateEpochDay == today }
+                        val plans = allPlans.await().filter { it.occursOn(today) }
                         HomeUiState(
                             todayEpochDay = today,
                             todayHabits = habits.sortedWith(compareBy(nullsLast()) { it.reminderMinutesOfDay }),
@@ -83,7 +85,7 @@ class HomeViewModel
                             habitsToday = habits.size,
                             habitsCompletedToday = habits.count { today in it.completedEpochDays },
                             plansToday = plans.size,
-                            plansCompletedToday = plans.count { it.completed },
+                            plansCompletedToday = plans.count { it.isCompletedOn(today) },
                             listCount = lists.await().size,
                             openListItems = lists.await().sumOf { list -> list.items.count { !it.completed } },
                             wishCount = wishes.await().size,
@@ -108,8 +110,9 @@ class HomeViewModel
         }
 
         fun togglePlan(id: EntityId) {
+            val today = mutableUiState.value.todayEpochDay
             viewModelScope.launch {
-                runCatching { plannerRepository.toggleCompletion(id) }
+                runCatching { plannerRepository.toggleCompletion(id, today) }
                     .onSuccess { plans ->
                         notificationScheduler.rescheduleAll(NotificationScope.PLANS, plans.activePlanReminders())
                         refresh()

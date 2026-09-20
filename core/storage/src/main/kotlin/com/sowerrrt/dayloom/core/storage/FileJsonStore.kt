@@ -89,21 +89,27 @@ class FileJsonStore<T>(
 
     private fun readLocked(): T {
         if (!primary.exists()) return defaultValue()
-        return runCatching { decode(primary) }.getOrElse { primaryError ->
+        return runCatching {
+            val decoded = decode(primary)
+            if (decoded.wasMigrated) writeLocked(decoded.value)
+            decoded.value
+        }.getOrElse { primaryError ->
             if (!backup.exists()) throw StorageException.Corrupt(primary, primaryError)
             runCatching { decode(backup) }
+                .map { it.value }
                 .onSuccess { recovered -> writeLocked(recovered) }
                 .getOrElse { throw StorageException.Corrupt(primary, it) }
         }
     }
 
-    private fun decode(file: File): T {
+    private fun decode(file: File): DecodedValue<T> {
         var element =
             json.parseToJsonElement(file.readText()) as? JsonObject
                 ?: error("Storage envelope must be a JSON object")
         var schema =
             element["schemaVersion"]?.jsonPrimitive?.int
                 ?: error("Storage envelope has no schemaVersion")
+        val originalSchema = schema
         if (schema > currentSchemaVersion) throw StorageException.UnsupportedSchema(schema, currentSchemaVersion)
         while (schema < currentSchemaVersion) {
             val migration = migrations[schema] ?: throw StorageException.MissingMigration(schema)
@@ -114,7 +120,10 @@ class FileJsonStore<T>(
             check(next > schema) { "Migration from schema $schema did not advance the version" }
             schema = next
         }
-        return json.decodeFromJsonElement(envelopeSerializer, element).payload
+        return DecodedValue(
+            value = json.decodeFromJsonElement(envelopeSerializer, element).payload,
+            wasMigrated = schema != originalSchema,
+        )
     }
 
     private fun writeLocked(value: T) {
@@ -140,4 +149,9 @@ class FileJsonStore<T>(
             Files.move(temporary.toPath(), primary.toPath(), StandardCopyOption.REPLACE_EXISTING)
         }
     }
+
+    private data class DecodedValue<T>(
+        val value: T,
+        val wasMigrated: Boolean,
+    )
 }

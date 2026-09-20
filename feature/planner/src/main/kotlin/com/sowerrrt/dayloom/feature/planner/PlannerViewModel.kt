@@ -7,8 +7,11 @@ import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.model.PlanPreset
+import com.sowerrrt.dayloom.core.model.PlanRepeat
 import com.sowerrrt.dayloom.core.model.PresetType
+import com.sowerrrt.dayloom.core.model.isCompletedOn
 import com.sowerrrt.dayloom.core.model.isScheduledOn
+import com.sowerrrt.dayloom.core.model.occursOn
 import com.sowerrrt.dayloom.core.model.toPlanPresetOrNull
 import com.sowerrrt.dayloom.core.model.toStorageValue
 import com.sowerrrt.dayloom.core.notifications.NotificationScheduler
@@ -58,19 +61,19 @@ data class PlannerUiState(
     val selectedPlans: List<PlanItem>
         get() =
             plans
-                .filter { it.dateEpochDay == selectedEpochDay }
+                .filter { it.occursOn(selectedEpochDay) }
                 .sortedWith(
                     compareBy<PlanItem> { it.reminderMinutesOfDay ?: Int.MAX_VALUE }.thenBy { it.title.lowercase() },
                 )
 
     fun habitCount(epochDay: Long): Int = habits.count { it.isScheduledOn(epochDay) }
 
-    fun planCount(epochDay: Long): Int = plans.count { it.dateEpochDay == epochDay }
+    fun planCount(epochDay: Long): Int = plans.count { it.occursOn(epochDay) }
 
     fun completedHabitCount(epochDay: Long): Int =
         habits.count { it.isScheduledOn(epochDay) && epochDay in it.completedEpochDays }
 
-    fun completedPlanCount(epochDay: Long): Int = plans.count { it.dateEpochDay == epochDay && it.completed }
+    fun completedPlanCount(epochDay: Long): Int = plans.count { it.occursOn(epochDay) && it.isCompletedOn(epochDay) }
 }
 
 @HiltViewModel
@@ -163,29 +166,32 @@ class PlannerViewModel
         fun createPlan(
             title: String,
             reminderMinutesOfDay: Int?,
+            repeat: PlanRepeat = PlanRepeat.NONE,
         ) {
             if (title.isBlank()) return
             val day = mutableUiState.value.selectedEpochDay
-            updatePlans { plannerRepository.createPlan(title, day, reminderMinutesOfDay) }
+            updatePlans { plannerRepository.createPlan(title, day, reminderMinutesOfDay, repeat) }
         }
 
         fun updatePlan(
             id: EntityId,
             title: String,
             reminderMinutesOfDay: Int?,
+            repeat: PlanRepeat = PlanRepeat.NONE,
         ) {
             if (title.isBlank()) return
             val day = mutableUiState.value.selectedEpochDay
-            updatePlans { plannerRepository.updatePlan(id, title, day, reminderMinutesOfDay) }
+            updatePlans { plannerRepository.updatePlan(id, title, day, reminderMinutesOfDay, repeat) }
         }
 
         fun savePreset(
             title: String,
             reminderMinutesOfDay: Int?,
+            repeat: PlanRepeat = PlanRepeat.NONE,
         ) {
             val normalized = title.trim()
             if (normalized.isEmpty()) return
-            val preset = PlanPreset(normalized, reminderMinutesOfDay)
+            val preset = PlanPreset(normalized, reminderMinutesOfDay, repeat)
             viewModelScope.launch {
                 removeStoredPlanPresets(normalized)
                 settingsRepository.addPreset(PresetType.PLAN, preset.toStorageValue())
@@ -209,11 +215,20 @@ class PlannerViewModel
         }
 
         fun createFromPreset(preset: PlanPreset) {
-            createPlan(preset.title, preset.reminderMinutesOfDay)
+            createPlan(preset.title, preset.reminderMinutesOfDay, preset.repeat)
         }
 
         fun togglePlan(id: EntityId) {
-            updatePlans { plannerRepository.toggleCompletion(id) }
+            val day = mutableUiState.value.selectedEpochDay
+            updatePlans { plannerRepository.toggleCompletion(id, day) }
+        }
+
+        fun movePlan(
+            id: EntityId,
+            days: Long,
+        ) {
+            val plan = mutableUiState.value.plans.firstOrNull { it.id == id } ?: return
+            updatePlans { plannerRepository.movePlan(id, plan.dateEpochDay + days) }
         }
 
         fun deletePlan(id: EntityId) {

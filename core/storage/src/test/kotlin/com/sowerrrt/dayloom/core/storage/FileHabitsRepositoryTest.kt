@@ -4,6 +4,10 @@ import com.sowerrrt.dayloom.core.model.AttachmentRef
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Weekday
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -105,6 +109,30 @@ class FileHabitsRepositoryTest {
         }
 
     @Test
+    fun `numeric progress completes target and survives recreation`() =
+        runTest {
+            val directory = temporaryFolder.newFolder("progress")
+            val id = EntityId("habit-progress")
+            val repository = FileHabitsRepository(directory, idFactory = { id })
+            repository.createHabit(
+                title = "Walk",
+                scheduledWeekdays = Weekday.entries.toSet(),
+                startEpochDay = TEST_EPOCH_DAY,
+                targetAmount = "10000",
+                targetUnit = "steps",
+            )
+
+            val partial = repository.setProgress(id, TEST_EPOCH_DAY, "7500").single()
+            assertEquals("7500", partial.progressByEpochDay[TEST_EPOCH_DAY])
+            assertFalse(TEST_EPOCH_DAY in partial.completedEpochDays)
+
+            repository.setProgress(id, TEST_EPOCH_DAY, "10000")
+            val restored = FileHabitsRepository(directory).loadHabits().single()
+            assertEquals("10000", restored.progressByEpochDay[TEST_EPOCH_DAY])
+            assertTrue(TEST_EPOCH_DAY in restored.completedEpochDays)
+        }
+
+    @Test
     fun `habit can be edited and archived without deleting stored data`() =
         runTest {
             val directory = temporaryFolder.newFolder("editing")
@@ -154,6 +182,14 @@ class FileHabitsRepositoryTest {
             assertEquals(expectedStartDay, restored.startEpochDay)
             assertEquals(Weekday.entries.toSet(), restored.scheduledWeekdays)
             assertEquals(null, restored.reminderMinutesOfDay)
+            assertEquals(
+                3,
+                Json
+                    .parseToJsonElement(directory.resolve("habits.json").readText())
+                    .jsonObject["schemaVersion"]
+                    ?.jsonPrimitive
+                    ?.int,
+            )
         }
 
     @Test

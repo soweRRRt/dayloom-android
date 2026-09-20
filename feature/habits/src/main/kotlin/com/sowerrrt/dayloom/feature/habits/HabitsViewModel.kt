@@ -218,6 +218,14 @@ class HabitsViewModel
             updateHabits { repository.toggleCompletion(id, today) }
         }
 
+        fun setProgress(
+            id: EntityId,
+            progress: String,
+        ) {
+            val today = mutableUiState.value.todayEpochDay
+            updateHabits { repository.setProgress(id, today, progress) }
+        }
+
         fun archiveHabit(id: EntityId) {
             val previous =
                 mutableUiState.value.habits

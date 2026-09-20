@@ -88,6 +88,8 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.model.PlanPreset
+import com.sowerrrt.dayloom.core.model.PlanRepeat
+import com.sowerrrt.dayloom.core.model.isCompletedOn
 import com.sowerrrt.dayloom.core.ui.ErrorState
 import com.sowerrrt.dayloom.core.ui.LoadingState
 import com.sowerrrt.dayloom.core.ui.loadSampledImage
@@ -136,6 +138,7 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                     onToday = viewModel::showToday,
                     onToggleHabit = viewModel::toggleHabit,
                     onTogglePlan = viewModel::togglePlan,
+                    onMovePlan = viewModel::movePlan,
                     onCreatePlan = {
                         editingPlan = null
                         showPlanDialog = true
@@ -180,7 +183,7 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
             presets = state.presets,
             onSavePreset = viewModel::savePreset,
             onRemovePreset = viewModel::removePreset,
-            onSave = { title, reminderMinutesOfDay ->
+            onSave = { title, reminderMinutesOfDay, repeat ->
                 val plan = editingPlan
                 if (
                     reminderMinutesOfDay != null &&
@@ -191,9 +194,9 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
                 if (plan == null) {
-                    viewModel.createPlan(title, reminderMinutesOfDay)
+                    viewModel.createPlan(title, reminderMinutesOfDay, repeat)
                 } else {
-                    viewModel.updatePlan(plan.id, title, reminderMinutesOfDay)
+                    viewModel.updatePlan(plan.id, title, reminderMinutesOfDay, repeat)
                 }
                 showPlanDialog = false
             },
@@ -232,6 +235,7 @@ private fun PlannerContent(
     onToday: () -> Unit,
     onToggleHabit: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
     onTogglePlan: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
+    onMovePlan: (com.sowerrrt.dayloom.core.model.EntityId, Long) -> Unit,
     onCreatePlan: () -> Unit,
     onEditPlan: (PlanItem) -> Unit,
     onDeletePlan: (PlanItem) -> Unit,
@@ -359,7 +363,10 @@ private fun PlannerContent(
                 items(state.selectedPlans, key = { "plan-${it.id.value}" }) { plan ->
                     PlanRow(
                         plan = plan,
+                        completed = plan.isCompletedOn(state.selectedEpochDay),
                         onToggle = { onTogglePlan(plan.id) },
+                        onMoveTomorrow = { onMovePlan(plan.id, 1) },
+                        onMoveNextWeek = { onMovePlan(plan.id, 7) },
                         onEdit = { onEditPlan(plan) },
                         onDelete = { onDeletePlan(plan) },
                         onChooseImage = { onChoosePlanImage(plan) },
@@ -676,6 +683,18 @@ private fun CalendarHabitRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                if (habit.targetAmount.isNotBlank() || habit.targetUnit.isNotBlank()) {
+                    Text(
+                        stringResource(
+                            R.string.planner_habit_progress,
+                            habit.progressByEpochDay[epochDay].orEmpty().ifBlank { "—" },
+                            habit.targetAmount,
+                            habit.targetUnit,
+                        ).trim(),
+                        color = MaterialTheme.colorScheme.tertiary,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
             }
         }
     }
@@ -684,8 +703,11 @@ private fun CalendarHabitRow(
 @Composable
 private fun PlanRow(
     plan: PlanItem,
+    completed: Boolean,
     imagePath: String?,
     onToggle: () -> Unit,
+    onMoveTomorrow: () -> Unit,
+    onMoveNextWeek: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onChooseImage: () -> Unit,
@@ -714,10 +736,10 @@ private fun PlanRow(
                     modifier = Modifier.testTag("plan_toggle_${plan.title}"),
                 ) {
                     Icon(
-                        if (plan.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                        if (completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
                         contentDescription = stringResource(R.string.planner_toggle_plan, plan.title),
                         tint =
-                            if (plan.completed) {
+                            if (completed) {
                                 MaterialTheme.colorScheme.secondary
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -728,7 +750,7 @@ private fun PlanRow(
                     Text(
                         plan.title,
                         style = MaterialTheme.typography.titleMedium,
-                        textDecoration = if (plan.completed) TextDecoration.LineThrough else null,
+                        textDecoration = if (completed) TextDecoration.LineThrough else null,
                     )
                     plan.reminderMinutesOfDay?.let { reminderMinutes ->
                         Row(
@@ -749,6 +771,14 @@ private fun PlanRow(
                             )
                         }
                     }
+                    if (plan.repeat != PlanRepeat.NONE) {
+                        Text(
+                            stringResource(R.string.planner_repeat_value, stringResource(plan.repeat.labelResource())),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.testTag("plan_repeat_value_${plan.title}"),
+                        )
+                    }
                 }
                 Box {
                     IconButton(
@@ -767,6 +797,20 @@ private fun PlanRow(
                             onClick = {
                                 menuExpanded = false
                                 onEdit()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.planner_move_tomorrow)) },
+                            onClick = {
+                                menuExpanded = false
+                                onMoveTomorrow()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.planner_move_next_week)) },
+                            onClick = {
+                                menuExpanded = false
+                                onMoveNextWeek()
                             },
                         )
                         DropdownMenuItem(
@@ -834,12 +878,13 @@ private fun PlanEditorDialog(
     onChooseImage: (PlanItem) -> Unit,
     onRemoveImage: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
     presets: List<PlanPreset>,
-    onSavePreset: (String, Int?) -> Unit,
+    onSavePreset: (String, Int?, PlanRepeat) -> Unit,
     onRemovePreset: (PlanPreset) -> Unit,
-    onSave: (String, Int?) -> Unit,
+    onSave: (String, Int?, PlanRepeat) -> Unit,
 ) {
     var title by remember(plan?.id) { mutableStateOf(plan?.title.orEmpty()) }
     var reminderMinutesOfDay by remember(plan?.id) { mutableStateOf(plan?.reminderMinutesOfDay) }
+    var repeat by remember(plan?.id) { mutableStateOf(plan?.repeat ?: PlanRepeat.NONE) }
     val locale = currentLocale()
     val context = LocalContext.current
     AlertDialog(
@@ -869,6 +914,7 @@ private fun PlanEditorDialog(
                                 onClick = {
                                     title = preset.title
                                     reminderMinutesOfDay = preset.reminderMinutesOfDay
+                                    repeat = preset.repeat
                                 },
                                 label = { Text(preset.title) },
                                 trailingIcon = {
@@ -893,11 +939,25 @@ private fun PlanEditorDialog(
                     modifier = Modifier.fillMaxWidth().testTag("plan_name_input"),
                 )
                 TextButton(
-                    onClick = { onSavePreset(title, reminderMinutesOfDay) },
+                    onClick = { onSavePreset(title, reminderMinutesOfDay, repeat) },
                     enabled = title.isNotBlank(),
                     modifier = Modifier.testTag("save_plan_preset"),
                 ) {
                     Text(stringResource(R.string.planner_save_preset))
+                }
+                Text(stringResource(R.string.planner_repeat), style = MaterialTheme.typography.titleMedium)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                ) {
+                    PlanRepeat.entries.forEach { option ->
+                        FilterChip(
+                            selected = repeat == option,
+                            onClick = { repeat = option },
+                            label = { Text(stringResource(option.labelResource())) },
+                            modifier = Modifier.testTag("plan_repeat_${option.name.lowercase()}"),
+                        )
+                    }
                 }
                 if (plan != null) {
                     Row(
@@ -991,7 +1051,7 @@ private fun PlanEditorDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(title, reminderMinutesOfDay) },
+                onClick = { onSave(title, reminderMinutesOfDay, repeat) },
                 enabled = title.isNotBlank(),
                 modifier = Modifier.testTag("save_plan"),
             ) {
@@ -1028,6 +1088,14 @@ private fun weekLabel(
 
 private const val MAX_PLAN_TITLE_LENGTH = 120
 private const val DEFAULT_REMINDER_MINUTES = 9 * 60
+
+private fun PlanRepeat.labelResource(): Int =
+    when (this) {
+        PlanRepeat.NONE -> R.string.planner_repeat_none
+        PlanRepeat.DAILY -> R.string.planner_repeat_daily
+        PlanRepeat.WEEKLY -> R.string.planner_repeat_weekly
+        PlanRepeat.MONTHLY -> R.string.planner_repeat_monthly
+    }
 
 private fun formatReminderTime(
     minutesOfDay: Int,

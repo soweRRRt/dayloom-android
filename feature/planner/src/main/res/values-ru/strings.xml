@@ -48,4 +48,13 @@
     <string name="planner_quick_add">Быстро добавить на выбранный день</string>
     <string name="planner_save_preset">Сохранить настройки как пресет</string>
     <string name="planner_remove_preset">Удалить пресет «%1$s»</string>
+    <string name="planner_repeat">Повторение</string>
+    <string name="planner_repeat_none">Один раз</string>
+    <string name="planner_repeat_daily">Каждый день</string>
+    <string name="planner_repeat_weekly">Каждую неделю</string>
+    <string name="planner_repeat_monthly">Каждый месяц</string>
+    <string name="planner_move_tomorrow">Перенести на день</string>
+    <string name="planner_move_next_week">Перенести на неделю</string>
+    <string name="planner_repeat_value">Повтор: %1$s</string>
+    <string name="planner_habit_progress">Прогресс: %1$s / %2$s %3$s</string>
 </resources>

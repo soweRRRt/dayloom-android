@@ -76,6 +76,7 @@ import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.ListItemPreset
 import com.sowerrrt.dayloom.core.model.ListKind
 import com.sowerrrt.dayloom.core.model.PlanPreset
+import com.sowerrrt.dayloom.core.model.PlanRepeat
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
 import com.sowerrrt.dayloom.core.model.Weekday
@@ -660,6 +661,7 @@ private fun rememberDemoContent(): DemoContent =
                     completedDayOffsets = listOf(-4, -3, -2, -1, 0),
                     targetAmount = "8",
                     targetUnit = stringResource(R.string.settings_example_unit_glasses),
+                    progressToday = "8",
                 ),
                 DemoHabit(
                     title = stringResource(R.string.settings_example_habit_reading),
@@ -701,6 +703,11 @@ private fun rememberDemoContent(): DemoContent =
                 DemoPlan(stringResource(R.string.settings_example_plan_groceries), 0),
                 DemoPlan(stringResource(R.string.settings_example_plan_call), 1),
                 DemoPlan(stringResource(R.string.settings_example_plan_dentist), 3),
+                DemoPlan(
+                    title = stringResource(R.string.settings_example_plan_weekly_review),
+                    dayOffset = 0,
+                    repeat = PlanRepeat.WEEKLY,
+                ),
                 DemoPlan(
                     stringResource(R.string.settings_example_plan_evening_review),
                     1,

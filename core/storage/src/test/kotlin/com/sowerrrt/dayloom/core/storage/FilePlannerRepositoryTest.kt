@@ -2,7 +2,14 @@ package com.sowerrrt.dayloom.core.storage
 
 import com.sowerrrt.dayloom.core.model.AttachmentRef
 import com.sowerrrt.dayloom.core.model.EntityId
+import com.sowerrrt.dayloom.core.model.PlanRepeat
+import com.sowerrrt.dayloom.core.model.isCompletedOn
+import com.sowerrrt.dayloom.core.model.occursOn
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -51,6 +58,58 @@ class FilePlannerRepositoryTest {
             repository.createPlan("Temporary", TEST_EPOCH_DAY)
 
             assertTrue(repository.deletePlan(id).isEmpty())
+        }
+
+    @Test
+    fun `recurring plan tracks each occurrence independently and can be moved`() =
+        runTest {
+            val directory = temporaryFolder.newFolder("recurring")
+            val id = EntityId("plan-repeat")
+            val repository = FilePlannerRepository(directory, idFactory = { id })
+
+            repository.createPlan("Weekly review", TEST_EPOCH_DAY, 10 * 60, PlanRepeat.WEEKLY)
+            repository.toggleCompletion(id, TEST_EPOCH_DAY)
+            repository.movePlan(id, TEST_EPOCH_DAY + 1)
+
+            val restored = FilePlannerRepository(directory).loadPlans().single()
+            assertTrue(restored.occursOn(TEST_EPOCH_DAY + 1))
+            assertTrue(restored.occursOn(TEST_EPOCH_DAY + 8))
+            assertTrue(restored.isCompletedOn(TEST_EPOCH_DAY))
+            assertTrue(!restored.isCompletedOn(TEST_EPOCH_DAY + 8))
+        }
+
+    @Test
+    fun `schema one plan is upgraded without losing completion`() =
+        runTest {
+            val directory = temporaryFolder.newFolder("migration")
+            directory.resolve("planner.json").writeText(
+                """
+                {
+                  "schemaVersion": 1,
+                  "updatedAtEpochMillis": 123,
+                  "payload": {"plans": [{
+                    "id": "legacy-plan",
+                    "title": "Legacy plan",
+                    "dateEpochDay": 21000,
+                    "createdAtEpochMillis": 100,
+                    "completed": true
+                  }]}
+                }
+                """.trimIndent(),
+            )
+
+            val restored = FilePlannerRepository(directory).loadPlans().single()
+
+            assertEquals(PlanRepeat.NONE, restored.repeat)
+            assertTrue(restored.completed)
+            assertEquals(
+                2,
+                Json
+                    .parseToJsonElement(directory.resolve("planner.json").readText())
+                    .jsonObject["schemaVersion"]
+                    ?.jsonPrimitive
+                    ?.int,
+            )
         }
 
     @Test

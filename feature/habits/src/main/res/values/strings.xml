@@ -61,6 +61,11 @@
     <string name="habits_target_amount">Value</string>
     <string name="habits_target_unit">Unit</string>
     <string name="habits_target_value">Goal: %1$s %2$s</string>
+    <string name="habits_progress_value">Today: %1$s / %2$s %3$s</string>
+    <string name="habits_update_progress">Update today’s progress</string>
+    <string name="habits_progress_title">Progress: %1$s</string>
+    <string name="habits_progress_goal">Goal: %1$s %2$s</string>
+    <string name="habits_progress_label">Completed today</string>
     <string name="habits_unit_times">times</string>
     <string name="habits_unit_steps">steps</string>
     <string name="habits_unit_minutes">min</string>

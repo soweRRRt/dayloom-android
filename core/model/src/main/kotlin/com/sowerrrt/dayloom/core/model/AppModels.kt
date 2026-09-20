@@ -105,6 +105,7 @@ data class Habit(
     val image: AttachmentRef? = null,
     val targetAmount: String = "",
     val targetUnit: String = "",
+    val progressByEpochDay: Map<Long, String> = emptyMap(),
     val archived: Boolean = false,
 )
 
@@ -179,7 +180,35 @@ data class PlanItem(
     val completed: Boolean = false,
     val reminderMinutesOfDay: Int? = null,
     val image: AttachmentRef? = null,
+    val repeat: PlanRepeat = PlanRepeat.NONE,
+    val repeatUntilEpochDay: Long? = null,
+    val completedEpochDays: Set<Long> = emptySet(),
 )
+
+@Serializable
+enum class PlanRepeat {
+    NONE,
+    DAILY,
+    WEEKLY,
+    MONTHLY,
+}
+
+fun PlanItem.occursOn(epochDay: Long): Boolean {
+    if (epochDay < dateEpochDay || repeatUntilEpochDay?.let { epochDay > it } == true) return false
+    return when (repeat) {
+        PlanRepeat.NONE -> epochDay == dateEpochDay
+        PlanRepeat.DAILY -> true
+        PlanRepeat.WEEKLY -> (epochDay - dateEpochDay) % 7L == 0L
+        PlanRepeat.MONTHLY -> {
+            val start = LocalDate.ofEpochDay(dateEpochDay)
+            val candidate = LocalDate.ofEpochDay(epochDay)
+            candidate.dayOfMonth == start.dayOfMonth
+        }
+    }
+}
+
+fun PlanItem.isCompletedOn(epochDay: Long): Boolean =
+    if (repeat == PlanRepeat.NONE) completed else epochDay in completedEpochDays
 
 @Serializable
 data class PlannerSnapshot(

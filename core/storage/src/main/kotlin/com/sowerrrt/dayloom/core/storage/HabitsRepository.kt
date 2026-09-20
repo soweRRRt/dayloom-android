@@ -54,6 +54,12 @@ interface HabitsRepository {
         id: EntityId,
         epochDay: Long,
     ): List<Habit>
+
+    suspend fun setProgress(
+        id: EntityId,
+        epochDay: Long,
+        progress: String,
+    ): List<Habit> = error("This habits repository does not support progress")
 }
 
 class FileHabitsRepository(
@@ -66,7 +72,7 @@ class FileHabitsRepository(
             directory = directory,
             fileName = "habits.json",
             payloadSerializer = HabitsSnapshot.serializer(),
-            currentSchemaVersion = 2,
+            currentSchemaVersion = 3,
             defaultValue = ::HabitsSnapshot,
             migrations =
                 mapOf(
@@ -102,6 +108,10 @@ class FileHabitsRepository(
                                     ("payload" to JsonObject(payload + ("habits" to JsonArray(migratedHabits)))),
                             )
                         },
+                    2 to
+                        StorageMigration { envelope ->
+                            JsonObject(envelope + ("schemaVersion" to JsonPrimitive(3)))
+                        },
                 ),
         )
 
@@ -118,6 +128,9 @@ class FileHabitsRepository(
                 habit.reminderMinutesOfDay,
             )
             normalizeTarget(habit.targetAmount, habit.targetUnit)
+            require(habit.progressByEpochDay.values.all { it.length <= MAX_TARGET_AMOUNT_LENGTH }) {
+                "Habit progress is too long"
+            }
         }
         store.write(HabitsSnapshot(habits))
         return habits.visibleHabits()
@@ -201,6 +214,30 @@ class FileHabitsRepository(
             habit.copy(completedEpochDays = days)
         }
 
+    override suspend fun setProgress(
+        id: EntityId,
+        epochDay: Long,
+        progress: String,
+    ): List<Habit> {
+        val normalized = progress.trim()
+        require(normalized.length <= MAX_TARGET_AMOUNT_LENGTH) { "Habit progress is too long" }
+        return updateExisting(id) { habit ->
+            val values = habit.progressByEpochDay.toMutableMap()
+            if (normalized.isEmpty()) values.remove(epochDay) else values[epochDay] = normalized
+            val completed = habit.completedEpochDays.toMutableSet()
+            val currentNumber = normalized.toComparableNumberOrNull()
+            val targetNumber = habit.targetAmount.toComparableNumberOrNull()
+            if (targetNumber != null) {
+                if (currentNumber != null && currentNumber >= targetNumber) {
+                    completed.add(epochDay)
+                } else {
+                    completed.remove(epochDay)
+                }
+            }
+            habit.copy(progressByEpochDay = values, completedEpochDays = completed)
+        }
+    }
+
     private suspend fun updateExisting(
         id: EntityId,
         transform: (Habit) -> Habit,
@@ -265,3 +302,5 @@ class FileHabitsRepository(
         const val MAX_REPEAT_INTERVAL_DAYS = 3650
     }
 }
+
+private fun String.toComparableNumberOrNull(): Double? = replace(',', '.').toDoubleOrNull()

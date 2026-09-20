@@ -69,6 +69,7 @@ import com.sowerrrt.dayloom.core.model.AccentPalette
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.ThemeMode
+import com.sowerrrt.dayloom.core.model.isCompletedOn
 
 @Composable
 fun HomeScreen(
@@ -180,9 +181,16 @@ private fun HomeContent(
                             typeLabel = stringResource(R.string.home_today_habit),
                             reminderMinutes = habit.reminderMinutesOfDay,
                             detail =
-                                listOf(habit.targetAmount, habit.targetUnit)
-                                    .filter(String::isNotBlank)
-                                    .joinToString(" "),
+                                if (habit.targetAmount.isBlank() && habit.targetUnit.isBlank()) {
+                                    ""
+                                } else {
+                                    listOf(
+                                        "${habit.progressByEpochDay[state.todayEpochDay].orEmpty().ifBlank {
+                                            "—"
+                                        }} / ${habit.targetAmount}",
+                                        habit.targetUnit,
+                                    ).filter(String::isNotBlank).joinToString(" ")
+                                },
                             completed = state.todayEpochDay in habit.completedEpochDays,
                             color = MaterialTheme.colorScheme.primary,
                             onToggle = { onToggleHabit(habit.id) },
@@ -200,7 +208,7 @@ private fun HomeContent(
                             typeLabel = stringResource(R.string.home_today_plan),
                             reminderMinutes = plan.reminderMinutesOfDay,
                             detail = "",
-                            completed = plan.completed,
+                            completed = plan.isCompletedOn(state.todayEpochDay),
                             color = MaterialTheme.colorScheme.secondary,
                             onToggle = { onTogglePlan(plan.id) },
                         ),
