@@ -33,6 +33,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -48,6 +49,8 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
@@ -206,6 +209,7 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                         showCreateDialog = true
                     },
                     onArchive = { pendingArchive = it },
+                    onRestore = viewModel::restoreHabit,
                     onProgress = { habit, epochDay -> progressTarget = HabitProgressTarget(habit, epochDay) },
                     onToggleHistory = viewModel::toggleCompletion,
                     onInsights = { insightHabitId = it.id.value },
@@ -295,6 +299,7 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                         viewModel.archiveHabit(habit.id)
                         pendingArchive = null
                     },
+                    modifier = Modifier.testTag("confirm_archive_habit"),
                 ) {
                     Text(stringResource(R.string.habits_archive_confirm))
                 }
@@ -397,6 +402,7 @@ private fun HabitsList(
     onInsights: (Habit) -> Unit,
     onEdit: (Habit) -> Unit,
     onArchive: (Habit) -> Unit,
+    onRestore: (EntityId) -> Unit,
     onProgress: (Habit, Long) -> Unit,
     onChooseImage: (Habit) -> Unit,
     onCreate: () -> Unit,
@@ -404,7 +410,18 @@ private fun HabitsList(
     modifier: Modifier = Modifier,
 ) {
     var viewMode by rememberSaveable { mutableStateOf(HabitViewMode.TODAY) }
-    val visibleHabits = if (viewMode == HabitViewMode.TODAY) state.scheduledToday else state.habits
+    var query by rememberSaveable { mutableStateOf("") }
+    var sortMode by rememberSaveable { mutableStateOf(HabitSortMode.CREATED) }
+    var sortExpanded by remember { mutableStateOf(false) }
+    val normalizedQuery = query.trim()
+    val matchingActive = state.habits.filter { it.matchesQuery(normalizedQuery) }
+    val sourceHabits =
+        when (viewMode) {
+            HabitViewMode.TODAY -> state.scheduledToday
+            HabitViewMode.ALL, HabitViewMode.HISTORY -> state.habits
+            HabitViewMode.ARCHIVED -> state.archivedHabits
+        }
+    val visibleHabits = sourceHabits.filter { it.matchesQuery(normalizedQuery) }.sorted(sortMode, state.todayEpochDay)
     Box(modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().testTag("habits_list"),
@@ -423,29 +440,130 @@ private fun HabitsList(
                     verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
                 ) {
                     HabitViewMode.entries.forEach { mode ->
+                        val leadingIcon: (@Composable () -> Unit)? =
+                            when (mode) {
+                                HabitViewMode.HISTORY ->
+                                    {
+                                        { Icon(Icons.Rounded.History, contentDescription = null) }
+                                    }
+                                HabitViewMode.ARCHIVED ->
+                                    {
+                                        { Icon(Icons.Rounded.Archive, contentDescription = null) }
+                                    }
+                                else -> null
+                            }
                         FilterChip(
                             selected = viewMode == mode,
                             onClick = { viewMode = mode },
                             label = { Text(stringResource(mode.labelResource())) },
-                            leadingIcon =
-                                if (mode == HabitViewMode.HISTORY) {
-                                    { Icon(Icons.Rounded.History, contentDescription = null) }
-                                } else {
-                                    null
-                                },
+                            leadingIcon = leadingIcon,
                             modifier = Modifier.testTag("habit_view_${mode.name.lowercase()}"),
                         )
                     }
                 }
             }
-            if (viewMode == HabitViewMode.HISTORY) {
-                item { HabitAnalyticsCard(state) }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.habits_search)) },
+                        leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                        trailingIcon =
+                            if (query.isNotEmpty()) {
+                                {
+                                    IconButton(
+                                        onClick = { query = "" },
+                                        modifier = Modifier.testTag("habit_search_clear"),
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.Close,
+                                            contentDescription = stringResource(R.string.habits_search_clear),
+                                        )
+                                    }
+                                }
+                            } else {
+                                null
+                            },
+                        modifier = Modifier.weight(1f).testTag("habit_search"),
+                    )
+                    if (viewMode != HabitViewMode.HISTORY) {
+                        Box {
+                            IconButton(
+                                onClick = { sortExpanded = true },
+                                modifier = Modifier.testTag("habit_sort"),
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Rounded.Sort,
+                                    contentDescription =
+                                        stringResource(
+                                            R.string.habits_sort_description,
+                                            stringResource(sortMode.labelResource()),
+                                        ),
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = sortExpanded,
+                                onDismissRequest = { sortExpanded = false },
+                            ) {
+                                HabitSortMode.entries.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(option.labelResource())) },
+                                        leadingIcon =
+                                            if (option == sortMode) {
+                                                { Icon(Icons.Rounded.CheckCircle, contentDescription = null) }
+                                            } else {
+                                                null
+                                            },
+                                        onClick = {
+                                            sortMode = option
+                                            sortExpanded = false
+                                        },
+                                        modifier = Modifier.testTag("habit_sort_${option.name.lowercase()}"),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (viewMode == HabitViewMode.ARCHIVED) {
+                if (visibleHabits.isEmpty()) {
+                    item {
+                        DayloomCard(Modifier.fillMaxWidth().testTag("habits_archive_empty")) {
+                            Text(
+                                stringResource(
+                                    if (normalizedQuery.isEmpty()) {
+                                        R.string.habits_archive_empty
+                                    } else {
+                                        R.string.habits_search_empty
+                                    },
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                items(visibleHabits, key = { "archived-${it.id.value}" }) { habit ->
+                    ArchivedHabitRow(
+                        habit = habit,
+                        imagePath = state.imagePaths[habit.id],
+                        onRestore = { onRestore(habit.id) },
+                    )
+                }
+            } else if (viewMode == HabitViewMode.HISTORY) {
+                item { HabitAnalyticsCard(state.copy(habits = matchingActive)) }
                 items(
                     items = (0L until HISTORY_DAYS).map { state.todayEpochDay - it },
                     key = { "history-$it" },
                 ) { epochDay ->
                     HabitHistoryDayCard(
-                        habits = state.habits.filter { it.isScheduledOn(epochDay) },
+                        habits = matchingActive.filter { it.isScheduledOn(epochDay) },
                         epochDay = epochDay,
                         onToggle = { habit -> onToggleHistory(habit.id, epochDay) },
                         onProgress = { habit -> onProgress(habit, epochDay) },
@@ -501,7 +619,13 @@ private fun HabitsList(
                     item {
                         DayloomCard(Modifier.fillMaxWidth().testTag("habits_today_empty")) {
                             Text(
-                                stringResource(R.string.habits_today_empty),
+                                stringResource(
+                                    when {
+                                        normalizedQuery.isNotEmpty() -> R.string.habits_search_empty
+                                        viewMode == HabitViewMode.ALL -> R.string.habits_all_empty
+                                        else -> R.string.habits_today_empty
+                                    },
+                                ),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -991,6 +1115,70 @@ private fun HabitHistoryDayCard(
 }
 
 @Composable
+private fun ArchivedHabitRow(
+    habit: Habit,
+    imagePath: String?,
+    onRestore: () -> Unit,
+) {
+    DayloomCard(Modifier.fillMaxWidth().testTag("archived_habit_${habit.title}")) {
+        Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+            ) {
+                if (imagePath != null) {
+                    LocalHabitImage(
+                        imagePath = imagePath,
+                        title = habit.title,
+                        modifier = Modifier.size(64.dp),
+                    )
+                } else {
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(64.dp)
+                                .clip(MaterialTheme.shapes.medium)
+                                .background(MaterialTheme.colorScheme.secondaryContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Rounded.Archive,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                ) {
+                    Text(habit.title, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        scheduleLabel(habit),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        stringResource(R.string.habits_archive_best_streak, habit.bestStreak()),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            OutlinedButton(
+                onClick = onRestore,
+                modifier = Modifier.align(Alignment.End).testTag("restore_habit_${habit.title}"),
+            ) {
+                Icon(Icons.Rounded.Restore, contentDescription = null)
+                Spacer(Modifier.size(DayloomSpacing.xs))
+                Text(stringResource(R.string.habits_restore))
+            }
+        }
+    }
+}
+
+@Composable
 private fun HabitRow(
     habit: Habit,
     completed: Boolean,
@@ -1179,6 +1367,7 @@ private fun HabitRow(
                             menuExpanded = false
                             onArchive()
                         },
+                        modifier = Modifier.testTag("archive_habit_${habit.title}"),
                     )
                 }
             }
@@ -1670,6 +1859,14 @@ private enum class HabitViewMode {
     TODAY,
     ALL,
     HISTORY,
+    ARCHIVED,
+}
+
+private enum class HabitSortMode {
+    CREATED,
+    NAME,
+    STREAK,
+    COMPLETION,
 }
 
 private enum class HabitInsightPeriod(
@@ -1691,6 +1888,39 @@ private fun HabitViewMode.labelResource(): Int =
         HabitViewMode.TODAY -> R.string.habits_view_today
         HabitViewMode.ALL -> R.string.habits_view_all
         HabitViewMode.HISTORY -> R.string.habits_view_history
+        HabitViewMode.ARCHIVED -> R.string.habits_view_archived
+    }
+
+private fun HabitSortMode.labelResource(): Int =
+    when (this) {
+        HabitSortMode.CREATED -> R.string.habits_sort_created
+        HabitSortMode.NAME -> R.string.habits_sort_name
+        HabitSortMode.STREAK -> R.string.habits_sort_streak
+        HabitSortMode.COMPLETION -> R.string.habits_sort_completion
+    }
+
+private fun Habit.matchesQuery(query: String): Boolean =
+    query.isEmpty() ||
+        title.contains(query, ignoreCase = true) ||
+        targetAmount.contains(query, ignoreCase = true) ||
+        targetUnit.contains(query, ignoreCase = true)
+
+private fun List<Habit>.sorted(
+    mode: HabitSortMode,
+    todayEpochDay: Long,
+): List<Habit> =
+    when (mode) {
+        HabitSortMode.CREATED -> sortedBy(Habit::createdAtEpochMillis)
+        HabitSortMode.NAME -> sortedBy { it.title.lowercase() }
+        HabitSortMode.STREAK -> sortedByDescending { it.currentStreak(todayEpochDay) }
+        HabitSortMode.COMPLETION ->
+            sortedByDescending { habit ->
+                habit
+                    .periodStats(
+                        maxOf(habit.startEpochDay, todayEpochDay - ANALYTICS_DAYS + 1),
+                        todayEpochDay,
+                    ).completionPercent
+            }
     }
 
 private fun HabitInsightPeriod.labelResource(): Int =

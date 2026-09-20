@@ -29,6 +29,7 @@ import javax.inject.Inject
 
 data class HabitsUiState(
     val habits: List<Habit> = emptyList(),
+    val archivedHabits: List<Habit> = emptyList(),
     val todayEpochDay: Long = LocalDate.now().toEpochDay(),
     val isLoading: Boolean = true,
     val hasError: Boolean = false,
@@ -69,31 +70,37 @@ class HabitsViewModel
         fun refresh() {
             viewModelScope.launch {
                 mutableUiState.update { it.copy(isLoading = true, hasError = false) }
-                runCatching { repository.loadHabits() to settingsRepository.settings.first().habitPresets }
-                    .onSuccess { (habits, presets) ->
-                        val reminderResult =
-                            notificationScheduler.rescheduleAll(
-                                NotificationScope.HABITS,
-                                habits.activeHabitReminders(),
-                            )
-                        mutableUiState.update {
-                            it.copy(
-                                habits = habits,
-                                todayEpochDay = LocalDate.now().toEpochDay(),
-                                isLoading = false,
-                                hasError = false,
-                                reminderSchedulingFailed = reminderResult.isFailure,
-                                imagePaths = imagePaths(habits),
-                                presets =
-                                    presets
-                                        .mapNotNull(
-                                            String::toHabitPresetOrNull,
-                                        ).sortedBy { it.title.lowercase() },
-                            )
-                        }
-                    }.onFailure {
-                        mutableUiState.update { it.copy(isLoading = false, hasError = true) }
+                runCatching {
+                    Triple(
+                        repository.loadHabits(),
+                        repository.loadArchivedHabits(),
+                        settingsRepository.settings.first().habitPresets,
+                    )
+                }.onSuccess { (habits, archivedHabits, presets) ->
+                    val reminderResult =
+                        notificationScheduler.rescheduleAll(
+                            NotificationScope.HABITS,
+                            habits.activeHabitReminders(),
+                        )
+                    mutableUiState.update {
+                        it.copy(
+                            habits = habits,
+                            archivedHabits = archivedHabits,
+                            todayEpochDay = LocalDate.now().toEpochDay(),
+                            isLoading = false,
+                            hasError = false,
+                            reminderSchedulingFailed = reminderResult.isFailure,
+                            imagePaths = imagePaths(habits + archivedHabits),
+                            presets =
+                                presets
+                                    .mapNotNull(
+                                        String::toHabitPresetOrNull,
+                                    ).sortedBy { it.title.lowercase() },
+                        )
                     }
+                }.onFailure {
+                    mutableUiState.update { it.copy(isLoading = false, hasError = true) }
+                }
             }
         }
 
@@ -248,15 +255,11 @@ class HabitsViewModel
         }
 
         fun archiveHabit(id: EntityId) {
-            val previous =
-                mutableUiState.value.habits
-                    .firstOrNull { it.id == id }
-                    ?.image
-            updateHabits {
-                repository.archiveHabit(id).also {
-                    if (previous != null) runCatching { attachmentRepository.delete(previous) }
-                }
-            }
+            updateHabits { repository.archiveHabit(id) }
+        }
+
+        fun restoreHabit(id: EntityId) {
+            updateHabits { repository.restoreHabit(id) }
         }
 
         fun setImage(
@@ -310,8 +313,8 @@ class HabitsViewModel
 
         private fun updateHabits(operation: suspend () -> List<Habit>) {
             viewModelScope.launch {
-                runCatching { operation() }
-                    .onSuccess { habits ->
+                runCatching { operation() to repository.loadArchivedHabits() }
+                    .onSuccess { (habits, archivedHabits) ->
                         val reminderResult =
                             notificationScheduler.rescheduleAll(
                                 NotificationScope.HABITS,
@@ -320,9 +323,10 @@ class HabitsViewModel
                         mutableUiState.update {
                             it.copy(
                                 habits = habits,
+                                archivedHabits = archivedHabits,
                                 hasError = false,
                                 reminderSchedulingFailed = reminderResult.isFailure,
-                                imagePaths = imagePaths(habits),
+                                imagePaths = imagePaths(habits + archivedHabits),
                                 isChangingImage = false,
                                 hasImageError = false,
                             )

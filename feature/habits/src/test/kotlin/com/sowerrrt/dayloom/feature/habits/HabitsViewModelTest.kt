@@ -176,12 +176,55 @@ class HabitsViewModelTest {
                     .completedEpochDays,
             )
         }
+
+    @Test
+    fun `archived habit keeps its image and can be restored`() =
+        runTest(dispatcher) {
+            val repository = FakeHabitsRepository()
+            val attachments = FakeAttachmentRepository()
+            repository.createHabit("Yoga", Weekday.entries.toSet(), 20_000L, null)
+            val id = repository.loadHabits().single().id
+            repository.setImage(id, AttachmentRef(EntityId("attachment-1"), "yoga.png", "image/png"))
+            val viewModel =
+                HabitsViewModel(repository, FakeNotificationScheduler(), attachments, FakeSettingsRepository())
+            runCurrent()
+
+            viewModel.archiveHabit(id)
+            runCurrent()
+            assertTrue(
+                viewModel.uiState.value.habits
+                    .isEmpty(),
+            )
+            assertEquals(
+                "yoga.png",
+                viewModel.uiState.value.archivedHabits
+                    .single()
+                    .image
+                    ?.displayName,
+            )
+            assertTrue(attachments.deleted.isEmpty())
+
+            viewModel.restoreHabit(id)
+            runCurrent()
+            assertEquals(
+                "Yoga",
+                viewModel.uiState.value.habits
+                    .single()
+                    .title,
+            )
+            assertTrue(
+                viewModel.uiState.value.archivedHabits
+                    .isEmpty(),
+            )
+        }
 }
 
 private class FakeHabitsRepository : HabitsRepository {
     private var habits = emptyList<Habit>()
 
-    override suspend fun loadHabits(): List<Habit> = habits
+    override suspend fun loadHabits(): List<Habit> = habits.filterNot(Habit::archived)
+
+    override suspend fun loadArchivedHabits(): List<Habit> = habits.filter(Habit::archived)
 
     override suspend fun createHabit(
         title: String,
@@ -207,7 +250,7 @@ private class FakeHabitsRepository : HabitsRepository {
                 targetAmount = targetAmount,
                 targetUnit = targetUnit,
             )
-        return habits
+        return loadHabits()
     }
 
     override suspend fun updateHabit(
@@ -236,12 +279,17 @@ private class FakeHabitsRepository : HabitsRepository {
                     it
                 }
             }
-        return habits
+        return loadHabits()
     }
 
     override suspend fun archiveHabit(id: EntityId): List<Habit> {
-        habits = habits.filterNot { it.id == id }
-        return habits
+        habits = habits.map { habit -> if (habit.id == id) habit.copy(archived = true) else habit }
+        return loadHabits()
+    }
+
+    override suspend fun restoreHabit(id: EntityId): List<Habit> {
+        habits = habits.map { habit -> if (habit.id == id) habit.copy(archived = false) else habit }
+        return loadHabits()
     }
 
     override suspend fun setImage(
@@ -249,7 +297,7 @@ private class FakeHabitsRepository : HabitsRepository {
         image: AttachmentRef?,
     ): List<Habit> {
         habits = habits.map { habit -> if (habit.id == id) habit.copy(image = image) else habit }
-        return habits
+        return loadHabits()
     }
 
     override suspend fun toggleCompletion(
@@ -264,7 +312,7 @@ private class FakeHabitsRepository : HabitsRepository {
                     habit
                 }
             }
-        return habits
+        return loadHabits()
     }
 }
 

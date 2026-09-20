@@ -157,13 +157,14 @@ fun Habit.currentStreak(asOfEpochDay: Long): Int {
 }
 
 fun Habit.bestStreak(): Int {
-    val completed = completedEpochDays.filter(::isScheduledOn).sorted()
+    val schedule = if (archived) copy(archived = false) else this
+    val completed = completedEpochDays.filter(schedule::isScheduledOn).sorted()
     var best = 0
     var current = 0
     var previous: Long? = null
     completed.forEach { day ->
         var expected = previous?.plus(1)
-        while (expected != null && expected <= day && !isScheduledOn(expected)) expected++
+        while (expected != null && expected <= day && !schedule.isScheduledOn(expected)) expected++
         current = if (previous == null || expected == day) current + 1 else 1
         best = maxOf(best, current)
         previous = day

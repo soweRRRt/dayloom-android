@@ -80,4 +80,20 @@ class HabitStreakTest {
         assertTrue(habit.isScheduledOn(LocalDate.of(2026, 2, 15).toEpochDay()))
         assertFalse(habit.isScheduledOn(LocalDate.of(2026, 2, 14).toEpochDay()))
     }
+
+    @Test
+    fun `archiving keeps historical best streak`() {
+        val start = LocalDate.of(2026, 9, 1).toEpochDay()
+        val habit =
+            Habit(
+                id = EntityId("archived"),
+                title = "Drink water",
+                createdAtEpochMillis = 0L,
+                startEpochDay = start,
+                completedEpochDays = setOf(start, start + 1, start + 2, start + 4),
+                archived = true,
+            )
+
+        assertEquals(3, habit.bestStreak())
+    }
 }

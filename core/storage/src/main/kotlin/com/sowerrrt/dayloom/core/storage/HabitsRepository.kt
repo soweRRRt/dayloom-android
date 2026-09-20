@@ -18,6 +18,10 @@ import java.time.ZoneId
 interface HabitsRepository {
     suspend fun loadHabits(): List<Habit>
 
+    suspend fun loadArchivedHabits(): List<Habit> = emptyList()
+
+    suspend fun loadAllHabits(): List<Habit> = loadHabits() + loadArchivedHabits()
+
     suspend fun replaceAll(habits: List<Habit>): List<Habit> =
         error("This habits repository does not support replacement")
 
@@ -44,6 +48,9 @@ interface HabitsRepository {
     ): List<Habit>
 
     suspend fun archiveHabit(id: EntityId): List<Habit>
+
+    suspend fun restoreHabit(id: EntityId): List<Habit> =
+        error("This habits repository does not support restoring archived habits")
 
     suspend fun setImage(
         id: EntityId,
@@ -116,6 +123,10 @@ class FileHabitsRepository(
         )
 
     override suspend fun loadHabits(): List<Habit> = store.read().visibleHabits()
+
+    override suspend fun loadArchivedHabits(): List<Habit> = store.read().archivedHabits()
+
+    override suspend fun loadAllHabits(): List<Habit> = store.read().habits.sortedBy(Habit::createdAtEpochMillis)
 
     override suspend fun replaceAll(habits: List<Habit>): List<Habit> {
         require(habits.map(Habit::id).distinct().size == habits.size) { "Habit IDs must be unique" }
@@ -197,7 +208,10 @@ class FileHabitsRepository(
     }
 
     override suspend fun archiveHabit(id: EntityId): List<Habit> =
-        updateExisting(id) { habit -> habit.copy(archived = true, image = null) }
+        updateExisting(id) { habit -> habit.copy(archived = true) }
+
+    override suspend fun restoreHabit(id: EntityId): List<Habit> =
+        updateExisting(id) { habit -> habit.copy(archived = false) }
 
     override suspend fun setImage(
         id: EntityId,
@@ -290,6 +304,13 @@ class FileHabitsRepository(
             .asSequence()
             .filterNot(Habit::archived)
             .sortedBy(Habit::createdAtEpochMillis)
+            .toList()
+
+    private fun HabitsSnapshot.archivedHabits(): List<Habit> =
+        habits
+            .asSequence()
+            .filter(Habit::archived)
+            .sortedByDescending(Habit::createdAtEpochMillis)
             .toList()
 
     private fun List<Habit>.visibleHabits(): List<Habit> =

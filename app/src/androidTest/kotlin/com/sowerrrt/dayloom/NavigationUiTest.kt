@@ -40,10 +40,7 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("habit_target_amount").assertTextContains("5")
         composeRule.onNodeWithTag("habit_target_unit").assertTextContains("times")
         composeRule.onNodeWithTag("save_habit").performClick()
-        waitForTag("habit_toggle_$title")
-        composeRule
-            .onNodeWithTag("habits_list")
-            .performScrollToNode(hasTestTag("habit_toggle_$title"))
+        waitUntilScrollable("habits_list", "habit_toggle_$title")
         composeRule.onNodeWithText(title).assertExists()
         composeRule.onNodeWithTag("habit_target_$title", useUnmergedTree = true).assertExists()
         composeRule.onNodeWithTag("habit_more_$title").performClick()
@@ -173,7 +170,7 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("create_habit").performClick()
         composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
         composeRule.onNodeWithTag("save_habit").performClick()
-        waitForTag("habit_toggle_$title")
+        waitUntilScrollable("habits_list", "habit_toggle_$title")
 
         composeRule.onNodeWithTag("primary_nav_home").performClick()
         composeRule
@@ -212,7 +209,7 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("habit_target_amount").performScrollTo().performTextInput("5")
         composeRule.onNodeWithTag("habit_target_unit").performScrollTo().performTextInput("times")
         composeRule.onNodeWithTag("save_habit").performClick()
-        waitForTag("habit_toggle_$title")
+        waitUntilScrollable("habits_list", "habit_toggle_$title")
         composeRule.onNodeWithTag("habit_more_$title").performClick()
         composeRule.onNodeWithTag("habit_progress_$title").performClick()
         composeRule.onNodeWithTag("habit_progress_input").performTextInput("5")
@@ -229,8 +226,9 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("create_habit").performClick()
         composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
         composeRule.onNodeWithTag("save_habit").performClick()
-        waitForTag("habit_toggle_$title")
+        waitUntilScrollable("habits_list", "habit_toggle_$title")
 
+        waitUntilScrollable("habits_list", "habit_view_history")
         composeRule.onNodeWithTag("habit_view_history").performClick()
         composeRule.onNodeWithTag("habit_analytics").assertExists()
         waitUntilScrollable("habits_list", "habit_history_${title}_$today")
@@ -262,6 +260,38 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("habit_insights_back").performClick()
         waitUntilScrollable("habits_list", "habit_toggle_$title")
         waitForTag("habit_status_${title}_completed", useUnmergedTree = true)
+    }
+
+    @Test
+    fun habitCanBeSearchedArchivedAndRestored() {
+        val title = "Restore habit ${System.currentTimeMillis()}"
+        composeRule.onNodeWithTag("primary_nav_habits").performClick()
+        composeRule.onNodeWithTag("create_habit").performClick()
+        composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("save_habit").performClick()
+
+        waitUntilScrollable("habits_list", "habit_search")
+        composeRule.onNodeWithTag("habit_search").performTextInput("Restore habit")
+        waitUntilScrollable("habits_list", "habit_toggle_$title")
+        composeRule.onNodeWithTag("habit_toggle_$title").assertExists()
+
+        waitUntilScrollable("habits_list", "habit_sort")
+        composeRule.onNodeWithTag("habit_sort").performClick()
+        composeRule.onNodeWithTag("habit_sort_name").performClick()
+        waitUntilScrollable("habits_list", "habit_more_$title")
+        composeRule.onNodeWithTag("habit_more_$title").performClick()
+        composeRule.onNodeWithTag("archive_habit_$title").performClick()
+        composeRule.onNodeWithTag("confirm_archive_habit").performClick()
+
+        waitUntilScrollable("habits_list", "habit_view_archived")
+        composeRule.onNodeWithTag("habit_view_archived").performClick()
+        waitUntilScrollable("habits_list", "archived_habit_$title")
+        composeRule.onNodeWithTag("restore_habit_$title").performClick()
+        composeRule.onNodeWithTag("habits_archive_empty").assertExists()
+
+        composeRule.onNodeWithTag("habit_view_all").performClick()
+        waitUntilScrollable("habits_list", "habit_toggle_$title")
+        composeRule.onNodeWithTag("habit_toggle_$title").assertExists()
     }
 
     @Test

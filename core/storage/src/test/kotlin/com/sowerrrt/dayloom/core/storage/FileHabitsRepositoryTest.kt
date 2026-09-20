@@ -146,7 +146,14 @@ class FileHabitsRepositoryTest {
             assertEquals(setOf(Weekday.MONDAY, Weekday.FRIDAY), edited.scheduledWeekdays)
 
             assertTrue(repository.archiveHabit(id).isEmpty())
-            assertTrue(FileHabitsRepository(directory).loadHabits().isEmpty())
+            val archived = FileHabitsRepository(directory).loadArchivedHabits().single()
+            assertEquals("Morning run", archived.title)
+            assertEquals("run.png", archived.image?.displayName)
+
+            val restored = FileHabitsRepository(directory).restoreHabit(id).single()
+            assertEquals("Morning run", restored.title)
+            assertEquals("run.png", restored.image?.displayName)
+            assertTrue(FileHabitsRepository(directory).loadArchivedHabits().isEmpty())
         }
 
     @Test
