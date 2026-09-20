@@ -77,6 +77,7 @@
     <string name="habits_search_clear">Очистить поиск</string>
     <string name="habits_search_empty">По этому запросу привычек не найдено.</string>
     <string name="habits_sort_description">Сортировка: %1$s</string>
+    <string name="habits_sort_time">По времени</string>
     <string name="habits_sort_created">По дате создания</string>
     <string name="habits_sort_name">По названию</string>
     <string name="habits_sort_streak">По текущей серии</string>

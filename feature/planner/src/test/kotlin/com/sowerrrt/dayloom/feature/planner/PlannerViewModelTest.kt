@@ -51,6 +51,30 @@ class PlannerViewModelTest {
     fun tearDown() = Dispatchers.resetMain()
 
     @Test
+    fun `calendar orders habits and plans by time with untimed entries last`() {
+        val day = LocalDate.now().toEpochDay()
+        val state =
+            PlannerUiState(
+                selectedEpochDay = day,
+                habits =
+                    listOf(
+                        Habit(EntityId("habit-none"), "Habit without time", 1L, reminderMinutesOfDay = null),
+                        Habit(EntityId("habit-late"), "Late habit", 2L, reminderMinutesOfDay = 20 * 60),
+                        Habit(EntityId("habit-early"), "Early habit", 3L, reminderMinutesOfDay = 6 * 60),
+                    ),
+                plans =
+                    listOf(
+                        PlanItem(EntityId("plan-none"), "Plan without time", day, 1L),
+                        PlanItem(EntityId("plan-late"), "Late plan", day, 2L, reminderMinutesOfDay = 19 * 60),
+                        PlanItem(EntityId("plan-early"), "Early plan", day, 3L, reminderMinutesOfDay = 8 * 60),
+                    ),
+            )
+
+        assertEquals(listOf("Early habit", "Late habit", "Habit without time"), state.selectedHabits.map(Habit::title))
+        assertEquals(listOf("Early plan", "Late plan", "Plan without time"), state.selectedPlans.map(PlanItem::title))
+    }
+
+    @Test
     fun `calendar combines scheduled habits and persistent plans`() =
         runTest(dispatcher) {
             val selectedDay = LocalDate.now().toEpochDay()

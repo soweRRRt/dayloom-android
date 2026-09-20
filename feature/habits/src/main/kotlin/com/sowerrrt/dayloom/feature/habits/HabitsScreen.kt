@@ -411,7 +411,7 @@ private fun HabitsList(
 ) {
     var viewMode by rememberSaveable { mutableStateOf(HabitViewMode.TODAY) }
     var query by rememberSaveable { mutableStateOf("") }
-    var sortMode by rememberSaveable { mutableStateOf(HabitSortMode.CREATED) }
+    var sortMode by rememberSaveable { mutableStateOf(HabitSortMode.TIME) }
     var sortExpanded by remember { mutableStateOf(false) }
     val normalizedQuery = query.trim()
     val matchingActive = state.habits.filter { it.matchesQuery(normalizedQuery) }
@@ -1863,6 +1863,7 @@ private enum class HabitViewMode {
 }
 
 private enum class HabitSortMode {
+    TIME,
     CREATED,
     NAME,
     STREAK,
@@ -1893,6 +1894,7 @@ private fun HabitViewMode.labelResource(): Int =
 
 private fun HabitSortMode.labelResource(): Int =
     when (this) {
+        HabitSortMode.TIME -> R.string.habits_sort_time
         HabitSortMode.CREATED -> R.string.habits_sort_created
         HabitSortMode.NAME -> R.string.habits_sort_name
         HabitSortMode.STREAK -> R.string.habits_sort_streak
@@ -1910,6 +1912,7 @@ private fun List<Habit>.sorted(
     todayEpochDay: Long,
 ): List<Habit> =
     when (mode) {
+        HabitSortMode.TIME -> sortedByReminderTime()
         HabitSortMode.CREATED -> sortedBy(Habit::createdAtEpochMillis)
         HabitSortMode.NAME -> sortedBy { it.title.lowercase() }
         HabitSortMode.STREAK -> sortedByDescending { it.currentStreak(todayEpochDay) }

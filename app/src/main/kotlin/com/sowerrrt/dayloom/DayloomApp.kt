@@ -17,6 +17,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -64,6 +65,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -104,8 +108,9 @@ import com.sowerrrt.dayloom.feature.planner.PlannerScreen
 import com.sowerrrt.dayloom.feature.settings.SettingsScreen
 import com.sowerrrt.dayloom.feature.vault.VaultScreen
 import com.sowerrrt.dayloom.feature.wishlist.WishlistScreen
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlin.math.abs
+import kotlinx.coroutines.launch
 
 @Composable
 fun DayloomApp(
@@ -302,8 +307,33 @@ private fun DayloomShell(
     val snackbarHostState = remember { SnackbarHostState() }
     val currentEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentEntry?.destination?.route
+    val bottomDestinations = primaryDestinations(settings.bottomSections)
+    val destinationOrder = bottomDestinations.map(NavItem::route)
+    val selectedBottomIndex =
+        bottomDestinations
+            .indexOfFirst { it.matches(currentRoute ?: startRoute) }
+            .coerceAtLeast(0)
+    val indicatorHead = remember(destinationOrder) { Animatable(selectedBottomIndex.toFloat()) }
+    val indicatorTail = remember(destinationOrder) { Animatable(selectedBottomIndex.toFloat()) }
     val upToDateMessage = stringResource(R.string.update_up_to_date)
     val unavailableMessage = stringResource(R.string.update_unavailable)
+
+    LaunchedEffect(selectedBottomIndex, destinationOrder) {
+        coroutineScope {
+            launch {
+                indicatorHead.animateTo(
+                    targetValue = selectedBottomIndex.toFloat(),
+                    animationSpec = spring(dampingRatio = 0.72f, stiffness = 260f),
+                )
+            }
+            launch {
+                indicatorTail.animateTo(
+                    targetValue = selectedBottomIndex.toFloat(),
+                    animationSpec = spring(dampingRatio = 0.84f, stiffness = 105f),
+                )
+            }
+        }
+    }
 
     LaunchedEffect(updateState.feedback) {
         when (updateState.feedback) {
@@ -334,7 +364,15 @@ private fun DayloomShell(
                 }
             } else {
                 Scaffold(
-                    bottomBar = { DayloomBottomBar(currentRoute, navController, settings.bottomSections) },
+                    bottomBar = {
+                        DayloomBottomBar(
+                            currentRoute = currentRoute,
+                            navController = navController,
+                            destinations = bottomDestinations,
+                            indicatorHead = indicatorHead,
+                            indicatorTail = indicatorTail,
+                        )
+                    },
                     contentWindowInsets = WindowInsets(0, 0, 0, 0),
                     containerColor = Color.Transparent,
                 ) { innerPadding ->
@@ -477,22 +515,10 @@ internal val AppLanguage.languageTags: String
 private fun DayloomBottomBar(
     currentRoute: String?,
     navController: NavHostController,
-    sections: List<BottomSection>,
+    destinations: List<NavItem>,
+    indicatorHead: Animatable<Float, *>,
+    indicatorTail: Animatable<Float, *>,
 ) {
-    val destinations = primaryDestinations(sections)
-    val selectedIndex = destinations.indexOfFirst { it.matches(currentRoute) }.coerceAtLeast(0)
-    val destinationOrder = destinations.map(NavItem::route)
-    val indicatorPosition =
-        remember(destinationOrder) {
-            Animatable(selectedIndex.toFloat())
-        }
-    LaunchedEffect(selectedIndex, destinationOrder) {
-        indicatorPosition.animateTo(
-            targetValue = selectedIndex.toFloat(),
-            animationSpec = spring(dampingRatio = 0.72f, stiffness = 230f),
-        )
-    }
-
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
         tonalElevation = 0.dp,
@@ -503,22 +529,25 @@ private fun DayloomBottomBar(
                     .fillMaxWidth()
                     .height(80.dp),
         ) {
-            val itemWidthPx = constraints.maxWidth / destinations.size.toFloat()
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = MaterialTheme.shapes.extraLarge,
-                modifier =
-                    Modifier
-                        .size(width = 64.dp, height = 32.dp)
-                        .graphicsLayer {
-                            val speed = (abs(indicatorPosition.velocity) / 8f).coerceIn(0f, 1f)
-                            translationX =
-                                itemWidthPx * (indicatorPosition.value + 0.5f) - size.width / 2f
-                            translationY = 12.dp.toPx()
-                            scaleX = 1f + speed * 0.48f
-                            scaleY = 1f - speed * 0.1f
-                        },
-            ) {}
+            val indicatorColor = MaterialTheme.colorScheme.primaryContainer
+            Canvas(Modifier.fillMaxSize()) {
+                val itemWidth = size.width / destinations.size
+                val headX = itemWidth * (indicatorHead.value + 0.5f)
+                val tailX = itemWidth * (indicatorTail.value + 0.5f)
+                val radius = 32.dp.toPx()
+                val left = minOf(headX, tailX) - radius
+                val right = maxOf(headX, tailX) + radius
+                val stretch = ((right - left - radius * 2f) / itemWidth).coerceIn(0f, 1f)
+                val verticalInset = 2.dp.toPx() * stretch
+                val top = 12.dp.toPx() + verticalInset
+                val height = 32.dp.toPx() - verticalInset * 2f
+                drawRoundRect(
+                    color = indicatorColor,
+                    topLeft = Offset(left, top),
+                    size = Size(right - left, height),
+                    cornerRadius = CornerRadius(height / 2f),
+                )
+            }
             Row(Modifier.fillMaxSize()) {
                 destinations.forEach { destination ->
                     NavigationBarItem(

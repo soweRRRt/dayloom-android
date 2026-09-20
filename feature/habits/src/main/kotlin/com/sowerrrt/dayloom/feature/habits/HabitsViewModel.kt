@@ -40,11 +40,17 @@ data class HabitsUiState(
     val presets: List<HabitPreset> = emptyList(),
 ) {
     val scheduledToday: List<Habit>
-        get() = habits.filter { it.isScheduledOn(todayEpochDay) }
+        get() = habits.filter { it.isScheduledOn(todayEpochDay) }.sortedByReminderTime()
 
     val completedToday: Int
         get() = scheduledToday.count { todayEpochDay in it.completedEpochDays }
 }
+
+internal fun List<Habit>.sortedByReminderTime(): List<Habit> =
+    sortedWith(
+        compareBy<Habit> { it.reminderMinutesOfDay ?: Int.MAX_VALUE }
+            .thenBy { it.title.lowercase() },
+    )
 
 @HiltViewModel
 class HabitsViewModel

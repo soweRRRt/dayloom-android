@@ -49,6 +49,23 @@ class HabitsViewModelTest {
     fun tearDown() = Dispatchers.resetMain()
 
     @Test
+    fun `today habits are ordered by time with untimed habits last`() {
+        val today = LocalDate.now().toEpochDay()
+        val state =
+            HabitsUiState(
+                todayEpochDay = today,
+                habits =
+                    listOf(
+                        Habit(EntityId("none"), "Without time", 1L, reminderMinutesOfDay = null),
+                        Habit(EntityId("evening"), "Evening", 2L, reminderMinutesOfDay = 18 * 60),
+                        Habit(EntityId("morning"), "Morning", 3L, reminderMinutesOfDay = 7 * 60),
+                    ),
+            )
+
+        assertEquals(listOf("Morning", "Evening", "Without time"), state.scheduledToday.map(Habit::title))
+    }
+
+    @Test
     fun `create and toggle update the screen state`() =
         runTest(dispatcher) {
             val repository = FakeHabitsRepository()
