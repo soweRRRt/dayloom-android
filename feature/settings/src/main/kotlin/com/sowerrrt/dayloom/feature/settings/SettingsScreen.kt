@@ -76,7 +76,6 @@ import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.ListItemPreset
 import com.sowerrrt.dayloom.core.model.ListKind
 import com.sowerrrt.dayloom.core.model.PlanPreset
-import com.sowerrrt.dayloom.core.model.PlanRepeat
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
 import com.sowerrrt.dayloom.core.model.Weekday
@@ -710,7 +709,7 @@ private fun rememberDemoContent(): DemoContent =
                 DemoPlan(
                     title = stringResource(R.string.settings_example_plan_weekly_review),
                     dayOffset = 0,
-                    repeat = PlanRepeat.WEEKLY,
+                    scheduledWeekdays = setOf(Weekday.MONDAY, Weekday.FRIDAY),
                 ),
                 DemoPlan(
                     stringResource(R.string.settings_example_plan_evening_review),
@@ -718,6 +717,12 @@ private fun rememberDemoContent(): DemoContent =
                     reminderMinutesOfDay = 18 * 60,
                     image = DemoImage.LAPTOP,
                     reminderEnabled = false,
+                    repeatEveryDays = 10,
+                ),
+                DemoPlan(
+                    title = stringResource(R.string.settings_example_plan_monthly_budget),
+                    dayOffset = 0,
+                    scheduledMonthDays = setOf(3, 15),
                 ),
             ),
         lists =
@@ -815,6 +820,14 @@ private fun rememberDemoContent(): DemoContent =
                 PlanPreset(
                     stringResource(R.string.settings_example_plan_call),
                     reminderMinutesOfDay = 19 * 60,
+                ).toStorageValue(),
+                PlanPreset(
+                    title = stringResource(R.string.settings_example_plan_weekly_review),
+                    scheduledWeekdays = setOf(Weekday.MONDAY, Weekday.FRIDAY),
+                ).toStorageValue(),
+                PlanPreset(
+                    title = stringResource(R.string.settings_example_plan_monthly_budget),
+                    scheduledMonthDays = setOf(3, 15),
                 ).toStorageValue(),
             ),
         listItemPresets =

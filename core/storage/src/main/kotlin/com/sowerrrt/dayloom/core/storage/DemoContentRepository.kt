@@ -41,6 +41,9 @@ data class DemoPlan(
     val image: DemoImage? = null,
     val repeat: PlanRepeat = PlanRepeat.NONE,
     val reminderEnabled: Boolean = reminderMinutesOfDay != null,
+    val scheduledWeekdays: Set<Weekday> = emptySet(),
+    val repeatEveryDays: Int? = null,
+    val scheduledMonthDays: Set<Int> = emptySet(),
 )
 
 data class DemoList(
@@ -222,6 +225,9 @@ class LocalDemoContentRepository(
                         demo.repeat,
                         null,
                         demo.reminderEnabled,
+                        demo.scheduledWeekdays,
+                        demo.repeatEveryDays,
+                        demo.scheduledMonthDays,
                     )
                 plan = current.last { it.title == demo.title }
                 if (demo.completed) current = plannerRepository.toggleCompletion(plan.id)

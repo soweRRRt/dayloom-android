@@ -26,6 +26,19 @@ class PresetsTest {
     }
 
     @Test
+    fun `plan preset round trips flexible schedule`() {
+        val preset =
+            PlanPreset(
+                title = "Budget review",
+                reminderMinutesOfDay = 9 * 60,
+                reminderEnabled = false,
+                scheduledMonthDays = setOf(3, 15),
+            )
+
+        assertEquals(preset, preset.toStorageValue().toPlanPresetOrNull())
+    }
+
+    @Test
     fun `malformed versioned preset is ignored`() {
         assertNull("dayloom-preset-v2:{broken".toListItemPresetOrNull())
     }

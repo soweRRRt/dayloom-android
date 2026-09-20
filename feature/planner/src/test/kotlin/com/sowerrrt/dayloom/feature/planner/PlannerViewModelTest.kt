@@ -220,6 +220,34 @@ class PlannerViewModelTest {
         }
 
     @Test
+    fun `advanced schedule is preserved by plan preset`() =
+        runTest(dispatcher) {
+            val plannerRepository = FakePlannerRepository()
+            val viewModel =
+                PlannerViewModel(
+                    FakeHabitsRepository(LocalDate.now().toEpochDay()),
+                    plannerRepository,
+                    FakeNotificationScheduler(),
+                    FakeAttachmentRepository(),
+                    FakeSettingsRepository(),
+                )
+            runCurrent()
+
+            val weekdays = setOf(Weekday.TUESDAY, Weekday.SATURDAY)
+            viewModel.savePreset("Training", 7 * 60, scheduledWeekdays = weekdays)
+            runCurrent()
+            viewModel.createFromPreset(
+                viewModel.uiState.value.presets
+                    .single(),
+            )
+            runCurrent()
+
+            val plan = plannerRepository.loadPlans().single()
+            assertEquals(weekdays, plan.scheduledWeekdays)
+            assertEquals(7 * 60, plan.reminderMinutesOfDay)
+        }
+
+    @Test
     fun `only future incomplete plans become reminders`() {
         val zone = ZoneId.of("UTC")
         val today = LocalDate.of(2030, 1, 2)
@@ -336,6 +364,29 @@ private class FakePlannerRepository : PlannerRepository {
         repeat: PlanRepeat,
         repeatUntilEpochDay: Long?,
         reminderEnabled: Boolean,
+    ): List<PlanItem> =
+        createPlan(
+            title,
+            dateEpochDay,
+            reminderMinutesOfDay,
+            repeat,
+            repeatUntilEpochDay,
+            reminderEnabled,
+            emptySet(),
+            null,
+            emptySet(),
+        )
+
+    override suspend fun createPlan(
+        title: String,
+        dateEpochDay: Long,
+        reminderMinutesOfDay: Int?,
+        repeat: PlanRepeat,
+        repeatUntilEpochDay: Long?,
+        reminderEnabled: Boolean,
+        scheduledWeekdays: Set<Weekday>,
+        repeatEveryDays: Int?,
+        scheduledMonthDays: Set<Int>,
     ): List<PlanItem> {
         plans =
             plans +
@@ -348,6 +399,9 @@ private class FakePlannerRepository : PlannerRepository {
                 reminderEnabled = reminderEnabled && reminderMinutesOfDay != null,
                 repeat = repeat,
                 repeatUntilEpochDay = repeatUntilEpochDay,
+                scheduledWeekdays = scheduledWeekdays,
+                repeatEveryDays = repeatEveryDays,
+                scheduledMonthDays = scheduledMonthDays,
             )
         return plans
     }

@@ -3,6 +3,7 @@ package com.sowerrrt.dayloom.core.storage
 import com.sowerrrt.dayloom.core.model.AttachmentRef
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.PlanRepeat
+import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.model.isCompletedOn
 import com.sowerrrt.dayloom.core.model.occursOn
 import kotlinx.coroutines.test.runTest
@@ -97,6 +98,55 @@ class FilePlannerRepositoryTest {
             val restored = FilePlannerRepository(directory).loadPlans().single()
             assertEquals(9 * 60, restored.reminderMinutesOfDay)
             assertFalse(restored.reminderEnabled)
+        }
+
+    @Test
+    fun `advanced plan schedule is stored and restored`() =
+        runTest {
+            val directory = temporaryFolder.newFolder("advanced-schedule")
+            val repository = FilePlannerRepository(directory, idFactory = { EntityId("advanced-plan") })
+
+            repository.createPlan(
+                title = "Training",
+                dateEpochDay = TEST_EPOCH_DAY,
+                reminderMinutesOfDay = 6 * 60,
+                repeat = PlanRepeat.NONE,
+                repeatUntilEpochDay = null,
+                reminderEnabled = false,
+                scheduledWeekdays = setOf(Weekday.MONDAY, Weekday.FRIDAY),
+                repeatEveryDays = null,
+                scheduledMonthDays = emptySet(),
+            )
+
+            val restored = FilePlannerRepository(directory).loadPlans().single()
+            assertEquals(setOf(Weekday.MONDAY, Weekday.FRIDAY), restored.scheduledWeekdays)
+            assertEquals(6 * 60, restored.reminderMinutesOfDay)
+            assertFalse(restored.reminderEnabled)
+        }
+
+    @Test
+    fun `plan accepts only one advanced schedule mode`() =
+        runTest {
+            val repository = FilePlannerRepository(temporaryFolder.newFolder("invalid-schedule"))
+
+            var failure: Throwable? = null
+            try {
+                repository.createPlan(
+                    title = "Invalid",
+                    dateEpochDay = TEST_EPOCH_DAY,
+                    reminderMinutesOfDay = null,
+                    repeat = PlanRepeat.NONE,
+                    repeatUntilEpochDay = null,
+                    reminderEnabled = false,
+                    scheduledWeekdays = setOf(Weekday.MONDAY),
+                    repeatEveryDays = 10,
+                    scheduledMonthDays = emptySet(),
+                )
+            } catch (error: Throwable) {
+                failure = error
+            }
+
+            assertTrue(failure is IllegalArgumentException)
         }
 
     @Test

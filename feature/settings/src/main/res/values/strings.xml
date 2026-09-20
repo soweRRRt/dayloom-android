@@ -88,6 +88,7 @@
     <string name="settings_example_plan_dentist">Dentist appointment</string>
     <string name="settings_example_plan_weekly_review">Weekly planning review</string>
     <string name="settings_example_plan_evening_review">Prepare tomorrow’s plan</string>
+    <string name="settings_example_plan_monthly_budget">Review monthly budget</string>
     <string name="settings_example_list_groceries">Weekly groceries</string>
     <string name="settings_example_list_trip">Trip packing</string>
     <string name="settings_example_list_ideas">Ideas</string>

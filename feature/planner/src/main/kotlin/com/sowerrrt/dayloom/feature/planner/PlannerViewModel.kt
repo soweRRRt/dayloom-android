@@ -9,6 +9,7 @@ import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.model.PlanPreset
 import com.sowerrrt.dayloom.core.model.PlanRepeat
 import com.sowerrrt.dayloom.core.model.PresetType
+import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.model.isCompletedOn
 import com.sowerrrt.dayloom.core.model.isScheduledOn
 import com.sowerrrt.dayloom.core.model.occursOn
@@ -168,6 +169,9 @@ class PlannerViewModel
             reminderMinutesOfDay: Int?,
             repeat: PlanRepeat = PlanRepeat.NONE,
             reminderEnabled: Boolean = reminderMinutesOfDay != null,
+            scheduledWeekdays: Set<Weekday> = emptySet(),
+            repeatEveryDays: Int? = null,
+            scheduledMonthDays: Set<Int> = emptySet(),
         ) {
             if (title.isBlank()) return
             val day = mutableUiState.value.selectedEpochDay
@@ -179,6 +183,9 @@ class PlannerViewModel
                     repeat,
                     null,
                     reminderEnabled,
+                    scheduledWeekdays,
+                    repeatEveryDays,
+                    scheduledMonthDays,
                 )
             }
         }
@@ -189,6 +196,9 @@ class PlannerViewModel
             reminderMinutesOfDay: Int?,
             repeat: PlanRepeat = PlanRepeat.NONE,
             reminderEnabled: Boolean = reminderMinutesOfDay != null,
+            scheduledWeekdays: Set<Weekday> = emptySet(),
+            repeatEveryDays: Int? = null,
+            scheduledMonthDays: Set<Int> = emptySet(),
         ) {
             if (title.isBlank()) return
             val day = mutableUiState.value.selectedEpochDay
@@ -201,6 +211,9 @@ class PlannerViewModel
                     repeat,
                     null,
                     reminderEnabled,
+                    scheduledWeekdays,
+                    repeatEveryDays,
+                    scheduledMonthDays,
                 )
             }
         }
@@ -210,10 +223,22 @@ class PlannerViewModel
             reminderMinutesOfDay: Int?,
             repeat: PlanRepeat = PlanRepeat.NONE,
             reminderEnabled: Boolean = reminderMinutesOfDay != null,
+            scheduledWeekdays: Set<Weekday> = emptySet(),
+            repeatEveryDays: Int? = null,
+            scheduledMonthDays: Set<Int> = emptySet(),
         ) {
             val normalized = title.trim()
             if (normalized.isEmpty()) return
-            val preset = PlanPreset(normalized, reminderMinutesOfDay, repeat, reminderEnabled)
+            val preset =
+                PlanPreset(
+                    title = normalized,
+                    reminderMinutesOfDay = reminderMinutesOfDay,
+                    repeat = repeat,
+                    reminderEnabled = reminderEnabled,
+                    scheduledWeekdays = scheduledWeekdays,
+                    repeatEveryDays = repeatEveryDays,
+                    scheduledMonthDays = scheduledMonthDays,
+                )
             viewModelScope.launch {
                 removeStoredPlanPresets(normalized)
                 settingsRepository.addPreset(PresetType.PLAN, preset.toStorageValue())
@@ -237,7 +262,15 @@ class PlannerViewModel
         }
 
         fun createFromPreset(preset: PlanPreset) {
-            createPlan(preset.title, preset.reminderMinutesOfDay, preset.repeat, preset.reminderEnabled)
+            createPlan(
+                preset.title,
+                preset.reminderMinutesOfDay,
+                preset.repeat,
+                preset.reminderEnabled,
+                preset.scheduledWeekdays,
+                preset.repeatEveryDays,
+                preset.scheduledMonthDays,
+            )
         }
 
         fun togglePlan(id: EntityId) {

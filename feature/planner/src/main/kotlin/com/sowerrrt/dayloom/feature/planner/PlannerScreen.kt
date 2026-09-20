@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -77,6 +78,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -91,6 +93,7 @@ import com.sowerrrt.dayloom.core.model.Habit
 import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.model.PlanPreset
 import com.sowerrrt.dayloom.core.model.PlanRepeat
+import com.sowerrrt.dayloom.core.model.Weekday
 import com.sowerrrt.dayloom.core.model.isCompletedOn
 import com.sowerrrt.dayloom.core.ui.ErrorState
 import com.sowerrrt.dayloom.core.ui.LoadingState
@@ -186,7 +189,15 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
             presets = state.presets,
             onSavePreset = viewModel::savePreset,
             onRemovePreset = viewModel::removePreset,
-            onSave = { title, reminderMinutesOfDay, repeat, reminderEnabled ->
+            onSave = {
+                title,
+                reminderMinutesOfDay,
+                repeat,
+                reminderEnabled,
+                scheduledWeekdays,
+                repeatEveryDays,
+                scheduledMonthDays,
+                ->
                 val plan = editingPlan
                 if (
                     reminderMinutesOfDay != null &&
@@ -198,9 +209,26 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
                 if (plan == null) {
-                    viewModel.createPlan(title, reminderMinutesOfDay, repeat, reminderEnabled)
+                    viewModel.createPlan(
+                        title,
+                        reminderMinutesOfDay,
+                        repeat,
+                        reminderEnabled,
+                        scheduledWeekdays,
+                        repeatEveryDays,
+                        scheduledMonthDays,
+                    )
                 } else {
-                    viewModel.updatePlan(plan.id, title, reminderMinutesOfDay, repeat, reminderEnabled)
+                    viewModel.updatePlan(
+                        plan.id,
+                        title,
+                        reminderMinutesOfDay,
+                        repeat,
+                        reminderEnabled,
+                        scheduledWeekdays,
+                        repeatEveryDays,
+                        scheduledMonthDays,
+                    )
                 }
                 showPlanDialog = false
             },
@@ -783,9 +811,9 @@ private fun PlanRow(
                             }
                         }
                     }
-                    if (plan.repeat != PlanRepeat.NONE) {
+                    planScheduleLabel(plan)?.let { schedule ->
                         Text(
-                            stringResource(R.string.planner_repeat_value, stringResource(plan.repeat.labelResource())),
+                            schedule,
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.tertiary,
                             modifier = Modifier.testTag("plan_repeat_value_${plan.title}"),
@@ -905,16 +933,39 @@ private fun PlanEditorDialog(
     onChooseImage: (PlanItem) -> Unit,
     onRemoveImage: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
     presets: List<PlanPreset>,
-    onSavePreset: (String, Int?, PlanRepeat, Boolean) -> Unit,
+    onSavePreset: (String, Int?, PlanRepeat, Boolean, Set<Weekday>, Int?, Set<Int>) -> Unit,
     onRemovePreset: (PlanPreset) -> Unit,
-    onSave: (String, Int?, PlanRepeat, Boolean) -> Unit,
+    onSave: (String, Int?, PlanRepeat, Boolean, Set<Weekday>, Int?, Set<Int>) -> Unit,
 ) {
     var title by remember(plan?.id) { mutableStateOf(plan?.title.orEmpty()) }
     var reminderMinutesOfDay by remember(plan?.id) { mutableStateOf(plan?.reminderMinutesOfDay) }
     var reminderEnabled by remember(plan?.id) { mutableStateOf(plan?.reminderEnabled ?: false) }
-    var repeat by remember(plan?.id) { mutableStateOf(plan?.repeat ?: PlanRepeat.NONE) }
+    var selectedDays by remember(plan?.id) {
+        mutableStateOf(initialPlanWeekdays(plan, selectedEpochDay))
+    }
+    var scheduleMode by remember(plan?.id) {
+        mutableStateOf(initialPlanScheduleMode(plan))
+    }
+    var repeatEveryDaysText by remember(plan?.id) {
+        mutableStateOf(plan?.repeatEveryDays?.toString().orEmpty())
+    }
+    var scheduledMonthDaysText by remember(plan?.id) {
+        mutableStateOf(initialPlanMonthDays(plan).joinToString(", "))
+    }
     val locale = currentLocale()
     val context = LocalContext.current
+    val intervalDays = repeatEveryDaysText.toIntOrNull()
+    val monthDays = parsePlanMonthDays(scheduledMonthDaysText)
+    val scheduleIsValid =
+        when (scheduleMode) {
+            PlanScheduleMode.ONCE -> true
+            PlanScheduleMode.WEEKDAYS -> selectedDays.isNotEmpty()
+            PlanScheduleMode.INTERVAL -> intervalDays != null && intervalDays in 1..MAX_REPEAT_INTERVAL_DAYS
+            PlanScheduleMode.MONTH_DAYS -> monthDays.isNotEmpty()
+        }
+    val savedWeekdays = if (scheduleMode == PlanScheduleMode.WEEKDAYS) selectedDays else emptySet()
+    val savedIntervalDays = if (scheduleMode == PlanScheduleMode.INTERVAL) intervalDays else null
+    val savedMonthDays = if (scheduleMode == PlanScheduleMode.MONTH_DAYS) monthDays else emptySet()
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null) },
@@ -943,7 +994,11 @@ private fun PlanEditorDialog(
                                     title = preset.title
                                     reminderMinutesOfDay = preset.reminderMinutesOfDay
                                     reminderEnabled = preset.reminderEnabled && preset.reminderMinutesOfDay != null
-                                    repeat = preset.repeat
+                                    selectedDays = initialPresetWeekdays(preset, selectedEpochDay)
+                                    scheduleMode = initialPresetScheduleMode(preset)
+                                    repeatEveryDaysText = preset.repeatEveryDays?.toString().orEmpty()
+                                    scheduledMonthDaysText =
+                                        initialPresetMonthDays(preset, selectedEpochDay).joinToString(", ")
                                 },
                                 label = { Text(preset.title) },
                                 trailingIcon = {
@@ -1041,26 +1096,92 @@ private fun PlanEditorDialog(
                         modifier = Modifier.testTag("plan_notification_toggle"),
                     )
                 }
-                TextButton(
-                    onClick = { onSavePreset(title, reminderMinutesOfDay, repeat, reminderEnabled) },
-                    enabled = title.isNotBlank(),
-                    modifier = Modifier.testTag("save_plan_preset"),
-                ) {
-                    Text(stringResource(R.string.planner_save_preset))
-                }
                 Text(stringResource(R.string.planner_repeat), style = MaterialTheme.typography.titleMedium)
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
                     verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
                 ) {
-                    PlanRepeat.entries.forEach { option ->
+                    PlanScheduleMode.entries.forEach { option ->
                         FilterChip(
-                            selected = repeat == option,
-                            onClick = { repeat = option },
-                            label = { Text(stringResource(option.labelResource())) },
-                            modifier = Modifier.testTag("plan_repeat_${option.name.lowercase()}"),
+                            selected = scheduleMode == option,
+                            onClick = { scheduleMode = option },
+                            label = { Text(stringResource(option.labelResource)) },
+                            modifier = Modifier.testTag("plan_schedule_${option.name.lowercase()}"),
                         )
                     }
+                }
+                when (scheduleMode) {
+                    PlanScheduleMode.ONCE -> Unit
+                    PlanScheduleMode.WEEKDAYS -> {
+                        Text(
+                            stringResource(R.string.planner_weekdays_description),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                            verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                        ) {
+                            Weekday.entries.forEach { day ->
+                                FilterChip(
+                                    selected = day in selectedDays,
+                                    onClick = {
+                                        selectedDays =
+                                            if (day in selectedDays) selectedDays - day else selectedDays + day
+                                    },
+                                    label = { Text(stringResource(day.shortLabelResource())) },
+                                    modifier = Modifier.testTag("plan_weekday_${day.name.lowercase()}"),
+                                )
+                            }
+                        }
+                    }
+                    PlanScheduleMode.INTERVAL -> {
+                        OutlinedTextField(
+                            value = repeatEveryDaysText,
+                            onValueChange = { value ->
+                                repeatEveryDaysText = value.filter(Char::isDigit).take(4)
+                            },
+                            label = { Text(stringResource(R.string.planner_interval_days)) },
+                            supportingText = { Text(stringResource(R.string.planner_interval_description)) },
+                            isError =
+                                repeatEveryDaysText.isNotEmpty() &&
+                                    (intervalDays == null || intervalDays !in 1..MAX_REPEAT_INTERVAL_DAYS),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth().testTag("plan_interval_input"),
+                        )
+                    }
+                    PlanScheduleMode.MONTH_DAYS -> {
+                        OutlinedTextField(
+                            value = scheduledMonthDaysText,
+                            onValueChange = { value ->
+                                scheduledMonthDaysText = value.filter { it.isDigit() || it == ',' || it == ' ' }
+                            },
+                            label = { Text(stringResource(R.string.planner_month_days)) },
+                            supportingText = { Text(stringResource(R.string.planner_month_days_description)) },
+                            isError = scheduledMonthDaysText.isNotBlank() && monthDays.isEmpty(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth().testTag("plan_month_days_input"),
+                        )
+                    }
+                }
+                TextButton(
+                    onClick = {
+                        onSavePreset(
+                            title,
+                            reminderMinutesOfDay,
+                            PlanRepeat.NONE,
+                            reminderEnabled,
+                            savedWeekdays,
+                            savedIntervalDays,
+                            savedMonthDays,
+                        )
+                    },
+                    enabled = title.isNotBlank() && scheduleIsValid,
+                    modifier = Modifier.testTag("save_plan_preset"),
+                ) {
+                    Text(stringResource(R.string.planner_save_preset))
                 }
                 if (plan != null) {
                     Row(
@@ -1112,8 +1233,18 @@ private fun PlanEditorDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(title, reminderMinutesOfDay, repeat, reminderEnabled) },
-                enabled = title.isNotBlank(),
+                onClick = {
+                    onSave(
+                        title,
+                        reminderMinutesOfDay,
+                        PlanRepeat.NONE,
+                        reminderEnabled,
+                        savedWeekdays,
+                        savedIntervalDays,
+                        savedMonthDays,
+                    )
+                },
+                enabled = title.isNotBlank() && scheduleIsValid,
                 modifier = Modifier.testTag("save_plan"),
             ) {
                 Text(stringResource(R.string.planner_save))
@@ -1149,6 +1280,126 @@ private fun weekLabel(
 
 private const val MAX_PLAN_TITLE_LENGTH = 120
 private const val DEFAULT_REMINDER_MINUTES = 9 * 60
+private const val MAX_REPEAT_INTERVAL_DAYS = 3650
+
+private enum class PlanScheduleMode(
+    val labelResource: Int,
+) {
+    ONCE(R.string.planner_schedule_once),
+    WEEKDAYS(R.string.planner_schedule_weekdays),
+    INTERVAL(R.string.planner_schedule_interval),
+    MONTH_DAYS(R.string.planner_schedule_month_days),
+}
+
+private fun initialPlanScheduleMode(plan: PlanItem?): PlanScheduleMode =
+    when {
+        plan == null -> PlanScheduleMode.ONCE
+        plan.scheduledMonthDays.isNotEmpty() || plan.repeat == PlanRepeat.MONTHLY -> PlanScheduleMode.MONTH_DAYS
+        plan.repeatEveryDays != null -> PlanScheduleMode.INTERVAL
+        plan.scheduledWeekdays.isNotEmpty() || plan.repeat == PlanRepeat.DAILY || plan.repeat == PlanRepeat.WEEKLY ->
+            PlanScheduleMode.WEEKDAYS
+        else -> PlanScheduleMode.ONCE
+    }
+
+private fun initialPlanWeekdays(
+    plan: PlanItem?,
+    selectedEpochDay: Long,
+): Set<Weekday> =
+    when {
+        plan == null -> setOf(Weekday.fromEpochDay(selectedEpochDay))
+        plan.scheduledWeekdays.isNotEmpty() -> plan.scheduledWeekdays
+        plan.repeat == PlanRepeat.DAILY -> Weekday.entries.toSet()
+        plan.repeat == PlanRepeat.WEEKLY -> setOf(Weekday.fromEpochDay(plan.dateEpochDay))
+        else -> setOf(Weekday.fromEpochDay(selectedEpochDay))
+    }
+
+private fun initialPlanMonthDays(plan: PlanItem?): Set<Int> =
+    when {
+        plan == null -> emptySet()
+        plan.scheduledMonthDays.isNotEmpty() -> plan.scheduledMonthDays
+        plan.repeat == PlanRepeat.MONTHLY -> setOf(LocalDate.ofEpochDay(plan.dateEpochDay).dayOfMonth)
+        else -> emptySet()
+    }
+
+private fun initialPresetScheduleMode(preset: PlanPreset): PlanScheduleMode =
+    when {
+        preset.scheduledMonthDays.isNotEmpty() || preset.repeat == PlanRepeat.MONTHLY -> PlanScheduleMode.MONTH_DAYS
+        preset.repeatEveryDays != null -> PlanScheduleMode.INTERVAL
+        preset.scheduledWeekdays.isNotEmpty() ||
+            preset.repeat == PlanRepeat.DAILY ||
+            preset.repeat == PlanRepeat.WEEKLY -> PlanScheduleMode.WEEKDAYS
+        else -> PlanScheduleMode.ONCE
+    }
+
+private fun initialPresetWeekdays(
+    preset: PlanPreset,
+    selectedEpochDay: Long,
+): Set<Weekday> =
+    when {
+        preset.scheduledWeekdays.isNotEmpty() -> preset.scheduledWeekdays
+        preset.repeat == PlanRepeat.DAILY -> Weekday.entries.toSet()
+        preset.repeat == PlanRepeat.WEEKLY -> setOf(Weekday.fromEpochDay(selectedEpochDay))
+        else -> setOf(Weekday.fromEpochDay(selectedEpochDay))
+    }
+
+private fun initialPresetMonthDays(
+    preset: PlanPreset,
+    selectedEpochDay: Long,
+): Set<Int> =
+    when {
+        preset.scheduledMonthDays.isNotEmpty() -> preset.scheduledMonthDays
+        preset.repeat == PlanRepeat.MONTHLY -> setOf(LocalDate.ofEpochDay(selectedEpochDay).dayOfMonth)
+        else -> emptySet()
+    }
+
+private fun parsePlanMonthDays(value: String): Set<Int> {
+    if (value.isBlank()) return emptySet()
+    val parts = value.split(',').map(String::trim)
+    if (parts.any(String::isEmpty)) return emptySet()
+    val days = parts.mapNotNull(String::toIntOrNull)
+    return if (days.size == parts.size && days.all { it in 1..31 }) days.toSet() else emptySet()
+}
+
+@Composable
+private fun planScheduleLabel(plan: PlanItem): String? {
+    val locale = currentLocale()
+    return when {
+        plan.scheduledMonthDays.isNotEmpty() ->
+            stringResource(R.string.planner_on_month_days, plan.scheduledMonthDays.sorted().joinToString(", "))
+        plan.repeatEveryDays == 1 -> stringResource(R.string.planner_every_day)
+        plan.repeatEveryDays != null ->
+            stringResource(R.string.planner_every_n_days, requireNotNull(plan.repeatEveryDays))
+        plan.scheduledWeekdays.isNotEmpty() ->
+            stringResource(
+                R.string.planner_on_weekdays,
+                plan.scheduledWeekdays
+                    .sortedBy(Weekday::ordinal)
+                    .joinToString(", ") { it.displayLabel(locale) },
+            )
+        plan.repeat != PlanRepeat.NONE ->
+            stringResource(
+                R.string.planner_repeat_value,
+                stringResource(plan.repeat.labelResource()),
+            )
+        else -> null
+    }
+}
+
+private fun Weekday.displayLabel(locale: Locale): String =
+    java.time.DayOfWeek.entries[ordinal]
+        .getDisplayName(TextStyle.SHORT, locale)
+        .removeSuffix(".")
+
+private fun Weekday.shortLabelResource(): Int =
+    when (this) {
+        Weekday.MONDAY -> R.string.planner_day_monday
+        Weekday.TUESDAY -> R.string.planner_day_tuesday
+        Weekday.WEDNESDAY -> R.string.planner_day_wednesday
+        Weekday.THURSDAY -> R.string.planner_day_thursday
+        Weekday.FRIDAY -> R.string.planner_day_friday
+        Weekday.SATURDAY -> R.string.planner_day_saturday
+        Weekday.SUNDAY -> R.string.planner_day_sunday
+    }
 
 private fun PlanRepeat.labelResource(): Int =
     when (this) {

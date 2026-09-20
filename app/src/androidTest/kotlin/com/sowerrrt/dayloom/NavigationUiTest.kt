@@ -189,12 +189,16 @@ class NavigationUiTest {
     }
 
     @Test
-    fun recurringPlanCanBeCreatedFromEditor() {
-        val title = "Weekly plan ${System.currentTimeMillis()}"
+    fun flexibleRecurringPlanCanBeCreatedFromEditor() {
+        val title = "Interval plan ${System.currentTimeMillis()}"
         composeRule.onNodeWithTag("primary_nav_planner").performClick()
         composeRule.onNodeWithTag("create_plan").performClick()
         composeRule.onNodeWithTag("plan_name_input").performTextInput(title)
-        composeRule.onNodeWithTag("plan_repeat_weekly").performScrollTo().performClick()
+        composeRule.onNodeWithTag("plan_schedule_weekdays").performScrollTo().assertExists()
+        composeRule.onNodeWithTag("plan_schedule_month_days").performScrollTo().assertExists()
+        composeRule.onNodeWithTag("plan_schedule_interval").performScrollTo().performClick()
+        composeRule.onNodeWithTag("plan_interval_input").performTextInput("7")
+        closeSoftKeyboard()
         composeRule.onNodeWithTag("save_plan").performClick()
 
         waitUntilScrollable("planner_list", "plan_$title")

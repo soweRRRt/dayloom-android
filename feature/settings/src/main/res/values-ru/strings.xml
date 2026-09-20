@@ -88,6 +88,7 @@
     <string name="settings_example_plan_dentist">Запись к стоматологу</string>
     <string name="settings_example_plan_weekly_review">Еженедельный разбор планов</string>
     <string name="settings_example_plan_evening_review">Подготовить план на завтра</string>
+    <string name="settings_example_plan_monthly_budget">Проверить бюджет месяца</string>
     <string name="settings_example_list_groceries">Продукты на неделю</string>
     <string name="settings_example_list_trip">В поездку</string>
     <string name="settings_example_list_ideas">Идеи</string>

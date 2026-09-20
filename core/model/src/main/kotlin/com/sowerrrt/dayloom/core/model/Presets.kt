@@ -21,6 +21,9 @@ data class PlanPreset(
     val reminderMinutesOfDay: Int? = null,
     val repeat: PlanRepeat = PlanRepeat.NONE,
     val reminderEnabled: Boolean = true,
+    val scheduledWeekdays: Set<Weekday> = emptySet(),
+    val repeatEveryDays: Int? = null,
+    val scheduledMonthDays: Set<Int> = emptySet(),
 )
 
 @Serializable
