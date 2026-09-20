@@ -91,6 +91,7 @@ fun WishlistScreen(
     viewModel: WishlistViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { viewModel.onScreenEntered() }
     var showGoalEditor by rememberSaveable { mutableStateOf(false) }
     var editingGoal by remember { mutableStateOf<WishGoal?>(null) }
     var showContributionEditor by rememberSaveable { mutableStateOf(false) }
@@ -103,7 +104,6 @@ fun WishlistScreen(
             if (uri != null && selectedGoal != null) viewModel.setImage(selectedGoal.id, uri)
         }
 
-    LaunchedEffect(Unit) { viewModel.refresh() }
     Box(Modifier.fillMaxSize().testTag("wishlist_screen")) {
         Column(Modifier.fillMaxSize()) {
             DayloomTopBar(

@@ -39,9 +39,14 @@ class HomeViewModel
     ) : ViewModel() {
         private val mutableUiState = MutableStateFlow(HomeUiState())
         val uiState: StateFlow<HomeUiState> = mutableUiState.asStateFlow()
+        private var hasEnteredScreen = false
 
         init {
             refresh()
+        }
+
+        fun onScreenEntered() {
+            if (hasEnteredScreen) refresh() else hasEnteredScreen = true
         }
 
         fun refresh() {

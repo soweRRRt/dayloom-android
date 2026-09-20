@@ -24,10 +24,10 @@ private data class Palette(
 
 private val palettes =
     mapOf(
-        AccentPalette.VIOLET to Palette(Color(0xFF7357D3), Color(0xFFE56D9F), Color(0xFFFFA94D)),
-        AccentPalette.OCEAN to Palette(Color(0xFF007C91), Color(0xFF4776E6), Color(0xFF00A896)),
-        AccentPalette.CORAL to Palette(Color(0xFFC4475D), Color(0xFFFF7A59), Color(0xFF8963BA)),
-        AccentPalette.FOREST to Palette(Color(0xFF357A4F), Color(0xFF7A6E35), Color(0xFF00796B)),
+        AccentPalette.VIOLET to Palette(Color(0xFF6654C7), Color(0xFFB9567F), Color(0xFFC9772D)),
+        AccentPalette.OCEAN to Palette(Color(0xFF08798A), Color(0xFF476FC4), Color(0xFF168874)),
+        AccentPalette.CORAL to Palette(Color(0xFFB64B60), Color(0xFFD96548), Color(0xFF785AA8)),
+        AccentPalette.FOREST to Palette(Color(0xFF36764F), Color(0xFF716B32), Color(0xFF08786D)),
     )
 
 @Composable
@@ -79,26 +79,33 @@ private fun dayloomColorScheme(
             primaryContainer = palette.primary.darken(0.32f),
             onPrimaryContainer = Color(0xFFF0E9FF),
             secondary = palette.secondary.lighten(0.22f),
+            onSecondary = Color(0xFF1C1015),
             tertiary = palette.tertiary.lighten(0.16f),
-            background = Color(0xFF121116),
-            surface = Color(0xFF19181E),
-            surfaceVariant = Color(0xFF25232B),
-            onBackground = Color(0xFFF1EEF5),
-            onSurface = Color(0xFFF1EEF5),
+            background = Color(0xFF111015),
+            surface = Color(0xFF19181D),
+            surfaceVariant = Color(0xFF29272F),
+            onBackground = Color(0xFFF2EFF5),
+            onSurface = Color(0xFFF2EFF5),
+            onSurfaceVariant = Color(0xFFC9C3CE),
+            outline = Color(0xFF918A97),
+            outlineVariant = Color(0xFF454149),
         )
     } else {
         lightColorScheme(
             primary = palette.primary,
             onPrimary = Color.White,
-            primaryContainer = palette.primary.lighten(0.78f),
+            primaryContainer = palette.primary.lighten(0.84f),
             onPrimaryContainer = palette.primary.darken(0.45f),
             secondary = palette.secondary.darken(0.12f),
             tertiary = palette.tertiary.darken(0.18f),
-            background = Color(0xFFFFFBFF),
+            background = Color(0xFFF8F7FB),
             surface = Color(0xFFFFFBFF),
-            surfaceVariant = Color(0xFFF1EDF5),
-            onBackground = Color(0xFF1D1B20),
-            onSurface = Color(0xFF1D1B20),
+            surfaceVariant = Color(0xFFEDEAF1),
+            onBackground = Color(0xFF1C1A20),
+            onSurface = Color(0xFF1C1A20),
+            onSurfaceVariant = Color(0xFF625D68),
+            outline = Color(0xFF7D7783),
+            outlineVariant = Color(0xFFD9D3DE),
         )
     }
 }

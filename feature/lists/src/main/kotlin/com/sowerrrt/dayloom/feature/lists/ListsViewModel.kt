@@ -47,9 +47,14 @@ class ListsViewModel
     ) : ViewModel() {
         private val mutableUiState = MutableStateFlow(ListsUiState())
         val uiState: StateFlow<ListsUiState> = mutableUiState.asStateFlow()
+        private var hasEnteredScreen = false
 
         init {
             refresh()
+        }
+
+        fun onScreenEntered() {
+            if (hasEnteredScreen) refresh() else hasEnteredScreen = true
         }
 
         fun refresh() {

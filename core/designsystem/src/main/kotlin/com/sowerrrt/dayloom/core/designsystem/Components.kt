@@ -1,8 +1,10 @@
 package com.sowerrrt.dayloom.core.designsystem
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.defaultMinSize
@@ -59,35 +61,42 @@ fun DayloomLogo(modifier: Modifier = Modifier) {
 fun DayloomTopBar(
     title: String,
     modifier: Modifier = Modifier,
+    showLogo: Boolean = false,
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     TopAppBar(
         title = {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                DayloomLogo(Modifier.size(30.dp))
+                if (showLogo) DayloomLogo(Modifier.size(28.dp))
                 Text(title, style = MaterialTheme.typography.titleLarge)
             }
         },
         modifier = modifier,
         navigationIcon = navigationIcon,
         actions = actions,
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+        colors =
+            TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.background,
+                scrolledContainerColor = MaterialTheme.colorScheme.surface,
+            ),
     )
 }
 
 @Composable
 fun DayloomCard(
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(DayloomSpacing.md),
     content: @Composable () -> Unit,
 ) {
     Card(
         modifier = modifier,
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Box(Modifier.padding(DayloomSpacing.md)) { content() }
+        Box(Modifier.padding(contentPadding)) { content() }
     }
 }
 
@@ -103,6 +112,7 @@ fun DayloomButton(
         enabled = enabled,
         modifier = modifier.defaultMinSize(minHeight = 48.dp),
         shape = MaterialTheme.shapes.medium,
+        contentPadding = PaddingValues(horizontal = DayloomSpacing.lg, vertical = DayloomSpacing.regular),
     ) {
         Text(text)
     }

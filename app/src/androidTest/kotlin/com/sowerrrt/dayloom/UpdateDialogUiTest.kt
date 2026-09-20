@@ -1,6 +1,7 @@
 package com.sowerrrt.dayloom
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import com.sowerrrt.dayloom.core.designsystem.DayloomTheme
 import com.sowerrrt.dayloom.core.model.AccentPalette
@@ -32,9 +33,10 @@ class UpdateDialogUiTest {
             }
         }
 
-        composeRule.onNodeWithText("Dayloom 1.2.0 is available").assertExists()
+        composeRule.onNodeWithTag("update_dialog_title").assertExists()
+        composeRule.onNodeWithText("1.2.0", substring = true).assertExists()
         composeRule.onNodeWithText("A calmer release.").assertExists()
-        composeRule.onNodeWithText("Details / Update").assertExists()
-        composeRule.onNodeWithText("Later").assertExists()
+        composeRule.onNodeWithTag("update_dialog_open").assertExists()
+        composeRule.onNodeWithTag("update_dialog_later").assertExists()
     }
 }

@@ -42,9 +42,14 @@ class WishlistViewModel
     ) : ViewModel() {
         private val mutableUiState = MutableStateFlow(WishlistUiState())
         val uiState: StateFlow<WishlistUiState> = mutableUiState.asStateFlow()
+        private var hasEnteredScreen = false
 
         init {
             refresh()
+        }
+
+        fun onScreenEntered() {
+            if (hasEnteredScreen) refresh() else hasEnteredScreen = true
         }
 
         fun refresh() {

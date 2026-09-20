@@ -72,14 +72,13 @@ import com.sowerrrt.dayloom.core.ui.LoadingState
 @Composable
 fun ListsScreen(viewModel: ListsViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { viewModel.onScreenEntered() }
     var showListEditor by rememberSaveable { mutableStateOf(false) }
     var editingList by remember { mutableStateOf<DayList?>(null) }
     var showItemEditor by rememberSaveable { mutableStateOf(false) }
     var editingItem by remember { mutableStateOf<DayListItem?>(null) }
     var pendingListDelete by remember { mutableStateOf<DayList?>(null) }
     var pendingItemDelete by remember { mutableStateOf<DayListItem?>(null) }
-
-    LaunchedEffect(Unit) { viewModel.refresh() }
 
     val selectedList = state.selectedList
     Box(Modifier.fillMaxSize().testTag("lists_screen")) {
@@ -454,6 +453,7 @@ private fun ListItemRow(
                     if (item.quantity.isNotEmpty()) {
                         Text(
                             stringResource(R.string.lists_quantity_value, item.quantity),
+                            modifier = Modifier.testTag("list_item_quantity_${item.title}"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.tertiary,
                         )
@@ -461,6 +461,7 @@ private fun ListItemRow(
                     if (item.note.isNotEmpty()) {
                         Text(
                             item.note,
+                            modifier = Modifier.testTag("list_item_note_${item.title}"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

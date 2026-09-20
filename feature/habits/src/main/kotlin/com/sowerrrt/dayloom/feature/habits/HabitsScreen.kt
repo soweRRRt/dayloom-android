@@ -3,7 +3,6 @@ package com.sowerrrt.dayloom.feature.habits
 import android.Manifest
 import android.app.TimePickerDialog
 import android.content.pm.PackageManager
-import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -35,11 +34,14 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -61,7 +63,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -85,13 +86,13 @@ import com.sowerrrt.dayloom.core.model.bestStreak
 import com.sowerrrt.dayloom.core.model.currentStreak
 import com.sowerrrt.dayloom.core.ui.ErrorState
 import com.sowerrrt.dayloom.core.ui.LoadingState
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.sowerrrt.dayloom.core.ui.loadSampledImage
 import java.util.Locale
 
 @Composable
 fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { viewModel.onScreenEntered() }
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
     var editingHabit by remember { mutableStateOf<Habit?>(null) }
     var pendingArchive by remember { mutableStateOf<Habit?>(null) }
@@ -105,8 +106,6 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
             if (uri != null && target != null) viewModel.setImage(target.id, uri)
             imageTarget = null
         }
-
-    LaunchedEffect(Unit) { viewModel.refresh() }
 
     Column(Modifier.fillMaxSize().testTag("habits_screen")) {
         DayloomTopBar(stringResource(R.string.habits_title))
@@ -419,6 +418,7 @@ private fun HabitRow(
     onChooseImage: () -> Unit,
     imagePath: String?,
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
     val action =
         if (completed) {
             stringResource(R.string.habits_mark_incomplete, habit.title)
@@ -520,24 +520,52 @@ private fun HabitRow(
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
-            Column {
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.habits_edit))
-                }
+            Box {
                 IconButton(
-                    onClick = onChooseImage,
-                    modifier = Modifier.testTag("habit_image_action_${habit.title}"),
+                    onClick = { menuExpanded = true },
+                    modifier = Modifier.testTag("habit_more_${habit.title}"),
                 ) {
-                    Icon(
-                        Icons.Rounded.PhotoLibrary,
-                        contentDescription =
-                            stringResource(
-                                if (habit.image == null) R.string.habits_add_image else R.string.habits_change_image,
-                            ),
-                    )
+                    Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.habits_edit))
                 }
-                IconButton(onClick = onArchive) {
-                    Icon(Icons.Rounded.Archive, contentDescription = stringResource(R.string.habits_archive))
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.habits_edit)) },
+                        leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
+                        onClick = {
+                            menuExpanded = false
+                            onEdit()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                stringResource(
+                                    if (habit.image == null) {
+                                        R.string.habits_add_image
+                                    } else {
+                                        R.string.habits_change_image
+                                    },
+                                ),
+                            )
+                        },
+                        leadingIcon = { Icon(Icons.Rounded.PhotoLibrary, contentDescription = null) },
+                        onClick = {
+                            menuExpanded = false
+                            onChooseImage()
+                        },
+                        modifier = Modifier.testTag("habit_image_action_${habit.title}"),
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.habits_archive)) },
+                        leadingIcon = { Icon(Icons.Rounded.Archive, contentDescription = null) },
+                        onClick = {
+                            menuExpanded = false
+                            onArchive()
+                        },
+                    )
                 }
             }
         }
@@ -919,7 +947,7 @@ private fun LocalHabitImage(
 ) {
     val bitmap by
         produceState<androidx.compose.ui.graphics.ImageBitmap?>(initialValue = null, key1 = imagePath) {
-            value = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(imagePath)?.asImageBitmap() }
+            value = loadSampledImage(imagePath)
         }
     bitmap?.let { image ->
         Image(

@@ -71,9 +71,14 @@ class PlannerViewModel
     ) : ViewModel() {
         private val mutableUiState = MutableStateFlow(PlannerUiState())
         val uiState: StateFlow<PlannerUiState> = mutableUiState.asStateFlow()
+        private var hasEnteredScreen = false
 
         init {
             refresh()
+        }
+
+        fun onScreenEntered() {
+            if (hasEnteredScreen) refresh() else hasEnteredScreen = true
         }
 
         fun refresh() {

@@ -4,6 +4,11 @@ import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,8 +36,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -66,6 +73,7 @@ import androidx.navigation.compose.rememberNavController
 import com.sowerrrt.dayloom.core.designsystem.DayloomButton
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomLogo
+import com.sowerrrt.dayloom.core.designsystem.DayloomMotion
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTheme
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
@@ -291,6 +299,7 @@ private fun DayloomShell(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        containerColor = MaterialTheme.colorScheme.background,
     ) { outerPadding ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(outerPadding)) {
             val wide = maxWidth >= 720.dp
@@ -309,6 +318,7 @@ private fun DayloomShell(
                 Scaffold(
                     bottomBar = { DayloomBottomBar(currentRoute, navController, settings.bottomSections) },
                     contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                    containerColor = MaterialTheme.colorScheme.background,
                 ) { innerPadding ->
                     DayloomNavHost(
                         navController = navController,
@@ -343,13 +353,27 @@ internal fun UpdateAvailableDialog(
 ) {
     AlertDialog(
         onDismissRequest = onLater,
-        title = { Text(stringResource(R.string.update_available_title, update.version.toString())) },
-        text = { Text(update.notes.ifBlank { stringResource(R.string.update_available_no_notes) }) },
+        title = {
+            Text(
+                text = stringResource(R.string.update_available_title, update.version.toString()),
+                modifier = Modifier.testTag("update_dialog_title"),
+            )
+        },
+        text = {
+            Text(
+                text = update.notes.ifBlank { stringResource(R.string.update_available_no_notes) },
+                modifier = Modifier.testTag("update_dialog_notes"),
+            )
+        },
         confirmButton = {
-            TextButton(onClick = onOpenRelease) { Text(stringResource(R.string.update_open_release)) }
+            TextButton(onClick = onOpenRelease, modifier = Modifier.testTag("update_dialog_open")) {
+                Text(stringResource(R.string.update_open_release))
+            }
         },
         dismissButton = {
-            TextButton(onClick = onLater) { Text(stringResource(R.string.update_later)) }
+            TextButton(onClick = onLater, modifier = Modifier.testTag("update_dialog_later")) {
+                Text(stringResource(R.string.update_later))
+            }
         },
     )
 }
@@ -362,7 +386,21 @@ private fun DayloomNavHost(
     updateViewModel: UpdateViewModel,
     modifier: Modifier = Modifier,
 ) {
-    NavHost(navController = navController, startDestination = startRoute, modifier = modifier) {
+    NavHost(
+        navController = navController,
+        startDestination = startRoute,
+        modifier = modifier,
+        enterTransition = {
+            fadeIn(tween(DayloomMotion.STANDARD_MILLIS)) +
+                scaleIn(tween(DayloomMotion.STANDARD_MILLIS), initialScale = 0.985f)
+        },
+        exitTransition = { fadeOut(tween(DayloomMotion.QUICK_MILLIS)) },
+        popEnterTransition = { fadeIn(tween(DayloomMotion.STANDARD_MILLIS)) },
+        popExitTransition = {
+            fadeOut(tween(DayloomMotion.QUICK_MILLIS)) +
+                scaleOut(tween(DayloomMotion.QUICK_MILLIS), targetScale = 0.99f)
+        },
+    ) {
         composable(Routes.HOME) {
             HomeScreen(
                 sections = homeSections,
@@ -414,13 +452,24 @@ private fun DayloomBottomBar(
     navController: NavHostController,
     sections: List<BottomSection>,
 ) {
-    NavigationBar {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+    ) {
         primaryDestinations(sections).forEach { destination ->
             NavigationBarItem(
                 selected = destination.matches(currentRoute),
                 onClick = { navController.navigateSingleTop(destination.route) },
                 icon = { Icon(destination.icon, contentDescription = null) },
                 label = { Text(destination.label) },
+                colors =
+                    NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
                 modifier = Modifier.testTag("primary_nav_${destination.route}"),
             )
         }
@@ -433,13 +482,19 @@ private fun DayloomNavigationRail(
     navController: NavHostController,
     sections: List<BottomSection>,
 ) {
-    NavigationRail {
+    NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
         primaryDestinations(sections).forEach { destination ->
             NavigationRailItem(
                 selected = destination.matches(currentRoute),
                 onClick = { navController.navigateSingleTop(destination.route) },
                 icon = { Icon(destination.icon, contentDescription = null) },
                 label = { Text(destination.label) },
+                colors =
+                    NavigationRailItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                    ),
                 modifier = Modifier.testTag("primary_nav_${destination.route}"),
             )
         }

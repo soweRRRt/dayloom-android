@@ -1,7 +1,10 @@
 package com.sowerrrt.dayloom.core.storage
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -52,6 +55,7 @@ class FileJsonStore<T>(
     private val defaultValue: () -> T,
     private val migrations: Map<Int, StorageMigration> = emptyMap(),
     private val clock: () -> Long = System::currentTimeMillis,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val json: Json =
         Json {
             ignoreUnknownKeys = true
@@ -70,15 +74,17 @@ class FileJsonStore<T>(
         require(!fileName.contains(File.separatorChar)) { "fileName must not contain path separators" }
     }
 
-    suspend fun read(): T = mutex.withLock { readLocked() }
+    suspend fun read(): T = withContext(ioDispatcher) { mutex.withLock { readLocked() } }
 
-    suspend fun write(value: T) = mutex.withLock { writeLocked(value) }
+    suspend fun write(value: T) = withContext(ioDispatcher) { mutex.withLock { writeLocked(value) } }
 
     suspend fun update(transform: (T) -> T): T =
-        mutex.withLock {
-            val updated = transform(readLocked())
-            writeLocked(updated)
-            updated
+        withContext(ioDispatcher) {
+            mutex.withLock {
+                val updated = transform(readLocked())
+                writeLocked(updated)
+                updated
+            }
         }
 
     private fun readLocked(): T {

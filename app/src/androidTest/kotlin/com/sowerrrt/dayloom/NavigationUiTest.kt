@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.test.espresso.Espresso.pressBack
 import org.junit.Rule
 import org.junit.Test
 
@@ -34,10 +35,18 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
         composeRule.onNodeWithTag("habit_target_amount").performScrollTo().performTextInput("5")
         composeRule.onNodeWithTag("habit_target_unit").performScrollTo().performTextInput("times")
+        composeRule.onNodeWithTag("habit_target_amount").assertTextContains("5")
+        composeRule.onNodeWithTag("habit_target_unit").assertTextContains("times")
         composeRule.onNodeWithTag("save_habit").performClick()
+        waitForTag("habit_toggle_$title")
+        composeRule
+            .onNodeWithTag("habits_list")
+            .performScrollToNode(hasTestTag("habit_toggle_$title"))
         composeRule.onNodeWithText(title).assertExists()
-        composeRule.onNodeWithTag("habit_target_$title").assertExists()
+        composeRule.onNodeWithTag("habit_target_$title", useUnmergedTree = true).assertExists()
+        composeRule.onNodeWithTag("habit_more_$title").performClick()
         composeRule.onNodeWithTag("habit_image_action_$title").assertExists()
+        pressBack()
 
         composeRule.onNodeWithTag("habit_toggle_$title").performClick()
         composeRule.onNodeWithText("Completed today").assertExists()
@@ -120,31 +129,26 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("create_habit").performClick()
         composeRule.onNodeWithTag("habit_name_input").performTextInput(habitTitle)
         composeRule.onNodeWithTag("save_habit").performClick()
+        waitForTag("habit_toggle_$habitTitle")
 
         composeRule.onNodeWithTag("primary_nav_planner").performClick()
         composeRule.onNodeWithTag("month_calendar").assertExists()
-        composeRule
-            .onNodeWithTag("planner_list")
-            .performScrollToNode(hasTestTag("calendar_habit_$habitTitle"))
+        waitUntilScrollable("planner_list", "calendar_habit_$habitTitle")
         composeRule.onNodeWithTag("calendar_habit_$habitTitle").assertExists()
         composeRule.onNodeWithTag("create_plan").performClick()
         composeRule.onNodeWithTag("plan_name_input").performTextInput(planTitle)
         composeRule.onNodeWithTag("save_plan").performClick()
-        composeRule
-            .onNodeWithTag("planner_list")
-            .performScrollToNode(hasTestTag("plan_$planTitle"))
+        waitUntilScrollable("planner_list", "plan_$planTitle")
         composeRule.onNodeWithTag("plan_$planTitle").assertExists()
+        composeRule.onNodeWithTag("plan_more_$planTitle").performClick()
         composeRule.onNodeWithTag("plan_image_action_$planTitle").assertExists()
+        pressBack()
         composeRule.onNodeWithTag("plan_toggle_$planTitle").performClick()
 
         composeRule.activityRule.scenario.recreate()
-        composeRule
-            .onNodeWithTag("planner_list")
-            .performScrollToNode(hasTestTag("calendar_habit_$habitTitle"))
+        waitUntilScrollable("planner_list", "calendar_habit_$habitTitle")
         composeRule.onNodeWithTag("calendar_habit_$habitTitle").assertExists()
-        composeRule
-            .onNodeWithTag("planner_list")
-            .performScrollToNode(hasTestTag("plan_$planTitle"))
+        waitUntilScrollable("planner_list", "plan_$planTitle")
         composeRule.onNodeWithTag("plan_$planTitle").assertExists()
     }
 
@@ -180,8 +184,8 @@ class NavigationUiTest {
 
         composeRule.activityRule.scenario.recreate()
         composeRule.onNodeWithTag("list_item_$itemTitle").assertExists()
-        composeRule.onNodeWithText("Quantity: 2 cartons").assertExists()
-        composeRule.onNodeWithText("Unsweetened").assertExists()
+        composeRule.onNodeWithTag("list_item_quantity_$itemTitle").assertTextContains("2 cartons", substring = true)
+        composeRule.onNodeWithTag("list_item_note_$itemTitle").assertTextContains("Unsweetened")
     }
 
     @Test
@@ -343,7 +347,7 @@ class NavigationUiTest {
         composeRule.onNodeWithText("Settings").performClick()
         composeRule.onNodeWithText("Dark").performClick()
         composeRule.waitUntilSelected { composeRule.onNodeWithText("Dark").assertIsSelected() }
-        composeRule.onNodeWithTag("start_destination_planner").performClick()
+        composeRule.onNodeWithTag("start_destination_planner").performScrollTo().performClick()
         composeRule.waitUntilSelected {
             composeRule.onNodeWithTag("start_destination_planner").assertIsSelected()
         }
@@ -359,6 +363,23 @@ class NavigationUiTest {
     private fun androidx.compose.ui.test.junit4.AndroidComposeTestRule<*, *>.waitUntilSelected(assertion: () -> Unit) {
         waitUntil(timeoutMillis = 5_000) {
             runCatching(assertion).isSuccess
+        }
+    }
+
+    private fun waitForTag(tag: String) {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    private fun waitUntilScrollable(
+        listTag: String,
+        itemTag: String,
+    ) {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag(listTag).performScrollToNode(hasTestTag(itemTag))
+            }.isSuccess
         }
     }
 }

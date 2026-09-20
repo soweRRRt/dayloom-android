@@ -3,10 +3,11 @@ package com.sowerrrt.dayloom.feature.planner
 import android.Manifest
 import android.app.TimePickerDialog
 import android.content.pm.PackageManager
-import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,11 +40,14 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,7 +69,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -78,6 +81,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
+import com.sowerrrt.dayloom.core.designsystem.DayloomMotion
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.model.Habit
@@ -85,8 +89,7 @@ import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.model.PlanPreset
 import com.sowerrrt.dayloom.core.ui.ErrorState
 import com.sowerrrt.dayloom.core.ui.LoadingState
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.sowerrrt.dayloom.core.ui.loadSampledImage
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -96,6 +99,7 @@ import java.util.Locale
 @Composable
 fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { viewModel.onScreenEntered() }
     var showPlanDialog by rememberSaveable { mutableStateOf(false) }
     var editingPlan by remember { mutableStateOf<PlanItem?>(null) }
     var pendingDelete by remember { mutableStateOf<PlanItem?>(null) }
@@ -109,8 +113,6 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
             if (uri != null && target != null) viewModel.setPlanImage(target.id, uri)
             imageTarget = null
         }
-
-    LaunchedEffect(Unit) { viewModel.refresh() }
 
     Column(Modifier.fillMaxSize().testTag("planner_screen")) {
         DayloomTopBar(stringResource(R.string.planner_title))
@@ -353,6 +355,14 @@ private fun MonthCalendar(
     val leadingEmptyDays = firstDay.dayOfWeek.value - 1
     val cells = List(leadingEmptyDays) { null } + (1..month.lengthOfMonth()).map(month::atDay)
     val rows = cells.chunked(7)
+    val habitCounts =
+        remember(state.habits, month) {
+            cells.filterNotNull().associate { date -> date.toEpochDay() to state.habitCount(date.toEpochDay()) }
+        }
+    val planCounts =
+        remember(state.plans, month) {
+            cells.filterNotNull().associate { date -> date.toEpochDay() to state.planCount(date.toEpochDay()) }
+        }
     DayloomCard(Modifier.fillMaxWidth().testTag("month_calendar")) {
         Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
             Row(
@@ -388,22 +398,30 @@ private fun MonthCalendar(
                     )
                 }
             }
-            rows.forEach { week ->
-                Row(Modifier.fillMaxWidth()) {
-                    repeat(7) { index ->
-                        val date = week.getOrNull(index)
-                        if (date == null) {
-                            Spacer(Modifier.weight(1f).aspectRatio(1f))
-                        } else {
-                            CalendarDay(
-                                date = date,
-                                selected = date.toEpochDay() == state.selectedEpochDay,
-                                today = date.toEpochDay() == state.todayEpochDay,
-                                habitCount = state.habitCount(date.toEpochDay()),
-                                planCount = state.planCount(date.toEpochDay()),
-                                onClick = { onSelectDate(date.toEpochDay()) },
-                                modifier = Modifier.weight(1f),
-                            )
+            Crossfade(
+                targetState = rows,
+                animationSpec = tween(DayloomMotion.STANDARD_MILLIS),
+                label = "calendarMonth",
+            ) { visibleRows ->
+                Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xxs)) {
+                    visibleRows.forEach { week ->
+                        Row(Modifier.fillMaxWidth()) {
+                            repeat(7) { index ->
+                                val date = week.getOrNull(index)
+                                if (date == null) {
+                                    Spacer(Modifier.weight(1f).aspectRatio(1f))
+                                } else {
+                                    CalendarDay(
+                                        date = date,
+                                        selected = date.toEpochDay() == state.selectedEpochDay,
+                                        today = date.toEpochDay() == state.todayEpochDay,
+                                        habitCount = habitCounts[date.toEpochDay()] ?: 0,
+                                        planCount = planCounts[date.toEpochDay()] ?: 0,
+                                        onClick = { onSelectDate(date.toEpochDay()) },
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -547,6 +565,7 @@ private fun PlanRow(
     onDelete: () -> Unit,
     onChooseImage: () -> Unit,
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
     DayloomCard(Modifier.fillMaxWidth().testTag("plan_${plan.title}")) {
         Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
             if (imagePath != null) {
@@ -606,22 +625,53 @@ private fun PlanRow(
                         }
                     }
                 }
-                if (plan.image == null) {
+                Box {
                     IconButton(
-                        onClick = onChooseImage,
-                        modifier = Modifier.testTag("plan_image_action_${plan.title}"),
+                        onClick = { menuExpanded = true },
+                        modifier = Modifier.testTag("plan_more_${plan.title}"),
                     ) {
-                        Icon(
-                            Icons.Rounded.PhotoLibrary,
-                            contentDescription = stringResource(R.string.planner_add_image),
+                        Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.planner_edit))
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.planner_edit)) },
+                            leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                onEdit()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(
+                                        if (plan.image == null) {
+                                            R.string.planner_add_image
+                                        } else {
+                                            R.string.planner_change_image
+                                        },
+                                    ),
+                                )
+                            },
+                            leadingIcon = { Icon(Icons.Rounded.PhotoLibrary, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                onChooseImage()
+                            },
+                            modifier = Modifier.testTag("plan_image_action_${plan.title}"),
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.planner_delete)) },
+                            leadingIcon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                onDelete()
+                            },
                         )
                     }
-                }
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.planner_edit))
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.planner_delete))
                 }
             }
         }
@@ -636,7 +686,7 @@ private fun LocalPlanImage(
 ) {
     val bitmap by
         produceState<androidx.compose.ui.graphics.ImageBitmap?>(initialValue = null, key1 = imagePath) {
-            value = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(imagePath)?.asImageBitmap() }
+            value = loadSampledImage(imagePath)
         }
     bitmap?.let { image ->
         Image(

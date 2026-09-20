@@ -52,9 +52,14 @@ class HabitsViewModel
     ) : ViewModel() {
         private val mutableUiState = MutableStateFlow(HabitsUiState())
         val uiState: StateFlow<HabitsUiState> = mutableUiState.asStateFlow()
+        private var hasEnteredScreen = false
 
         init {
             refresh()
+        }
+
+        fun onScreenEntered() {
+            if (hasEnteredScreen) refresh() else hasEnteredScreen = true
         }
 
         fun refresh() {
