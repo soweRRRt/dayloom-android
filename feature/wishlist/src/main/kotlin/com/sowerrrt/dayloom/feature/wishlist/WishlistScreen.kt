@@ -33,8 +33,8 @@ import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -579,12 +579,15 @@ private fun GoalEditorDialog(
     var purchaseUrl by remember(goal?.id) { mutableStateOf(goal?.purchaseUrl.orEmpty()) }
     val parsedTarget = parseAmountToMinor(target)
     val normalizedCurrency = currency.trim().uppercase()
+    val targetIsValid = parsedTarget != null && parsedTarget > 0
+    val currencyIsValid = normalizedCurrency.matches(Regex("[A-Z0-9]{1,8}"))
+    val purchaseUrlIsValid =
+        purchaseUrl.isBlank() || purchaseUrl.trim().matches(Regex("https?://.+", RegexOption.IGNORE_CASE))
     val canSave =
         title.isNotBlank() &&
-            parsedTarget != null &&
-            parsedTarget > 0 &&
-            normalizedCurrency.matches(Regex("[A-Z0-9]{1,8}")) &&
-            (purchaseUrl.isBlank() || purchaseUrl.trim().matches(Regex("https?://.+", RegexOption.IGNORE_CASE)))
+            targetIsValid &&
+            currencyIsValid &&
+            purchaseUrlIsValid
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -608,6 +611,12 @@ private fun GoalEditorDialog(
                         onValueChange = { target = sanitizeAmountInput(it) },
                         modifier = Modifier.fillMaxWidth().testTag("wish_target_input"),
                         label = { Text(stringResource(R.string.wishlist_target_label)) },
+                        supportingText = {
+                            if (target.isNotBlank() && !targetIsValid) {
+                                Text(stringResource(R.string.wishlist_target_error))
+                            }
+                        },
+                        isError = target.isNotBlank() && !targetIsValid,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                     )
@@ -618,13 +627,18 @@ private fun GoalEditorDialog(
                         onValueChange = { currency = it.uppercase().filter(Char::isLetterOrDigit).take(8) },
                         modifier = Modifier.fillMaxWidth().testTag("wish_currency_input"),
                         label = { Text(stringResource(R.string.wishlist_currency_label)) },
+                        supportingText = {
+                            if (!currencyIsValid) Text(stringResource(R.string.wishlist_currency_error))
+                        },
+                        isError = !currencyIsValid,
                         singleLine = true,
                     )
                 }
                 item {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
                         COMMON_CURRENCIES.forEach { code ->
-                            AssistChip(
+                            FilterChip(
+                                selected = currency == code,
                                 onClick = { currency = code },
                                 label = { Text(code) },
                                 modifier = Modifier.testTag("wish_currency_${code.lowercase()}"),
@@ -636,7 +650,8 @@ private fun GoalEditorDialog(
                 item {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
                         WishPriority.entries.forEach { candidate ->
-                            AssistChip(
+                            FilterChip(
+                                selected = priority == candidate,
                                 onClick = { priority = candidate },
                                 label = { Text(priorityLabel(candidate)) },
                                 leadingIcon = {
@@ -672,7 +687,18 @@ private fun GoalEditorDialog(
                         onValueChange = { purchaseUrl = it.take(MAX_URL_LENGTH) },
                         modifier = Modifier.fillMaxWidth().testTag("wish_purchase_url_input"),
                         label = { Text(stringResource(R.string.wishlist_purchase_url_label)) },
-                        supportingText = { Text(stringResource(R.string.wishlist_purchase_url_description)) },
+                        supportingText = {
+                            Text(
+                                stringResource(
+                                    if (purchaseUrlIsValid) {
+                                        R.string.wishlist_purchase_url_description
+                                    } else {
+                                        R.string.wishlist_purchase_url_error
+                                    },
+                                ),
+                            )
+                        },
+                        isError = !purchaseUrlIsValid,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                         singleLine = true,
                     )
@@ -751,7 +777,10 @@ private fun DeleteDialog(
         text = { Text(description) },
         confirmButton = {
             TextButton(onClick = onConfirm, modifier = Modifier.testTag("confirm_wish_delete")) {
-                Text(stringResource(R.string.wishlist_delete))
+                Text(
+                    stringResource(R.string.wishlist_delete),
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.wishlist_cancel)) } },

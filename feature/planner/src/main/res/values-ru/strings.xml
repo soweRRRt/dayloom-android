@@ -64,8 +64,10 @@
     <string name="planner_weekdays_description">Выберите один или несколько дней недели.</string>
     <string name="planner_interval_days">Количество дней</string>
     <string name="planner_interval_description">Повтор от выбранной даты: от 1 до 3650 дней.</string>
+    <string name="planner_interval_error">Введите целое число от 1 до 3650.</string>
     <string name="planner_month_days">Числа каждого месяца</string>
     <string name="planner_month_days_description">Введите числа от 1 до 31 через запятую, например: 3, 15.</string>
+    <string name="planner_month_days_error">Каждое число должно быть от 1 до 31.</string>
     <string name="planner_every_day">Каждый день</string>
     <string name="planner_every_n_days">Каждые %1$d дней</string>
     <string name="planner_on_month_days">Каждый месяц: %1$s числа</string>

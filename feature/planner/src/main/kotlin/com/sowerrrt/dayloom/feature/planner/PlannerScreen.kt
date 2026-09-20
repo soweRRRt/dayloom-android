@@ -247,7 +247,10 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                         pendingDelete = null
                     },
                 ) {
-                    Text(stringResource(R.string.planner_delete_confirm))
+                    Text(
+                        stringResource(R.string.planner_delete_confirm),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             },
             dismissButton = {
@@ -981,6 +984,14 @@ private fun PlanEditorDialog(
                     LocalDate.ofEpochDay(selectedEpochDay).format(DateTimeFormatter.ofPattern("d MMMM yyyy", locale)),
                     color = MaterialTheme.colorScheme.primary,
                 )
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it.take(MAX_PLAN_TITLE_LENGTH) },
+                    label = { Text(stringResource(R.string.planner_name_label)) },
+                    supportingText = { Text("${title.length}/$MAX_PLAN_TITLE_LENGTH") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("plan_name_input"),
+                )
                 if (presets.isNotEmpty()) {
                     Text(stringResource(R.string.planner_presets), style = MaterialTheme.typography.titleMedium)
                     FlowRow(
@@ -1014,14 +1025,6 @@ private fun PlanEditorDialog(
                         }
                     }
                 }
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it.take(MAX_PLAN_TITLE_LENGTH) },
-                    label = { Text(stringResource(R.string.planner_name_label)) },
-                    supportingText = { Text("${title.length}/$MAX_PLAN_TITLE_LENGTH") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("plan_name_input"),
-                )
                 Text(stringResource(R.string.planner_reminder), style = MaterialTheme.typography.titleMedium)
                 Text(
                     stringResource(R.string.planner_reminder_description),
@@ -1142,7 +1145,20 @@ private fun PlanEditorDialog(
                                 repeatEveryDaysText = value.filter(Char::isDigit).take(4)
                             },
                             label = { Text(stringResource(R.string.planner_interval_days)) },
-                            supportingText = { Text(stringResource(R.string.planner_interval_description)) },
+                            supportingText = {
+                                Text(
+                                    stringResource(
+                                        if (
+                                            repeatEveryDaysText.isNotEmpty() &&
+                                            (intervalDays == null || intervalDays !in 1..MAX_REPEAT_INTERVAL_DAYS)
+                                        ) {
+                                            R.string.planner_interval_error
+                                        } else {
+                                            R.string.planner_interval_description
+                                        },
+                                    ),
+                                )
+                            },
                             isError =
                                 repeatEveryDaysText.isNotEmpty() &&
                                     (intervalDays == null || intervalDays !in 1..MAX_REPEAT_INTERVAL_DAYS),
@@ -1158,7 +1174,17 @@ private fun PlanEditorDialog(
                                 scheduledMonthDaysText = value.filter { it.isDigit() || it == ',' || it == ' ' }
                             },
                             label = { Text(stringResource(R.string.planner_month_days)) },
-                            supportingText = { Text(stringResource(R.string.planner_month_days_description)) },
+                            supportingText = {
+                                Text(
+                                    stringResource(
+                                        if (scheduledMonthDaysText.isNotBlank() && monthDays.isEmpty()) {
+                                            R.string.planner_month_days_error
+                                        } else {
+                                            R.string.planner_month_days_description
+                                        },
+                                    ),
+                                )
+                            },
                             isError = scheduledMonthDaysText.isNotBlank() && monthDays.isEmpty(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

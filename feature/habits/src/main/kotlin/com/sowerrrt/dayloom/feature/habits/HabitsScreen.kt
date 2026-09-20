@@ -301,7 +301,10 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                     },
                     modifier = Modifier.testTag("confirm_archive_habit"),
                 ) {
-                    Text(stringResource(R.string.habits_archive_confirm))
+                    Text(
+                        stringResource(R.string.habits_archive_confirm),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             },
             dismissButton = {
@@ -1466,6 +1469,8 @@ private fun HabitEditorDialog(
     var targetUnit by remember(habit?.id) { mutableStateOf(habit?.targetUnit.orEmpty()) }
     val context = LocalContext.current
     val locale = currentLocale()
+    val intervalDays = repeatEveryDaysText.toIntOrNull()
+    val monthDays = parseMonthDays(scheduledMonthDaysText)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -1480,6 +1485,14 @@ private fun HabitEditorDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
             ) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { value -> title = value.take(MAX_TITLE_LENGTH) },
+                    modifier = Modifier.fillMaxWidth().testTag("habit_name_input"),
+                    label = { Text(stringResource(R.string.habits_name_label)) },
+                    supportingText = { Text("${title.length}/$MAX_TITLE_LENGTH") },
+                    singleLine = true,
+                )
                 if (presets.isNotEmpty()) {
                     Text(stringResource(R.string.habits_presets), style = MaterialTheme.typography.titleMedium)
                     FlowRow(
@@ -1518,14 +1531,6 @@ private fun HabitEditorDialog(
                         }
                     }
                 }
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { value -> title = value.take(MAX_TITLE_LENGTH) },
-                    modifier = Modifier.fillMaxWidth().testTag("habit_name_input"),
-                    label = { Text(stringResource(R.string.habits_name_label)) },
-                    supportingText = { Text("${title.length}/$MAX_TITLE_LENGTH") },
-                    singleLine = true,
-                )
                 TextButton(
                     onClick = {
                         onSavePreset(
@@ -1626,7 +1631,23 @@ private fun HabitEditorDialog(
                             value = repeatEveryDaysText,
                             onValueChange = { repeatEveryDaysText = it.filter(Char::isDigit).take(4) },
                             label = { Text(stringResource(R.string.habits_interval_days)) },
-                            supportingText = { Text(stringResource(R.string.habits_interval_description)) },
+                            supportingText = {
+                                Text(
+                                    stringResource(
+                                        if (
+                                            repeatEveryDaysText.isNotBlank() &&
+                                            (intervalDays == null || intervalDays !in 1..MAX_REPEAT_INTERVAL_DAYS)
+                                        ) {
+                                            R.string.habits_interval_error
+                                        } else {
+                                            R.string.habits_interval_description
+                                        },
+                                    ),
+                                )
+                            },
+                            isError =
+                                repeatEveryDaysText.isNotBlank() &&
+                                    (intervalDays == null || intervalDays !in 1..MAX_REPEAT_INTERVAL_DAYS),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth().testTag("habit_repeat_interval"),
@@ -1642,7 +1663,18 @@ private fun HabitEditorDialog(
                                     )
                             },
                             label = { Text(stringResource(R.string.habits_month_days)) },
-                            supportingText = { Text(stringResource(R.string.habits_month_days_description)) },
+                            supportingText = {
+                                Text(
+                                    stringResource(
+                                        if (scheduledMonthDaysText.isNotBlank() && monthDays.isEmpty()) {
+                                            R.string.habits_month_days_error
+                                        } else {
+                                            R.string.habits_month_days_description
+                                        },
+                                    ),
+                                )
+                            },
+                            isError = scheduledMonthDaysText.isNotBlank() && monthDays.isEmpty(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth().testTag("habit_month_days"),
@@ -1843,11 +1875,12 @@ private fun scheduleIsValid(
         HabitScheduleMode.MONTH_DAYS -> parseMonthDays(scheduledMonthDaysText).isNotEmpty()
     }
 
-private fun parseMonthDays(value: String): Set<Int> =
-    value
-        .split(Regex("[,;\\s]+"))
-        .mapNotNull(String::toIntOrNull)
-        .filterTo(sortedSetOf()) { it in 1..31 }
+private fun parseMonthDays(value: String): Set<Int> {
+    val parts = value.trim().split(Regex("[,;\\s]+"))
+    if (parts.isEmpty() || parts.any(String::isBlank)) return emptySet()
+    val days = parts.mapNotNull(String::toIntOrNull)
+    return if (days.size == parts.size && days.all { it in 1..31 }) days.toSortedSet() else emptySet()
+}
 
 private enum class HabitScheduleMode {
     WEEKDAYS,

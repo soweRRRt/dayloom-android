@@ -21,9 +21,11 @@
     <string name="habits_schedule_month_days">По числам месяца</string>
     <string name="habits_interval_days">Интервал в днях</string>
     <string name="habits_interval_description">Первое выполнение — сегодня. Введите число от 1 до 3650.</string>
+    <string name="habits_interval_error">Введите целое число от 1 до 3650.</string>
     <string name="habits_every_n_days">Каждые %1$d дней</string>
     <string name="habits_month_days">Числа месяца</string>
     <string name="habits_month_days_description">Введите одно или несколько чисел от 1 до 31 через запятую. Несуществующие даты пропускаются.</string>
+    <string name="habits_month_days_error">Каждое число должно быть от 1 до 31.</string>
     <string name="habits_on_month_days">Числа месяца: %1$s</string>
     <string name="habits_every_day">Каждый день</string>
     <string name="habits_reminder">Точное время (необязательно)</string>

@@ -27,7 +27,9 @@
     <string name="wishlist_edit_title">Edit wish</string>
     <string name="wishlist_name_label">What do you wish for?</string>
     <string name="wishlist_target_label">Target amount</string>
+    <string name="wishlist_target_error">Enter an amount greater than zero.</string>
     <string name="wishlist_currency_label">Currency code</string>
+    <string name="wishlist_currency_error">Use 1–8 letters or digits.</string>
     <string name="wishlist_priority_label">Priority</string>
     <string name="wishlist_priority_low">Someday</string>
     <string name="wishlist_priority_medium">Important</string>
@@ -35,6 +37,7 @@
     <string name="wishlist_note_label">Note (optional)</string>
     <string name="wishlist_purchase_url_label">Purchase link (optional)</string>
     <string name="wishlist_purchase_url_description">Use a full http:// or https:// link.</string>
+    <string name="wishlist_purchase_url_error">The link must start with http:// or https://.</string>
     <string name="wishlist_open_purchase">Open product page</string>
     <string name="wishlist_save">Save</string>
     <string name="wishlist_cancel">Cancel</string>

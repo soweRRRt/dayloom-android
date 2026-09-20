@@ -21,9 +21,11 @@
     <string name="habits_schedule_month_days">Days of month</string>
     <string name="habits_interval_days">Interval in days</string>
     <string name="habits_interval_description">The first occurrence is today. Enter a number from 1 to 3650.</string>
+    <string name="habits_interval_error">Enter a whole number from 1 to 3650.</string>
     <string name="habits_every_n_days">Every %1$d days</string>
     <string name="habits_month_days">Month days</string>
     <string name="habits_month_days_description">Enter one or more numbers from 1 to 31, separated by commas. Missing dates are skipped.</string>
+    <string name="habits_month_days_error">Every date must be a number from 1 to 31.</string>
     <string name="habits_on_month_days">On day %1$s of each month</string>
     <string name="habits_every_day">Every day</string>
     <string name="habits_reminder">Exact time (optional)</string>

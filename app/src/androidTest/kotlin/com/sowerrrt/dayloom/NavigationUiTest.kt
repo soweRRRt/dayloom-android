@@ -309,6 +309,7 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("create_list").performClick()
         composeRule.onNodeWithTag("list_name_input").performTextInput(listTitle)
         composeRule.onNodeWithTag("list_kind_shopping").performClick()
+        composeRule.onNodeWithTag("list_kind_shopping").assertIsSelected()
         composeRule.onNodeWithTag("custom_list_kind_input").performScrollTo().performTextInput("Errands")
         composeRule.onNodeWithTag("save_list").performClick()
         composeRule.onNodeWithTag("list_details").assertExists()
@@ -339,7 +340,9 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("wish_title_input").performTextInput(title)
         composeRule.onNodeWithTag("wish_target_input").performTextInput("2500")
         composeRule.onNodeWithTag("wish_currency_usd").performClick()
+        composeRule.onNodeWithTag("wish_currency_usd").assertIsSelected()
         composeRule.onNodeWithTag("wish_priority_high").performScrollTo().performClick()
+        composeRule.onNodeWithTag("wish_priority_high").assertIsSelected()
         composeRule
             .onNodeWithTag("wish_purchase_url_input")
             .performScrollTo()

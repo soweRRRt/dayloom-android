@@ -27,7 +27,9 @@
     <string name="wishlist_edit_title">Изменить желание</string>
     <string name="wishlist_name_label">О чём вы мечтаете?</string>
     <string name="wishlist_target_label">Стоимость цели</string>
+    <string name="wishlist_target_error">Введите сумму больше нуля.</string>
     <string name="wishlist_currency_label">Код валюты</string>
+    <string name="wishlist_currency_error">Используйте от 1 до 8 букв или цифр.</string>
     <string name="wishlist_priority_label">Приоритет</string>
     <string name="wishlist_priority_low">Когда-нибудь</string>
     <string name="wishlist_priority_medium">Важно</string>
@@ -35,6 +37,7 @@
     <string name="wishlist_note_label">Заметка (необязательно)</string>
     <string name="wishlist_purchase_url_label">Ссылка на покупку (необязательно)</string>
     <string name="wishlist_purchase_url_description">Укажите полную ссылку с http:// или https://.</string>
+    <string name="wishlist_purchase_url_error">Ссылка должна начинаться с http:// или https://.</string>
     <string name="wishlist_open_purchase">Открыть страницу товара</string>
     <string name="wishlist_save">Сохранить</string>
     <string name="wishlist_cancel">Отмена</string>

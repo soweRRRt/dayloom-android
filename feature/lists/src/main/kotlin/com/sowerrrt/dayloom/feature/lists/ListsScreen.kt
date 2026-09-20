@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -520,7 +521,8 @@ private fun ListEditorDialog(
                 Text(stringResource(R.string.lists_kind_label), style = MaterialTheme.typography.titleMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
                     ListKind.entries.forEach { candidate ->
-                        AssistChip(
+                        FilterChip(
+                            selected = kind == candidate && customKind.isBlank(),
                             onClick = {
                                 kind = candidate
                                 customKind = ""
@@ -556,7 +558,8 @@ private fun ListEditorDialog(
                 if (customKinds.isNotEmpty()) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs)) {
                         customKinds.sorted().forEach { savedKind ->
-                            AssistChip(
+                            FilterChip(
+                                selected = customKind == savedKind,
                                 onClick = {
                                     customKind = savedKind
                                     kind = ListKind.GENERAL
@@ -603,6 +606,13 @@ private fun ItemEditorDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
             ) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it.take(MAX_ITEM_TITLE_LENGTH) },
+                    modifier = Modifier.fillMaxWidth().testTag("list_item_name_input"),
+                    label = { Text(stringResource(R.string.lists_item_name_label)) },
+                    singleLine = true,
+                )
                 if (presets.isNotEmpty()) {
                     Text(stringResource(R.string.lists_item_presets), style = MaterialTheme.typography.titleMedium)
                     FlowRow(
@@ -631,13 +641,6 @@ private fun ItemEditorDialog(
                         }
                     }
                 }
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it.take(MAX_ITEM_TITLE_LENGTH) },
-                    modifier = Modifier.fillMaxWidth().testTag("list_item_name_input"),
-                    label = { Text(stringResource(R.string.lists_item_name_label)) },
-                    singleLine = true,
-                )
                 TextButton(
                     onClick = { onSavePreset(title, quantity, note) },
                     enabled = title.isNotBlank(),
@@ -688,7 +691,10 @@ private fun DeleteDialog(
         text = { Text(description) },
         confirmButton = {
             TextButton(onClick = onConfirm, modifier = Modifier.testTag("confirm_delete")) {
-                Text(stringResource(R.string.lists_delete))
+                Text(
+                    stringResource(R.string.lists_delete),
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.lists_cancel)) } },
