@@ -107,6 +107,7 @@
     <string name="settings_example_unit_glasses">стаканов</string>
     <string name="settings_example_unit_minutes">минут</string>
     <string name="settings_example_unit_steps">шагов</string>
+    <string name="settings_example_unit_kg">кг</string>
     <string name="settings_example_plan_review">Разобрать задачи на день</string>
     <string name="settings_example_plan_groceries">Купить продукты</string>
     <string name="settings_example_plan_call">Позвонить родителям</string>
@@ -114,6 +115,7 @@
     <string name="settings_example_plan_weekly_review">Еженедельный разбор планов</string>
     <string name="settings_example_plan_evening_review">Подготовить план на завтра</string>
     <string name="settings_example_plan_monthly_budget">Проверить бюджет месяца</string>
+    <string name="settings_example_plan_weigh_in">Еженедельное взвешивание</string>
     <string name="settings_example_plan_groceries_note">Молоко, овощи и продукты для ужина</string>
     <string name="settings_example_plan_dentist_note">Взять страховой полис и прийти на 10 минут раньше</string>
     <string name="settings_example_list_groceries">Продукты на неделю</string>

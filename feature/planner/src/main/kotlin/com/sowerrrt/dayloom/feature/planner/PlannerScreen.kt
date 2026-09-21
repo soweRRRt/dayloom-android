@@ -17,7 +17,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,15 +52,14 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.NotificationsActive
-import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.ShowChart
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -81,16 +80,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -106,6 +105,7 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomHorizontalRail
 import com.sowerrrt.dayloom.core.designsystem.DayloomMotion
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
+import com.sowerrrt.dayloom.core.designsystem.DayloomSwipeToArchive
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
 import com.sowerrrt.dayloom.core.model.Habit
@@ -117,12 +117,25 @@ import com.sowerrrt.dayloom.core.model.isCompletedOn
 import com.sowerrrt.dayloom.core.model.occursOn
 import com.sowerrrt.dayloom.core.ui.ErrorState
 import com.sowerrrt.dayloom.core.ui.LoadingState
-import com.sowerrrt.dayloom.core.ui.loadSampledImage
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlin.math.roundToInt
+
+private data class PlanEditorValue(
+    val title: String,
+    val note: String,
+    val reminderMinutesOfDay: Int?,
+    val repeat: PlanRepeat,
+    val reminderEnabled: Boolean,
+    val scheduledWeekdays: Set<Weekday>,
+    val repeatEveryDays: Int?,
+    val scheduledMonthDays: Set<Int>,
+    val reminderOffsetsMinutes: Set<Int>,
+    val measurementUnit: String,
+)
 
 @Composable
 fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
@@ -131,16 +144,11 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
     var showPlanDialog by rememberSaveable { mutableStateOf(false) }
     var editingPlan by remember { mutableStateOf<PlanItem?>(null) }
     var pendingArchive by remember { mutableStateOf<PlanItem?>(null) }
-    var imageTarget by remember { mutableStateOf<PlanItem?>(null) }
+    var measurementTarget by remember { mutableStateOf<Pair<PlanItem, Long>?>(null) }
+    var statisticsTarget by remember { mutableStateOf<PlanItem?>(null) }
     val context = LocalContext.current
     val notificationPermissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    val imagePicker =
-        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-            val target = imageTarget
-            if (uri != null && target != null) viewModel.setPlanImage(target.id, uri)
-            imageTarget = null
-        }
 
     Column(Modifier.fillMaxSize().testTag("planner_screen")) {
         DayloomTopBar(stringResource(R.string.planner_title))
@@ -162,7 +170,13 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                     onNextMonth = viewModel::showNextMonth,
                     onToday = viewModel::showToday,
                     onToggleHabit = viewModel::toggleHabit,
-                    onTogglePlan = viewModel::togglePlan,
+                    onTogglePlan = { plan, epochDay ->
+                        if (plan.measurementUnit.isBlank()) {
+                            viewModel.togglePlan(plan.id, epochDay)
+                        } else {
+                            measurementTarget = plan to epochDay
+                        }
+                    },
                     onMovePlan = viewModel::movePlan,
                     onCreatePlan = {
                         editingPlan = null
@@ -173,11 +187,9 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                         showPlanDialog = true
                     },
                     onArchivePlan = { pendingArchive = it },
+                    onSwipeArchivePlan = { viewModel.archivePlan(it.id) },
                     onRestorePlan = viewModel::restorePlan,
-                    onChoosePlanImage = { plan ->
-                        imageTarget = plan
-                        imagePicker.launch("image/*")
-                    },
+                    onOpenStatistics = { statisticsTarget = it },
                     onUsePreset = { preset ->
                         if (
                             preset.reminderMinutesOfDay != null &&
@@ -200,30 +212,26 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
             plan = editingPlan,
             selectedEpochDay = state.selectedEpochDay,
             onDismiss = { showPlanDialog = false },
-            isChangingImage = state.isChangingImage,
-            hasImageError = state.hasImageError,
-            onChooseImage = { plan ->
-                imageTarget = plan
-                imagePicker.launch("image/*")
-            },
-            onRemoveImage = viewModel::removePlanImage,
             presets = state.presets,
-            onSavePreset = viewModel::savePreset,
+            onSavePreset = { value ->
+                viewModel.savePreset(
+                    title = value.title,
+                    reminderMinutesOfDay = value.reminderMinutesOfDay,
+                    repeat = value.repeat,
+                    reminderEnabled = value.reminderEnabled,
+                    scheduledWeekdays = value.scheduledWeekdays,
+                    repeatEveryDays = value.repeatEveryDays,
+                    scheduledMonthDays = value.scheduledMonthDays,
+                    reminderOffsetsMinutes = value.reminderOffsetsMinutes,
+                    measurementUnit = value.measurementUnit,
+                )
+            },
             onRemovePreset = viewModel::removePreset,
-            onSave = {
-                title,
-                note,
-                reminderMinutesOfDay,
-                repeat,
-                reminderEnabled,
-                scheduledWeekdays,
-                repeatEveryDays,
-                scheduledMonthDays,
-                ->
+            onSave = { value ->
                 val plan = editingPlan
                 if (
-                    reminderMinutesOfDay != null &&
-                    reminderEnabled &&
+                    value.reminderMinutesOfDay != null &&
+                    value.reminderEnabled &&
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
                     PackageManager.PERMISSION_GRANTED
@@ -232,26 +240,30 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
                 }
                 if (plan == null) {
                     viewModel.createPlan(
-                        title,
-                        reminderMinutesOfDay,
-                        repeat,
-                        reminderEnabled,
-                        scheduledWeekdays,
-                        repeatEveryDays,
-                        scheduledMonthDays,
-                        note,
+                        title = value.title,
+                        reminderMinutesOfDay = value.reminderMinutesOfDay,
+                        repeat = value.repeat,
+                        reminderEnabled = value.reminderEnabled,
+                        scheduledWeekdays = value.scheduledWeekdays,
+                        repeatEveryDays = value.repeatEveryDays,
+                        scheduledMonthDays = value.scheduledMonthDays,
+                        note = value.note,
+                        reminderOffsetsMinutes = value.reminderOffsetsMinutes,
+                        measurementUnit = value.measurementUnit,
                     )
                 } else {
                     viewModel.updatePlan(
-                        plan.id,
-                        title,
-                        reminderMinutesOfDay,
-                        repeat,
-                        reminderEnabled,
-                        scheduledWeekdays,
-                        repeatEveryDays,
-                        scheduledMonthDays,
-                        note,
+                        id = plan.id,
+                        title = value.title,
+                        reminderMinutesOfDay = value.reminderMinutesOfDay,
+                        repeat = value.repeat,
+                        reminderEnabled = value.reminderEnabled,
+                        scheduledWeekdays = value.scheduledWeekdays,
+                        repeatEveryDays = value.repeatEveryDays,
+                        scheduledMonthDays = value.scheduledMonthDays,
+                        note = value.note,
+                        reminderOffsetsMinutes = value.reminderOffsetsMinutes,
+                        measurementUnit = value.measurementUnit,
                     )
                 }
                 showPlanDialog = false
@@ -284,6 +296,22 @@ fun PlannerScreen(viewModel: PlannerViewModel = hiltViewModel()) {
             },
         )
     }
+
+    measurementTarget?.let { (plan, epochDay) ->
+        MeasurementEntryDialog(
+            plan = plan,
+            epochDay = epochDay,
+            onDismiss = { measurementTarget = null },
+            onSave = { value ->
+                viewModel.recordMeasurement(plan.id, epochDay, value)
+                measurementTarget = null
+            },
+        )
+    }
+
+    statisticsTarget?.let { plan ->
+        MeasurementStatisticsDialog(plan = plan, onDismiss = { statisticsTarget = null })
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -295,13 +323,14 @@ private fun PlannerContent(
     onNextMonth: () -> Unit,
     onToday: () -> Unit,
     onToggleHabit: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
-    onTogglePlan: (com.sowerrrt.dayloom.core.model.EntityId, Long) -> Unit,
+    onTogglePlan: (PlanItem, Long) -> Unit,
     onMovePlan: (com.sowerrrt.dayloom.core.model.EntityId, Long) -> Unit,
     onCreatePlan: () -> Unit,
     onEditPlan: (PlanItem) -> Unit,
     onArchivePlan: (PlanItem) -> Unit,
+    onSwipeArchivePlan: (PlanItem) -> Unit,
     onRestorePlan: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
-    onChoosePlanImage: (PlanItem) -> Unit,
+    onOpenStatistics: (PlanItem) -> Unit,
     onUsePreset: (PlanPreset) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -486,7 +515,6 @@ private fun PlannerContent(
                     Box(Modifier.animateItem()) {
                         ArchivedPlanRow(
                             plan = plan,
-                            imagePath = state.planImagePaths[plan.id],
                             onRestore = { onRestorePlan(plan.id) },
                         )
                     }
@@ -496,18 +524,22 @@ private fun PlannerContent(
                     val displayEpochDay =
                         plan.displayEpochDay(planDateFilter, state.selectedEpochDay, state.todayEpochDay)
                     Box(Modifier.animateItem()) {
-                        PlanRow(
-                            plan = plan,
-                            completed = plan.isCompletedOn(displayEpochDay),
-                            displayEpochDay = displayEpochDay,
-                            onToggle = { onTogglePlan(plan.id, displayEpochDay) },
-                            onMoveTomorrow = { onMovePlan(plan.id, 1) },
-                            onMoveNextWeek = { onMovePlan(plan.id, 7) },
-                            onEdit = { onEditPlan(plan) },
-                            onArchive = { onArchivePlan(plan) },
-                            onChooseImage = { onChoosePlanImage(plan) },
-                            imagePath = state.planImagePaths[plan.id],
-                        )
+                        DayloomSwipeToArchive(
+                            archiveLabel = stringResource(R.string.planner_archive_confirm),
+                            onArchive = { onSwipeArchivePlan(plan) },
+                        ) {
+                            PlanRow(
+                                plan = plan,
+                                completed = plan.isCompletedOn(displayEpochDay),
+                                displayEpochDay = displayEpochDay,
+                                onToggle = { onTogglePlan(plan, displayEpochDay) },
+                                onMoveTomorrow = { onMovePlan(plan.id, 1) },
+                                onMoveNextWeek = { onMovePlan(plan.id, 7) },
+                                onEdit = { onEditPlan(plan) },
+                                onArchive = { onArchivePlan(plan) },
+                                onOpenStatistics = { onOpenStatistics(plan) },
+                            )
+                        }
                     }
                 }
             }
@@ -1127,18 +1159,10 @@ private fun CalendarHabitRow(
 @Composable
 private fun ArchivedPlanRow(
     plan: PlanItem,
-    imagePath: String?,
     onRestore: () -> Unit,
 ) {
     DayloomCard(Modifier.fillMaxWidth().testTag("archived_plan_${plan.title}")) {
         Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
-            if (imagePath != null) {
-                LocalPlanImage(
-                    imagePath = imagePath,
-                    title = plan.title,
-                    modifier = Modifier.fillMaxWidth().height(84.dp),
-                )
-            }
             Text(plan.title, style = MaterialTheme.typography.titleMedium)
             if (plan.note.isNotBlank()) {
                 Text(
@@ -1174,29 +1198,16 @@ private fun PlanRow(
     plan: PlanItem,
     completed: Boolean,
     displayEpochDay: Long,
-    imagePath: String?,
     onToggle: () -> Unit,
     onMoveTomorrow: () -> Unit,
     onMoveNextWeek: () -> Unit,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
-    onChooseImage: () -> Unit,
+    onOpenStatistics: () -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     DayloomCard(Modifier.fillMaxWidth().testTag("plan_${plan.title}")) {
         Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
-            if (imagePath != null) {
-                LocalPlanImage(
-                    imagePath = imagePath,
-                    title = plan.title,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(96.dp)
-                            .clickable(onClick = onChooseImage)
-                            .testTag("plan_image_preview_${plan.title}"),
-                )
-            }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
@@ -1272,22 +1283,39 @@ private fun PlanRow(
                             modifier = Modifier.testTag("plan_repeat_value_${plan.title}"),
                         )
                     }
-                }
-                IconButton(
-                    onClick = onChooseImage,
-                    modifier = Modifier.testTag("plan_image_action_${plan.title}"),
-                ) {
-                    Icon(
-                        Icons.Rounded.PhotoLibrary,
-                        contentDescription =
-                            stringResource(
-                                if (plan.image == null) {
-                                    R.string.planner_add_image
+                    if (plan.measurementUnit.isNotBlank()) {
+                        val value = plan.measurementValuesByEpochDay[displayEpochDay]
+                        Text(
+                            text =
+                                if (value == null) {
+                                    stringResource(R.string.planner_measurement_waiting, plan.measurementUnit)
                                 } else {
-                                    R.string.planner_change_image
+                                    stringResource(
+                                        R.string.planner_measurement_value,
+                                        formatMeasurement(value),
+                                        plan.measurementUnit,
+                                    )
                                 },
-                            ),
-                    )
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier =
+                                Modifier
+                                    .testTag("plan_measurement_${plan.title}")
+                                    .clickable(onClick = onToggle),
+                        )
+                    }
+                }
+                if (plan.measurementUnit.isNotBlank()) {
+                    IconButton(
+                        onClick = onOpenStatistics,
+                        modifier = Modifier.testTag("plan_measurement_chart_${plan.title}"),
+                    ) {
+                        Icon(
+                            Icons.Rounded.ShowChart,
+                            contentDescription = stringResource(R.string.planner_statistics),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
                 Box {
                     IconButton(
@@ -1308,6 +1336,17 @@ private fun PlanRow(
                                 onEdit()
                             },
                         )
+                        if (plan.measurementUnit.isNotBlank()) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.planner_statistics)) },
+                                leadingIcon = { Icon(Icons.Rounded.ShowChart, contentDescription = null) },
+                                onClick = {
+                                    menuExpanded = false
+                                    onOpenStatistics()
+                                },
+                                modifier = Modifier.testTag("plan_measurement_stats_${plan.title}"),
+                            )
+                        }
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.planner_move_tomorrow)) },
                             onClick = {
@@ -1320,24 +1359,6 @@ private fun PlanRow(
                             onClick = {
                                 menuExpanded = false
                                 onMoveNextWeek()
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    stringResource(
-                                        if (plan.image == null) {
-                                            R.string.planner_add_image
-                                        } else {
-                                            R.string.planner_change_image
-                                        },
-                                    ),
-                                )
-                            },
-                            leadingIcon = { Icon(Icons.Rounded.PhotoLibrary, contentDescription = null) },
-                            onClick = {
-                                menuExpanded = false
-                                onChooseImage()
                             },
                         )
                         DropdownMenuItem(
@@ -1356,45 +1377,26 @@ private fun PlanRow(
     }
 }
 
-@Composable
-private fun LocalPlanImage(
-    imagePath: String,
-    title: String,
-    modifier: Modifier = Modifier,
-) {
-    val bitmap by
-        produceState<androidx.compose.ui.graphics.ImageBitmap?>(initialValue = null, key1 = imagePath) {
-            value = loadSampledImage(imagePath)
-        }
-    bitmap?.let { image ->
-        Image(
-            bitmap = image,
-            contentDescription = stringResource(R.string.planner_image_description, title),
-            modifier = modifier.clip(MaterialTheme.shapes.medium),
-            contentScale = ContentScale.Crop,
-        )
-    }
-}
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PlanEditorDialog(
     plan: PlanItem?,
     selectedEpochDay: Long,
     onDismiss: () -> Unit,
-    isChangingImage: Boolean,
-    hasImageError: Boolean,
-    onChooseImage: (PlanItem) -> Unit,
-    onRemoveImage: (com.sowerrrt.dayloom.core.model.EntityId) -> Unit,
     presets: List<PlanPreset>,
-    onSavePreset: (String, Int?, PlanRepeat, Boolean, Set<Weekday>, Int?, Set<Int>) -> Unit,
+    onSavePreset: (PlanEditorValue) -> Unit,
     onRemovePreset: (PlanPreset) -> Unit,
-    onSave: (String, String, Int?, PlanRepeat, Boolean, Set<Weekday>, Int?, Set<Int>) -> Unit,
+    onSave: (PlanEditorValue) -> Unit,
 ) {
     var title by remember(plan?.id) { mutableStateOf(plan?.title.orEmpty()) }
     var note by remember(plan?.id) { mutableStateOf(plan?.note.orEmpty()) }
     var reminderMinutesOfDay by remember(plan?.id) { mutableStateOf(plan?.reminderMinutesOfDay) }
     var reminderEnabled by remember(plan?.id) { mutableStateOf(plan?.reminderEnabled ?: false) }
+    var reminderOffsetsMinutes by remember(plan?.id) {
+        mutableStateOf(plan?.reminderOffsetsMinutes?.ifEmpty { setOf(0) } ?: setOf(0))
+    }
+    var customReminderOffset by remember(plan?.id) { mutableStateOf("") }
+    var measurementUnit by remember(plan?.id) { mutableStateOf(plan?.measurementUnit.orEmpty()) }
     var selectedDays by remember(plan?.id) {
         mutableStateOf(initialPlanWeekdays(plan, selectedEpochDay))
     }
@@ -1467,6 +1469,8 @@ private fun PlanEditorDialog(
                                     title = preset.title
                                     reminderMinutesOfDay = preset.reminderMinutesOfDay
                                     reminderEnabled = preset.reminderEnabled && preset.reminderMinutesOfDay != null
+                                    reminderOffsetsMinutes = preset.reminderOffsetsMinutes.ifEmpty { setOf(0) }
+                                    measurementUnit = preset.measurementUnit
                                     selectedDays = initialPresetWeekdays(preset, selectedEpochDay)
                                     scheduleMode = initialPresetScheduleMode(preset)
                                     repeatEveryDaysText = preset.repeatEveryDays?.toString().orEmpty()
@@ -1561,6 +1565,67 @@ private fun PlanEditorDialog(
                         modifier = Modifier.testTag("plan_notification_toggle"),
                     )
                 }
+                if (reminderEnabled && reminderMinutesOfDay != null) {
+                    Text(
+                        stringResource(R.string.planner_reminder_offsets),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        stringResource(R.string.planner_reminder_offsets_description),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    ) {
+                        (DEFAULT_REMINDER_OFFSETS + reminderOffsetsMinutes).distinct().sorted().forEach { offset ->
+                            FilterChip(
+                                selected = offset in reminderOffsetsMinutes,
+                                onClick = {
+                                    reminderOffsetsMinutes =
+                                        if (offset in reminderOffsetsMinutes) {
+                                            if (reminderOffsetsMinutes.size > 1) {
+                                                reminderOffsetsMinutes - offset
+                                            } else {
+                                                reminderOffsetsMinutes
+                                            }
+                                        } else {
+                                            reminderOffsetsMinutes + offset
+                                        }
+                                },
+                                label = { Text(reminderOffsetLabel(offset)) },
+                                modifier = Modifier.testTag("plan_reminder_offset_$offset"),
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    ) {
+                        OutlinedTextField(
+                            value = customReminderOffset,
+                            onValueChange = { customReminderOffset = it.filter(Char::isDigit).take(5) },
+                            label = { Text(stringResource(R.string.planner_custom_offset)) },
+                            suffix = { Text(stringResource(R.string.planner_minutes_short)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f).testTag("plan_custom_reminder_offset"),
+                        )
+                        TextButton(
+                            onClick = {
+                                customReminderOffset.toIntOrNull()?.let { offset ->
+                                    reminderOffsetsMinutes = reminderOffsetsMinutes + offset
+                                    customReminderOffset = ""
+                                }
+                            },
+                            enabled = customReminderOffset.toIntOrNull() in 1..MAX_REMINDER_OFFSET_MINUTES,
+                        ) {
+                            Text(stringResource(R.string.planner_add_offset))
+                        }
+                    }
+                }
                 Text(stringResource(R.string.planner_repeat), style = MaterialTheme.typography.titleMedium)
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
@@ -1654,16 +1719,35 @@ private fun PlanEditorDialog(
                         )
                     }
                 }
+                Text(stringResource(R.string.planner_measurement_title), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.planner_measurement_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = measurementUnit,
+                    onValueChange = { measurementUnit = it.take(MAX_MEASUREMENT_UNIT_LENGTH) },
+                    label = { Text(stringResource(R.string.planner_measurement_unit)) },
+                    placeholder = { Text(stringResource(R.string.planner_measurement_unit_example)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("plan_measurement_unit"),
+                )
                 TextButton(
                     onClick = {
                         onSavePreset(
-                            title,
-                            reminderMinutesOfDay,
-                            PlanRepeat.NONE,
-                            reminderEnabled,
-                            savedWeekdays,
-                            savedIntervalDays,
-                            savedMonthDays,
+                            PlanEditorValue(
+                                title = title,
+                                note = note,
+                                reminderMinutesOfDay = reminderMinutesOfDay,
+                                repeat = PlanRepeat.NONE,
+                                reminderEnabled = reminderEnabled,
+                                scheduledWeekdays = savedWeekdays,
+                                repeatEveryDays = savedIntervalDays,
+                                scheduledMonthDays = savedMonthDays,
+                                reminderOffsetsMinutes = reminderOffsetsMinutes,
+                                measurementUnit = measurementUnit,
+                            ),
                         )
                     },
                     enabled = title.isNotBlank() && scheduleIsValid,
@@ -1671,66 +1755,24 @@ private fun PlanEditorDialog(
                 ) {
                     Text(stringResource(R.string.planner_save_preset))
                 }
-                if (plan != null) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        OutlinedButton(
-                            onClick = { onChooseImage(plan) },
-                            enabled = !isChangingImage,
-                            modifier = Modifier.weight(1f).testTag("edit_plan_image"),
-                        ) {
-                            Icon(Icons.Rounded.PhotoLibrary, contentDescription = null)
-                            Spacer(Modifier.size(DayloomSpacing.xs))
-                            Text(
-                                stringResource(
-                                    if (plan.image ==
-                                        null
-                                    ) {
-                                        R.string.planner_add_image
-                                    } else {
-                                        R.string.planner_change_image
-                                    },
-                                ),
-                            )
-                        }
-                        if (plan.image != null) {
-                            IconButton(
-                                onClick = { onRemoveImage(plan.id) },
-                                enabled = !isChangingImage,
-                                modifier = Modifier.testTag("remove_plan_image"),
-                            ) {
-                                Icon(
-                                    Icons.Rounded.DeleteOutline,
-                                    contentDescription = stringResource(R.string.planner_remove_image),
-                                )
-                            }
-                        }
-                    }
-                    if (hasImageError) {
-                        Text(
-                            stringResource(R.string.planner_image_error),
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.testTag("plan_image_error"),
-                        )
-                    }
-                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
                     onSave(
-                        title,
-                        note,
-                        reminderMinutesOfDay,
-                        PlanRepeat.NONE,
-                        reminderEnabled,
-                        savedWeekdays,
-                        savedIntervalDays,
-                        savedMonthDays,
+                        PlanEditorValue(
+                            title = title,
+                            note = note,
+                            reminderMinutesOfDay = reminderMinutesOfDay,
+                            repeat = PlanRepeat.NONE,
+                            reminderEnabled = reminderEnabled,
+                            scheduledWeekdays = savedWeekdays,
+                            repeatEveryDays = savedIntervalDays,
+                            scheduledMonthDays = savedMonthDays,
+                            reminderOffsetsMinutes = reminderOffsetsMinutes,
+                            measurementUnit = measurementUnit,
+                        ),
                     )
                 },
                 enabled = title.isNotBlank() && scheduleIsValid,
@@ -1743,6 +1785,149 @@ private fun PlanEditorDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.planner_cancel)) }
         },
     )
+}
+
+@Composable
+private fun MeasurementEntryDialog(
+    plan: PlanItem,
+    epochDay: Long,
+    onDismiss: () -> Unit,
+    onSave: (Double?) -> Unit,
+) {
+    val existingValue = plan.measurementValuesByEpochDay[epochDay]
+    var value by remember(plan.id, epochDay) {
+        mutableStateOf(existingValue?.let(::formatMeasurement).orEmpty())
+    }
+    val parsedValue = value.replace(',', '.').toDoubleOrNull()?.takeIf(Double::isFinite)
+    val dateLabel =
+        LocalDate.ofEpochDay(epochDay).format(
+            DateTimeFormatter.ofPattern("d MMMM yyyy", currentLocale()),
+        )
+
+    AlertDialog(
+        modifier = Modifier.dayloomDialogMotion(),
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.planner_measurement_entry_title, plan.title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+                Text(dateLabel, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { input ->
+                        value = input.filter { it.isDigit() || it == ',' || it == '.' || it == '-' }.take(24)
+                    },
+                    label = { Text(stringResource(R.string.planner_measurement_value_label)) },
+                    suffix = { Text(plan.measurementUnit) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    isError = value.isNotBlank() && parsedValue == null,
+                    supportingText = {
+                        if (value.isNotBlank() && parsedValue == null) {
+                            Text(stringResource(R.string.planner_measurement_value_error))
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("plan_measurement_value"),
+                )
+                if (existingValue != null) {
+                    TextButton(
+                        onClick = { onSave(null) },
+                        modifier = Modifier.testTag("remove_plan_measurement"),
+                    ) {
+                        Text(stringResource(R.string.planner_measurement_remove))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(parsedValue) },
+                enabled = parsedValue != null,
+                modifier = Modifier.testTag("save_plan_measurement"),
+            ) {
+                Text(stringResource(R.string.planner_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.planner_cancel)) }
+        },
+    )
+}
+
+@Composable
+private fun MeasurementStatisticsDialog(
+    plan: PlanItem,
+    onDismiss: () -> Unit,
+) {
+    val values = plan.measurementValuesByEpochDay.toList().sortedBy { it.first }
+    AlertDialog(
+        modifier = Modifier.dayloomDialogMotion(),
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.planner_statistics_title, plan.title)) },
+        text = {
+            if (values.isEmpty()) {
+                Text(stringResource(R.string.planner_statistics_empty))
+            } else {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(DayloomSpacing.md),
+                ) {
+                    MeasurementChart(values.map { it.second })
+                    values.asReversed().take(20).forEach { (epochDay, value) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                LocalDate.ofEpochDay(epochDay).format(
+                                    DateTimeFormatter.ofPattern("d MMM yyyy", currentLocale()),
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                "${formatMeasurement(value)} ${plan.measurementUnit}",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.secondary,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.planner_close)) }
+        },
+    )
+}
+
+@Composable
+private fun MeasurementChart(values: List<Double>) {
+    val lineColor = MaterialTheme.colorScheme.secondary
+    val gridColor = MaterialTheme.colorScheme.outlineVariant
+    val minimum = values.minOrNull() ?: 0.0
+    val maximum = values.maxOrNull() ?: minimum
+    val range = (maximum - minimum).takeIf { it > 0.0 } ?: 1.0
+    Canvas(
+        Modifier
+            .fillMaxWidth()
+            .height(156.dp)
+            .testTag("plan_measurement_chart"),
+    ) {
+        repeat(4) { index ->
+            val y = size.height * index / 3f
+            drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
+        }
+        val points =
+            values.mapIndexed { index, value ->
+                val x = if (values.size == 1) size.width / 2f else size.width * index / (values.lastIndex.toFloat())
+                val y = size.height - ((value - minimum) / range).toFloat() * size.height
+                Offset(x, y)
+            }
+        points.zipWithNext().forEach { (start, end) ->
+            drawLine(lineColor, start, end, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
+        }
+        points.forEach { point -> drawCircle(lineColor, radius = 5.dp.toPx(), center = point) }
+    }
 }
 
 @Composable
@@ -1770,6 +1955,9 @@ private fun weekLabel(
 private const val MAX_PLAN_TITLE_LENGTH = 120
 private const val MAX_PLAN_NOTE_LENGTH = 1000
 private const val DEFAULT_REMINDER_MINUTES = 9 * 60
+private val DEFAULT_REMINDER_OFFSETS = listOf(0, 15, 30, 60)
+private const val MAX_REMINDER_OFFSET_MINUTES = 7 * 24 * 60
+private const val MAX_MEASUREMENT_UNIT_LENGTH = 24
 private const val MAX_REPEAT_INTERVAL_DAYS = 3650
 private const val PLAN_OCCURRENCE_LOOKAHEAD_DAYS = 3650L
 
@@ -2041,3 +2229,21 @@ private fun formatReminderTime(
     minutesOfDay: Int,
     locale: Locale,
 ): String = String.format(locale, "%02d:%02d", minutesOfDay / 60, minutesOfDay % 60)
+
+@Composable
+private fun reminderOffsetLabel(minutes: Int): String =
+    when {
+        minutes == 0 -> stringResource(R.string.planner_offset_at_time)
+        minutes % (24 * 60) == 0 -> stringResource(R.string.planner_offset_days, minutes / (24 * 60))
+        minutes % 60 == 0 -> stringResource(R.string.planner_offset_hours, minutes / 60)
+        else -> stringResource(R.string.planner_offset_minutes, minutes)
+    }
+
+private fun formatMeasurement(value: Double): String =
+    if (value ==
+        value.roundToInt().toDouble()
+    ) {
+        value.roundToInt().toString()
+    } else {
+        "%.2f".format(Locale.US, value).trimEnd('0')
+    }

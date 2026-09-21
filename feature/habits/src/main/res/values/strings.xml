@@ -39,6 +39,15 @@
     <string name="habits_image_description">Photo for %1$s</string>
     <string name="habits_image_error">The photo could not be saved. The habit was not changed.</string>
     <string name="habits_reminder_error">The habit was saved, but its system reminder could not be scheduled.</string>
+    <string name="habits_reminder_offsets">When to remind</string>
+    <string name="habits_reminder_offsets_description">Choose any number of reminders before the scheduled time.</string>
+    <string name="habits_custom_offset">Custom advance time</string>
+    <string name="habits_minutes_short">min</string>
+    <string name="habits_add_offset">Add</string>
+    <string name="habits_offset_at_time">At start</string>
+    <string name="habits_offset_minutes">%1$d min before</string>
+    <string name="habits_offset_hours">%1$d h before</string>
+    <string name="habits_offset_days">%1$d d before</string>
     <string name="habits_streaks">Current streak: %1$d · Best: %2$d</string>
     <string name="habits_edit">Edit habit</string>
     <string name="habits_archive">Archive habit</string>

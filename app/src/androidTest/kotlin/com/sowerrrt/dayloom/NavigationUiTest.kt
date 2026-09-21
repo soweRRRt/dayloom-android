@@ -2,6 +2,8 @@ package com.sowerrrt.dayloom
 
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
@@ -16,6 +18,10 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.test.espresso.Espresso.closeSoftKeyboard
 import androidx.test.espresso.Espresso.pressBack
 import org.junit.Rule
@@ -33,7 +39,34 @@ class NavigationUiTest {
     }
 
     @Test
+    fun primaryNavigationSupportsHorizontalSwipes() {
+        composeRule.onNodeWithTag("primary_nav_home").performClick()
+        composeRule.onNodeWithTag("primary_navigation_surface").performTouchInput { swipeLeft() }
+        composeRule.onNodeWithTag("habits_screen").assertExists()
+
+        composeRule.onNodeWithTag("primary_navigation_surface").performTouchInput { swipeRight() }
+        composeRule.onNodeWithTag("primary_nav_home").assertIsSelected()
+    }
+
+    @Test
+    fun horizontalRailKeepsItsSwipeGesture() {
+        val title = "Rail gesture ${System.currentTimeMillis()}"
+        composeRule.onNodeWithTag("primary_nav_habits").performClick()
+        composeRule.onNodeWithTag("create_habit").performClick()
+        composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("save_habit").performClick()
+        waitUntilScrollable("habits_list", "habit_toggle_$title")
+        waitForTag("habit_view_rail")
+        composeRule.onNodeWithTag("habit_view_rail").performTouchInput { swipeLeft() }
+
+        composeRule.onNodeWithTag("habits_screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("primary_nav_habits").assertIsSelected()
+    }
+
+    @Test
     fun homeCalendarShortcutOpensPlanner() {
+        composeRule.onNodeWithTag("primary_nav_home").performClick()
+        waitForTag("home_open_calendar")
         composeRule.onNodeWithTag("home_open_calendar").performClick()
         composeRule.onNodeWithTag("planner_screen").assertExists()
     }
@@ -150,10 +183,10 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("plan_name_input").performTextInput(planTitle)
         closeSoftKeyboard()
         composeRule.onNodeWithTag("save_plan").performClick()
+        waitForTag("calendar_plan_progress_$todayEpochDay", useUnmergedTree = true)
         waitUntilScrollable("planner_list", "plan_$planTitle")
         composeRule.onNodeWithTag("plan_$planTitle").assertExists()
-        composeRule.onNodeWithTag("calendar_plan_progress_$todayEpochDay", useUnmergedTree = true).assertExists()
-        composeRule.onNodeWithTag("plan_image_action_$planTitle").assertExists()
+        composeRule.onAllNodesWithTag("plan_image_action_$planTitle").assertCountEquals(0)
         composeRule.onNodeWithTag("plan_toggle_$planTitle").performClick()
 
         composeRule.activityRule.scenario.recreate()
@@ -236,13 +269,17 @@ class NavigationUiTest {
         composeRule
             .onNodeWithTag("plan_status_open")
             .performScrollTo()
-            .performClick()
-            .assertIsSelected()
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitUntilSelected {
+            composeRule.onNodeWithTag("plan_status_open").assertIsSelected()
+        }
         composeRule
             .onNodeWithTag("plan_time_without_time")
             .performScrollTo()
-            .performClick()
-            .assertIsSelected()
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitUntilSelected {
+            composeRule.onNodeWithTag("plan_time_without_time").assertIsSelected()
+        }
         composeRule.onNodeWithTag("plan_sort").performScrollTo().performClick()
         composeRule.onNodeWithTag("plan_sort_name").performClick()
 
@@ -257,6 +294,47 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("restore_plan_$title").performScrollTo().performClick()
         composeRule.onNodeWithTag("plan_view_active").performScrollTo().performClick()
         waitUntilScrollable("planner_list", "plan_$title")
+        composeRule.onNodeWithTag("plan_$title").assertIsDisplayed()
+    }
+
+    @Test
+    fun planCanBeArchivedBySwipingAndRestored() {
+        val title = "Swipe plan ${System.currentTimeMillis()}"
+        composeRule.onNodeWithTag("primary_nav_planner").performClick()
+        composeRule.onNodeWithTag("create_plan").performClick()
+        composeRule.onNodeWithTag("plan_name_input").performTextInput(title)
+        closeSoftKeyboard()
+        composeRule.onNodeWithTag("save_plan").performClick()
+        waitUntilScrollable("planner_list", "plan_$title")
+
+        composeRule.onNodeWithTag("plan_$title").performTouchInput { swipeLeft() }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("plan_$title").fetchSemanticsNodes().isEmpty()
+        }
+
+        composeRule.onNodeWithTag("plan_view_archived").performScrollTo().performClick()
+        waitUntilScrollable("planner_list", "archived_plan_$title")
+        composeRule.onNodeWithTag("restore_plan_$title").performClick()
+        composeRule.onNodeWithTag("plan_view_active").performScrollTo().performClick()
+        waitUntilScrollable("planner_list", "plan_$title")
+    }
+
+    @Test
+    fun measurablePlanOpensResultEntry() {
+        val title = "Weight ${System.currentTimeMillis()}"
+        composeRule.onNodeWithTag("primary_nav_planner").performClick()
+        composeRule.onNodeWithTag("create_plan").performClick()
+        composeRule.onNodeWithTag("plan_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("plan_measurement_unit").performScrollTo().performTextInput("kg")
+        closeSoftKeyboard()
+        composeRule.onNodeWithTag("save_plan").performClick()
+        waitUntilScrollable("planner_list", "plan_$title")
+
+        composeRule.onNodeWithTag("plan_measurement_$title").performClick()
+        composeRule.onNodeWithTag("plan_measurement_value").performTextReplacement("82")
+        composeRule.onNodeWithTag("plan_measurement_value").assertTextContains("82")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("save_plan_measurement").assertIsEnabled()
     }
 
     @Test
@@ -350,7 +428,9 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("habit_view_archived").performClick()
         waitUntilScrollable("habits_list", "archived_habit_$title")
         composeRule.onNodeWithTag("restore_habit_$title").performClick()
-        composeRule.onNodeWithTag("habits_archive_empty").assertExists()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("archived_habit_$title").fetchSemanticsNodes().isEmpty()
+        }
 
         composeRule.onNodeWithTag("habit_view_all").performClick()
         waitUntilScrollable("habits_list", "habit_toggle_$title")

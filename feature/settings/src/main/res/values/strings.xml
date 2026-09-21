@@ -107,6 +107,7 @@
     <string name="settings_example_unit_glasses">glasses</string>
     <string name="settings_example_unit_minutes">minutes</string>
     <string name="settings_example_unit_steps">steps</string>
+    <string name="settings_example_unit_kg">kg</string>
     <string name="settings_example_plan_review">Review today’s tasks</string>
     <string name="settings_example_plan_groceries">Buy groceries</string>
     <string name="settings_example_plan_call">Call family</string>
@@ -114,6 +115,7 @@
     <string name="settings_example_plan_weekly_review">Weekly planning review</string>
     <string name="settings_example_plan_evening_review">Prepare tomorrow’s plan</string>
     <string name="settings_example_plan_monthly_budget">Review monthly budget</string>
+    <string name="settings_example_plan_weigh_in">Weekly weigh-in</string>
     <string name="settings_example_plan_groceries_note">Milk, vegetables, and ingredients for dinner</string>
     <string name="settings_example_plan_dentist_note">Bring the insurance card and arrive 10 minutes early</string>
     <string name="settings_example_list_groceries">Weekly groceries</string>

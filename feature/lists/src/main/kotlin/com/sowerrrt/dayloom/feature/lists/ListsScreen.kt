@@ -74,6 +74,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomHorizontalRail
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
+import com.sowerrrt.dayloom.core.designsystem.DayloomSwipeToArchive
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
 import com.sowerrrt.dayloom.core.model.DayList
@@ -163,6 +164,7 @@ fun ListsScreen(viewModel: ListsViewModel = hiltViewModel()) {
                         onShowArchive = viewModel::setShowingArchive,
                         onRestore = { viewModel.restoreList(it.id) },
                         onDuplicate = { viewModel.duplicateList(it.id) },
+                        onArchive = { viewModel.archiveList(it.id) },
                         modifier = Modifier.weight(1f),
                     )
                 else ->
@@ -281,6 +283,7 @@ private fun ListsOverview(
     onShowArchive: (Boolean) -> Unit,
     onRestore: (DayList) -> Unit,
     onDuplicate: (DayList) -> Unit,
+    onArchive: (DayList) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -338,12 +341,24 @@ private fun ListsOverview(
             }
             itemsIndexed(state.visibleLists, key = { _, list -> list.id.value }) { _, list ->
                 Box(Modifier.animateItem()) {
-                    ListOverviewCard(
-                        list = list,
-                        onClick = { if (!state.showingArchive) onOpenList(list) },
-                        onRestore = if (state.showingArchive) ({ onRestore(list) }) else null,
-                        onDuplicate = if (!state.showingArchive) ({ onDuplicate(list) }) else null,
-                    )
+                    if (state.showingArchive) {
+                        ListOverviewCard(
+                            list = list,
+                            onClick = {},
+                            onRestore = { onRestore(list) },
+                        )
+                    } else {
+                        DayloomSwipeToArchive(
+                            archiveLabel = stringResource(R.string.lists_archive),
+                            onArchive = { onArchive(list) },
+                        ) {
+                            ListOverviewCard(
+                                list = list,
+                                onClick = { onOpenList(list) },
+                                onDuplicate = { onDuplicate(list) },
+                            )
+                        }
+                    }
                 }
             }
         }

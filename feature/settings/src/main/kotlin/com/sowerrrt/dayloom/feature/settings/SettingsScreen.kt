@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -77,6 +76,7 @@ import com.sowerrrt.dayloom.core.model.HomeSection
 import com.sowerrrt.dayloom.core.model.ListItemPreset
 import com.sowerrrt.dayloom.core.model.ListKind
 import com.sowerrrt.dayloom.core.model.PlanPreset
+import com.sowerrrt.dayloom.core.model.PlanRepeat
 import com.sowerrrt.dayloom.core.model.StartDestination
 import com.sowerrrt.dayloom.core.model.ThemeMode
 import com.sowerrrt.dayloom.core.model.Weekday
@@ -728,9 +728,17 @@ private fun rememberDemoContent(): DemoContent =
                     stringResource(R.string.settings_example_plan_evening_review),
                     1,
                     reminderMinutesOfDay = 18 * 60,
-                    image = DemoImage.LAPTOP,
                     reminderEnabled = false,
                     repeatEveryDays = 10,
+                ),
+                DemoPlan(
+                    title = stringResource(R.string.settings_example_plan_weigh_in),
+                    dayOffset = 0,
+                    reminderMinutesOfDay = 7 * 60 + 30,
+                    repeat = PlanRepeat.WEEKLY,
+                    reminderOffsetsMinutes = setOf(0, 15),
+                    measurementUnit = stringResource(R.string.settings_example_unit_kg),
+                    measurementValuesByDayOffset = mapOf(-21 to 83.2, -14 to 82.6, -7 to 82.1),
                 ),
                 DemoPlan(
                     title = stringResource(R.string.settings_example_plan_monthly_budget),
@@ -846,6 +854,13 @@ private fun rememberDemoContent(): DemoContent =
                     title = stringResource(R.string.settings_example_plan_monthly_budget),
                     scheduledMonthDays = setOf(3, 15),
                 ).toStorageValue(),
+                PlanPreset(
+                    title = stringResource(R.string.settings_example_plan_weigh_in),
+                    reminderMinutesOfDay = 7 * 60 + 30,
+                    repeat = PlanRepeat.WEEKLY,
+                    reminderOffsetsMinutes = setOf(0, 15),
+                    measurementUnit = stringResource(R.string.settings_example_unit_kg),
+                ).toStorageValue(),
             ),
         listItemPresets =
             listOf(
@@ -874,11 +889,12 @@ private fun SettingsSection(
 }
 
 @Composable
-private fun ChoiceRow(content: @Composable RowScope.() -> Unit) {
-    Row(
+private fun ChoiceRow(content: @Composable () -> Unit) {
+    FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
-        content = content,
+        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+        content = { content() },
     )
 }
 

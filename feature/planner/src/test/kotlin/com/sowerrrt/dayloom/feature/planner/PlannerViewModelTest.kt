@@ -153,7 +153,6 @@ class PlannerViewModelTest {
                 )
             runCurrent()
 
-            assertEquals("/private/plan.png", viewModel.uiState.value.planImagePaths[planId])
             viewModel.deletePlan(planId)
             runCurrent()
 
@@ -281,7 +280,7 @@ class PlannerViewModelTest {
 
         val reminder = plans.activeReminders(now, zone).single()
 
-        assertEquals(NotificationId("plan:future"), reminder.id)
+        assertEquals(NotificationId("plan:future:0"), reminder.id)
         assertEquals("Future", reminder.title)
     }
 }
@@ -309,6 +308,7 @@ private class FakeHabitsRepository(
         targetUnit: String,
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
+        reminderOffsetsMinutes: Set<Int>,
     ): List<Habit> = error("Not needed")
 
     override suspend fun updateHabit(
@@ -320,6 +320,7 @@ private class FakeHabitsRepository(
         targetUnit: String,
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
+        reminderOffsetsMinutes: Set<Int>,
     ): List<Habit> = error("Not needed")
 
     override suspend fun archiveHabit(id: EntityId): List<Habit> = error("Not needed")

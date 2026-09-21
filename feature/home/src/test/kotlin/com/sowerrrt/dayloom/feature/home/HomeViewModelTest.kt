@@ -162,6 +162,7 @@ private class ReadOnlyHabitsRepository(
         targetUnit: String,
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
+        reminderOffsetsMinutes: Set<Int>,
     ): List<Habit> = error("Read-only fake")
 
     override suspend fun updateHabit(
@@ -173,6 +174,7 @@ private class ReadOnlyHabitsRepository(
         targetUnit: String,
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
+        reminderOffsetsMinutes: Set<Int>,
     ): List<Habit> = error("Read-only fake")
 
     override suspend fun archiveHabit(id: EntityId): List<Habit> = error("Read-only fake")

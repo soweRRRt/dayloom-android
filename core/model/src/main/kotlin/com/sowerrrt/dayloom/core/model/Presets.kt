@@ -11,6 +11,7 @@ data class HabitPreset(
     val repeatEveryDays: Int? = null,
     val scheduledMonthDays: Set<Int> = emptySet(),
     val reminderMinutesOfDay: Int? = null,
+    val reminderOffsetsMinutes: Set<Int> = setOf(0),
     val targetAmount: String = "",
     val targetUnit: String = "",
 )
@@ -21,9 +22,11 @@ data class PlanPreset(
     val reminderMinutesOfDay: Int? = null,
     val repeat: PlanRepeat = PlanRepeat.NONE,
     val reminderEnabled: Boolean = true,
+    val reminderOffsetsMinutes: Set<Int> = setOf(0),
     val scheduledWeekdays: Set<Weekday> = emptySet(),
     val repeatEveryDays: Int? = null,
     val scheduledMonthDays: Set<Int> = emptySet(),
+    val measurementUnit: String = "",
 )
 
 @Serializable

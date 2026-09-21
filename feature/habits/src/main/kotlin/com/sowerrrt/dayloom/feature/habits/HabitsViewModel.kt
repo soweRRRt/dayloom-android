@@ -118,6 +118,7 @@ class HabitsViewModel
             reminderMinutesOfDay: Int?,
             targetAmount: String = "",
             targetUnit: String = "",
+            reminderOffsetsMinutes: Set<Int> = setOf(0),
         ) {
             if (
                 title.isBlank() ||
@@ -136,6 +137,7 @@ class HabitsViewModel
                     reminderMinutesOfDay = reminderMinutesOfDay,
                     targetAmount = targetAmount,
                     targetUnit = targetUnit,
+                    reminderOffsetsMinutes = reminderOffsetsMinutes,
                 )
             }
         }
@@ -149,6 +151,7 @@ class HabitsViewModel
             reminderMinutesOfDay: Int?,
             targetAmount: String = "",
             targetUnit: String = "",
+            reminderOffsetsMinutes: Set<Int> = setOf(0),
         ) {
             if (
                 title.isBlank() ||
@@ -166,6 +169,7 @@ class HabitsViewModel
                     reminderMinutesOfDay = reminderMinutesOfDay,
                     targetAmount = targetAmount,
                     targetUnit = targetUnit,
+                    reminderOffsetsMinutes = reminderOffsetsMinutes,
                 )
             }
         }
@@ -178,6 +182,7 @@ class HabitsViewModel
             reminderMinutesOfDay: Int?,
             targetAmount: String,
             targetUnit: String,
+            reminderOffsetsMinutes: Set<Int> = setOf(0),
         ) {
             val normalized = title.trim()
             if (
@@ -195,6 +200,7 @@ class HabitsViewModel
                     reminderMinutesOfDay = reminderMinutesOfDay,
                     targetAmount = targetAmount.trim(),
                     targetUnit = targetUnit.trim(),
+                    reminderOffsetsMinutes = reminderOffsetsMinutes,
                 )
             viewModelScope.launch {
                 removeStoredHabitPresets(normalized)
@@ -227,6 +233,7 @@ class HabitsViewModel
                 preset.reminderMinutesOfDay,
                 preset.targetAmount,
                 preset.targetUnit,
+                preset.reminderOffsetsMinutes,
             )
         }
 

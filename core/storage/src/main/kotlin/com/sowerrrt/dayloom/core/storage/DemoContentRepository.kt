@@ -38,13 +38,15 @@ data class DemoPlan(
     val dayOffset: Int,
     val completed: Boolean = false,
     val reminderMinutesOfDay: Int? = null,
-    val image: DemoImage? = null,
     val repeat: PlanRepeat = PlanRepeat.NONE,
     val reminderEnabled: Boolean = reminderMinutesOfDay != null,
     val scheduledWeekdays: Set<Weekday> = emptySet(),
     val repeatEveryDays: Int? = null,
     val scheduledMonthDays: Set<Int> = emptySet(),
     val note: String = "",
+    val reminderOffsetsMinutes: Set<Int> = setOf(0),
+    val measurementUnit: String = "",
+    val measurementValuesByDayOffset: Map<Int, Double> = emptyMap(),
 )
 
 data class DemoList(
@@ -219,6 +221,7 @@ class LocalDemoContentRepository(
         var detailsAdded = 0
         plans.forEach { demo ->
             var plan = current.firstOrNull { it.title == demo.title }
+            val createdThisRun = plan == null
             if (plan == null) {
                 current =
                     plannerRepository.createPlanDetails(
@@ -232,12 +235,16 @@ class LocalDemoContentRepository(
                         scheduledWeekdays = demo.scheduledWeekdays,
                         repeatEveryDays = demo.repeatEveryDays,
                         scheduledMonthDays = demo.scheduledMonthDays,
+                        reminderOffsetsMinutes = demo.reminderOffsetsMinutes,
+                        measurementUnit = demo.measurementUnit,
                     )
                 plan = current.last { it.title == demo.title }
                 if (demo.completed) current = plannerRepository.toggleCompletion(plan.id)
                 entitiesAdded++
             }
-            if (demo.note.isNotBlank() && plan.note.isBlank()) {
+            if (
+                demo.note.isNotBlank() && plan.note.isBlank()
+            ) {
                 current =
                     plannerRepository.updatePlanDetails(
                         id = plan.id,
@@ -251,15 +258,22 @@ class LocalDemoContentRepository(
                         scheduledWeekdays = plan.scheduledWeekdays,
                         repeatEveryDays = plan.repeatEveryDays,
                         scheduledMonthDays = plan.scheduledMonthDays,
+                        reminderOffsetsMinutes = plan.reminderOffsetsMinutes,
+                        measurementUnit = plan.measurementUnit,
                     )
                 plan = current.first { it.id == plan.id }
                 detailsAdded++
             }
-            if (plan.image == null && demo.image != null && attachmentRepository != null && demoImageSource != null) {
-                val asset = demoImageSource.load(demo.image)
-                val attachment = attachmentRepository.importImage(asset.displayName, asset.mimeType, asset.bytes)
-                current = plannerRepository.setImage(plan.id, attachment)
-                imagesAdded++
+            if (createdThisRun) {
+                demo.measurementValuesByDayOffset.forEach { (dayOffset, value) ->
+                    val epochDay = todayEpochDay + dayOffset
+                    val savedPlan = requireNotNull(plan)
+                    if (savedPlan.measurementValuesByEpochDay[epochDay] == null) {
+                        current = plannerRepository.recordMeasurement(savedPlan.id, epochDay, value)
+                        plan = current.first { it.id == savedPlan.id }
+                        detailsAdded++
+                    }
+                }
             }
         }
         return EntitySeedResult(entitiesAdded, imagesAdded, detailsAdded)

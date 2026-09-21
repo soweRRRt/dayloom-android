@@ -123,6 +123,8 @@ class ReminderWorker(
         val minutes = inputData.getInt(KEY_REPEAT_MINUTES, NO_REPEAT)
         val intervalDays = inputData.getInt(KEY_REPEAT_INTERVAL_DAYS, NO_REPEAT)
         val previousTrigger = inputData.getLong(KEY_TRIGGER_AT, NO_TRIGGER)
+        val reminderOffsetMinutes = inputData.getInt(KEY_REMINDER_OFFSET_MINUTES, 0).coerceAtLeast(0)
+        val reminderOffsetMillis = reminderOffsetMinutes * 60_000L
         val monthDays =
             inputData
                 .getString(KEY_REPEAT_MONTH_DAYS)
@@ -144,15 +146,20 @@ class ReminderWorker(
         val now = System.currentTimeMillis()
         val nextTrigger =
             when {
-                monthDays.isNotEmpty() -> nextMonthlyTrigger(now, monthDays, minutes)
+                monthDays.isNotEmpty() ->
+                    nextMonthlyTrigger(now + reminderOffsetMillis, monthDays, minutes) - reminderOffsetMillis
                 intervalDays > 0 -> {
-                    var candidate = nextIntervalTrigger(previousTrigger.takeIf { it > 0 } ?: now, intervalDays, minutes)
-                    while (candidate <= now) candidate = nextIntervalTrigger(candidate, intervalDays, minutes)
+                    var eventTrigger = (previousTrigger.takeIf { it > 0 } ?: now) + reminderOffsetMillis
+                    var candidate = nextIntervalTrigger(eventTrigger, intervalDays, minutes) - reminderOffsetMillis
+                    while (candidate <= now) {
+                        eventTrigger = candidate + reminderOffsetMillis
+                        candidate = nextIntervalTrigger(eventTrigger, intervalDays, minutes) - reminderOffsetMillis
+                    }
                     candidate
                 }
                 else -> {
                     if (weekdays.isEmpty()) return
-                    nextWeeklyTrigger(now, weekdays, minutes)
+                    nextWeeklyTrigger(now + reminderOffsetMillis, weekdays, minutes) - reminderOffsetMillis
                 }
             }
         val next =
@@ -161,6 +168,7 @@ class ReminderWorker(
                 scope = scope,
                 triggerAtEpochMillis = nextTrigger,
                 title = title,
+                reminderOffsetMinutes = reminderOffsetMinutes,
                 weeklyRepeat = weekdays.takeIf { intervalDays <= 0 }?.let { WeeklyNotificationRepeat(it, minutes) },
                 intervalRepeat =
                     intervalDays.takeIf { it > 0 }?.let { IntervalNotificationRepeat(it, minutes) },
@@ -268,6 +276,7 @@ private fun ScheduledNotification.toWorkRequest(nowEpochMillis: Long) =
                 .putString(KEY_SCOPE, scope.value)
                 .putString(KEY_TITLE, title)
                 .putLong(KEY_TRIGGER_AT, triggerAtEpochMillis)
+                .putInt(KEY_REMINDER_OFFSET_MINUTES, reminderOffsetMinutes)
                 .putString(KEY_REPEAT_WEEKDAYS, weeklyRepeat?.isoWeekdays?.sorted()?.joinToString(","))
                 .putInt(
                     KEY_REPEAT_MINUTES,
@@ -298,6 +307,7 @@ private const val KEY_ID = "notification_id"
 private const val KEY_SCOPE = "notification_scope"
 private const val KEY_TITLE = "notification_title"
 private const val KEY_TRIGGER_AT = "notification_trigger_at"
+private const val KEY_REMINDER_OFFSET_MINUTES = "notification_offset_minutes"
 private const val KEY_REPEAT_WEEKDAYS = "notification_repeat_weekdays"
 private const val KEY_REPEAT_MINUTES = "notification_repeat_minutes"
 private const val KEY_REPEAT_INTERVAL_DAYS = "notification_repeat_interval_days"

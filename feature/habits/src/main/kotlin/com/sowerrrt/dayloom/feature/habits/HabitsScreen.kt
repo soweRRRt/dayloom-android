@@ -92,6 +92,7 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomButton
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomHorizontalRail
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
+import com.sowerrrt.dayloom.core.designsystem.DayloomSwipeToArchive
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
 import com.sowerrrt.dayloom.core.model.EntityId
@@ -203,6 +204,7 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                         showCreateDialog = true
                     },
                     onArchive = { pendingArchive = it },
+                    onSwipeArchive = { viewModel.archiveHabit(it.id) },
                     onRestore = viewModel::restoreHabit,
                     onProgress = { habit, epochDay -> progressTarget = HabitProgressTarget(habit, epochDay) },
                     onToggleHistory = viewModel::toggleCompletion,
@@ -234,7 +236,16 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
             presets = state.presets,
             onSavePreset = viewModel::savePreset,
             onRemovePreset = viewModel::removePreset,
-            onSave = { title, weekdays, repeatEveryDays, monthDays, reminderMinutesOfDay, targetAmount, targetUnit ->
+            onSave = {
+                title,
+                weekdays,
+                repeatEveryDays,
+                monthDays,
+                reminderMinutesOfDay,
+                targetAmount,
+                targetUnit,
+                reminderOffsets,
+                ->
                 val habit = editingHabit
                 if (
                     reminderMinutesOfDay != null &&
@@ -253,6 +264,7 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                         reminderMinutesOfDay,
                         targetAmount,
                         targetUnit,
+                        reminderOffsets,
                     )
                 } else {
                     viewModel.updateHabit(
@@ -264,6 +276,7 @@ fun HabitsScreen(viewModel: HabitsViewModel = hiltViewModel()) {
                         reminderMinutesOfDay,
                         targetAmount,
                         targetUnit,
+                        reminderOffsets,
                     )
                 }
                 showCreateDialog = false
@@ -364,6 +377,7 @@ private fun EmptyHabits(
                     DayloomHorizontalRail(
                         items = presets,
                         key = { it.title },
+                        modifier = Modifier.testTag("habit_preset_rail"),
                     ) { preset ->
                         AssistChip(
                             onClick = { onUsePreset(preset) },
@@ -387,6 +401,7 @@ private fun HabitsList(
     onInsights: (Habit) -> Unit,
     onEdit: (Habit) -> Unit,
     onArchive: (Habit) -> Unit,
+    onSwipeArchive: (Habit) -> Unit,
     onRestore: (EntityId) -> Unit,
     onProgress: (Habit, Long) -> Unit,
     onCreate: () -> Unit,
@@ -422,6 +437,7 @@ private fun HabitsList(
                 DayloomHorizontalRail(
                     items = HabitViewMode.entries,
                     key = { it.name },
+                    modifier = Modifier.testTag("habit_view_rail"),
                 ) { mode ->
                     val leadingIcon: (@Composable () -> Unit)? =
                         when (mode) {
@@ -588,6 +604,7 @@ private fun HabitsList(
                             DayloomHorizontalRail(
                                 items = state.presets,
                                 key = { it.title },
+                                modifier = Modifier.testTag("habit_preset_rail"),
                             ) { preset ->
                                 AssistChip(
                                     onClick = { onUsePreset(preset) },
@@ -627,17 +644,22 @@ private fun HabitsList(
                 }
                 items(visibleHabits, key = { it.id.value }) { habit ->
                     Box(Modifier.animateItem()) {
-                        HabitRow(
-                            habit = habit,
-                            completed = state.todayEpochDay in habit.completedEpochDays,
-                            scheduledToday = habit.isScheduledOn(state.todayEpochDay),
-                            onToggle = { onToggle(habit.id) },
-                            onEdit = { onEdit(habit) },
-                            onArchive = { onArchive(habit) },
-                            onProgress = { onProgress(habit, state.todayEpochDay) },
-                            onInsights = { onInsights(habit) },
-                            todayEpochDay = state.todayEpochDay,
-                        )
+                        DayloomSwipeToArchive(
+                            archiveLabel = stringResource(R.string.habits_archive_confirm),
+                            onArchive = { onSwipeArchive(habit) },
+                        ) {
+                            HabitRow(
+                                habit = habit,
+                                completed = state.todayEpochDay in habit.completedEpochDays,
+                                scheduledToday = habit.isScheduledOn(state.todayEpochDay),
+                                onToggle = { onToggle(habit.id) },
+                                onEdit = { onEdit(habit) },
+                                onArchive = { onArchive(habit) },
+                                onProgress = { onProgress(habit, state.todayEpochDay) },
+                                onInsights = { onInsights(habit) },
+                                todayEpochDay = state.todayEpochDay,
+                            )
+                        }
                     }
                 }
             }
@@ -1431,9 +1453,9 @@ private fun HabitEditorDialog(
     habit: Habit?,
     onDismiss: () -> Unit,
     presets: List<HabitPreset>,
-    onSavePreset: (String, Set<Weekday>, Int?, Set<Int>, Int?, String, String) -> Unit,
+    onSavePreset: (String, Set<Weekday>, Int?, Set<Int>, Int?, String, String, Set<Int>) -> Unit,
     onRemovePreset: (HabitPreset) -> Unit,
-    onSave: (String, Set<Weekday>, Int?, Set<Int>, Int?, String, String) -> Unit,
+    onSave: (String, Set<Weekday>, Int?, Set<Int>, Int?, String, String, Set<Int>) -> Unit,
 ) {
     var title by remember(habit?.id) { mutableStateOf(habit?.title.orEmpty()) }
     var selectedDays by
@@ -1462,6 +1484,10 @@ private fun HabitEditorDialog(
         )
     }
     var reminderMinutesOfDay by remember(habit?.id) { mutableStateOf(habit?.reminderMinutesOfDay) }
+    var reminderOffsetsMinutes by remember(habit?.id) {
+        mutableStateOf(habit?.reminderOffsetsMinutes?.ifEmpty { setOf(0) } ?: setOf(0))
+    }
+    var customReminderOffset by remember(habit?.id) { mutableStateOf("") }
     var targetAmount by remember(habit?.id) { mutableStateOf(habit?.targetAmount.orEmpty()) }
     var targetUnit by remember(habit?.id) { mutableStateOf(habit?.targetUnit.orEmpty()) }
     val context = LocalContext.current
@@ -1512,6 +1538,7 @@ private fun HabitEditorDialog(
                                     repeatEveryDaysText = preset.repeatEveryDays?.toString().orEmpty()
                                     scheduledMonthDaysText = preset.scheduledMonthDays.sorted().joinToString(", ")
                                     reminderMinutesOfDay = preset.reminderMinutesOfDay
+                                    reminderOffsetsMinutes = preset.reminderOffsetsMinutes.ifEmpty { setOf(0) }
                                     targetAmount = preset.targetAmount
                                     targetUnit = preset.targetUnit
                                 },
@@ -1544,6 +1571,7 @@ private fun HabitEditorDialog(
                             reminderMinutesOfDay,
                             targetAmount,
                             targetUnit,
+                            reminderOffsetsMinutes,
                         )
                     },
                     enabled =
@@ -1734,6 +1762,67 @@ private fun HabitEditorDialog(
                         }
                     }
                 }
+                if (reminderMinutesOfDay != null) {
+                    Text(
+                        stringResource(R.string.habits_reminder_offsets),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        stringResource(R.string.habits_reminder_offsets_description),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    ) {
+                        (DEFAULT_REMINDER_OFFSETS + reminderOffsetsMinutes).distinct().sorted().forEach { offset ->
+                            FilterChip(
+                                selected = offset in reminderOffsetsMinutes,
+                                onClick = {
+                                    reminderOffsetsMinutes =
+                                        if (offset in reminderOffsetsMinutes) {
+                                            if (reminderOffsetsMinutes.size > 1) {
+                                                reminderOffsetsMinutes - offset
+                                            } else {
+                                                reminderOffsetsMinutes
+                                            }
+                                        } else {
+                                            reminderOffsetsMinutes + offset
+                                        }
+                                },
+                                label = { Text(habitReminderOffsetLabel(offset)) },
+                                modifier = Modifier.testTag("habit_reminder_offset_$offset"),
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    ) {
+                        OutlinedTextField(
+                            value = customReminderOffset,
+                            onValueChange = { customReminderOffset = it.filter(Char::isDigit).take(5) },
+                            label = { Text(stringResource(R.string.habits_custom_offset)) },
+                            suffix = { Text(stringResource(R.string.habits_minutes_short)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f).testTag("habit_custom_reminder_offset"),
+                        )
+                        TextButton(
+                            onClick = {
+                                customReminderOffset.toIntOrNull()?.let { offset ->
+                                    reminderOffsetsMinutes = reminderOffsetsMinutes + offset
+                                    customReminderOffset = ""
+                                }
+                            },
+                            enabled = customReminderOffset.toIntOrNull() in 1..MAX_REMINDER_OFFSET_MINUTES,
+                        ) {
+                            Text(stringResource(R.string.habits_add_offset))
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -1752,6 +1841,7 @@ private fun HabitEditorDialog(
                         reminderMinutesOfDay,
                         targetAmount,
                         targetUnit,
+                        reminderOffsetsMinutes,
                     )
                 },
                 enabled =
@@ -1921,9 +2011,20 @@ private fun formatReminderTime(
     locale: Locale,
 ): String = String.format(locale, "%02d:%02d", minutesOfDay / 60, minutesOfDay % 60)
 
+@Composable
+private fun habitReminderOffsetLabel(minutes: Int): String =
+    when {
+        minutes == 0 -> stringResource(R.string.habits_offset_at_time)
+        minutes % (24 * 60) == 0 -> stringResource(R.string.habits_offset_days, minutes / (24 * 60))
+        minutes % 60 == 0 -> stringResource(R.string.habits_offset_hours, minutes / 60)
+        else -> stringResource(R.string.habits_offset_minutes, minutes)
+    }
+
 private const val MAX_TITLE_LENGTH = 80
 private const val MAX_TARGET_LENGTH = 24
 private const val MAX_REPEAT_INTERVAL_DAYS = 3650
 private const val DEFAULT_REMINDER_MINUTES = 9 * 60
+private val DEFAULT_REMINDER_OFFSETS = listOf(0, 15, 30, 60)
+private const val MAX_REMINDER_OFFSET_MINUTES = 7 * 24 * 60
 private const val ANALYTICS_DAYS = 30L
 private const val HISTORY_DAYS = 14L

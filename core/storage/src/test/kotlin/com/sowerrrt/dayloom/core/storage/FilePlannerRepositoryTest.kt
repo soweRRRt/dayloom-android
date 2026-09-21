@@ -23,6 +23,47 @@ class FilePlannerRepositoryTest {
     val temporaryFolder = TemporaryFolder()
 
     @Test
+    fun `measurable plan stores results by day and removes only selected result`() =
+        runTest {
+            val id = EntityId("weigh-in")
+            val repository =
+                FilePlannerRepository(
+                    directory = temporaryFolder.newFolder("measurements"),
+                    clock = { 42L },
+                    idFactory = { id },
+                )
+            repository.createPlanDetails(
+                title = "Weigh-in",
+                note = "",
+                dateEpochDay = TEST_EPOCH_DAY,
+                reminderMinutesOfDay = 8 * 60,
+                repeat = PlanRepeat.WEEKLY,
+                repeatUntilEpochDay = null,
+                reminderEnabled = false,
+                scheduledWeekdays = emptySet(),
+                repeatEveryDays = null,
+                scheduledMonthDays = emptySet(),
+                measurementUnit = "kg",
+            )
+
+            repository.recordMeasurement(id, TEST_EPOCH_DAY, 82.4)
+            repository.recordMeasurement(id, TEST_EPOCH_DAY + 7, 81.9)
+            var restored = FilePlannerRepository(temporaryFolder.root.resolve("measurements")).loadPlans().single()
+            assertEquals(
+                mapOf(TEST_EPOCH_DAY to 82.4, TEST_EPOCH_DAY + 7 to 81.9),
+                restored.measurementValuesByEpochDay,
+            )
+            assertTrue(restored.isCompletedOn(TEST_EPOCH_DAY))
+            assertTrue(restored.isCompletedOn(TEST_EPOCH_DAY + 7))
+
+            repository.recordMeasurement(id, TEST_EPOCH_DAY, null)
+            restored = repository.loadPlans().single()
+            assertEquals(mapOf(TEST_EPOCH_DAY + 7 to 81.9), restored.measurementValuesByEpochDay)
+            assertFalse(restored.isCompletedOn(TEST_EPOCH_DAY))
+            assertTrue(restored.isCompletedOn(TEST_EPOCH_DAY + 7))
+        }
+
+    @Test
     fun `plans can be created completed edited and restored`() =
         runTest {
             val directory = temporaryFolder.newFolder("planner")

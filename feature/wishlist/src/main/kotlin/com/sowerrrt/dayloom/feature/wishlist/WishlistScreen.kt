@@ -74,6 +74,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
+import com.sowerrrt.dayloom.core.designsystem.DayloomSwipeToArchive
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
 import com.sowerrrt.dayloom.core.model.WishContribution
@@ -173,6 +174,7 @@ fun WishlistScreen(
                         onSort = viewModel::setSort,
                         onShowArchive = viewModel::setShowingArchive,
                         onRestore = { viewModel.restoreGoal(it.id) },
+                        onArchive = { viewModel.archiveGoal(it.id) },
                         modifier = Modifier.weight(1f),
                     )
                 else ->
@@ -277,6 +279,7 @@ private fun WishlistOverview(
     onSort: (WishSort) -> Unit,
     onShowArchive: (Boolean) -> Unit,
     onRestore: (WishGoal) -> Unit,
+    onArchive: (WishGoal) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -393,12 +396,25 @@ private fun WishlistOverview(
             }
             items(state.visibleGoals, key = { it.id.value }) { goal ->
                 Box(Modifier.animateItem()) {
-                    WishCard(
-                        goal = goal,
-                        imagePath = state.imagePaths[goal.id],
-                        onClick = { if (!state.showingArchive) onOpenGoal(goal) },
-                        onRestore = if (state.showingArchive) ({ onRestore(goal) }) else null,
-                    )
+                    if (state.showingArchive) {
+                        WishCard(
+                            goal = goal,
+                            imagePath = state.imagePaths[goal.id],
+                            onClick = {},
+                            onRestore = { onRestore(goal) },
+                        )
+                    } else {
+                        DayloomSwipeToArchive(
+                            archiveLabel = stringResource(R.string.wishlist_archive),
+                            onArchive = { onArchive(goal) },
+                        ) {
+                            WishCard(
+                                goal = goal,
+                                imagePath = state.imagePaths[goal.id],
+                                onClick = { onOpenGoal(goal) },
+                            )
+                        }
+                    }
                 }
             }
         }

@@ -16,6 +16,7 @@ data class ScheduledNotification(
     val scope: NotificationScope,
     val triggerAtEpochMillis: Long,
     val title: String,
+    val reminderOffsetMinutes: Int = 0,
     val weeklyRepeat: WeeklyNotificationRepeat? = null,
     val intervalRepeat: IntervalNotificationRepeat? = null,
     val monthlyRepeat: MonthlyNotificationRepeat? = null,

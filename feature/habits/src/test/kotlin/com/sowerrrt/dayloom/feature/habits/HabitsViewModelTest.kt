@@ -252,6 +252,7 @@ private class FakeHabitsRepository : HabitsRepository {
         targetUnit: String,
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
+        reminderOffsetsMinutes: Set<Int>,
     ): List<Habit> {
         habits =
             habits +
@@ -266,6 +267,7 @@ private class FakeHabitsRepository : HabitsRepository {
                 reminderMinutesOfDay = reminderMinutesOfDay,
                 targetAmount = targetAmount,
                 targetUnit = targetUnit,
+                reminderOffsetsMinutes = reminderOffsetsMinutes,
             )
         return loadHabits()
     }
@@ -279,6 +281,7 @@ private class FakeHabitsRepository : HabitsRepository {
         targetUnit: String,
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
+        reminderOffsetsMinutes: Set<Int>,
     ): List<Habit> {
         habits =
             habits.map {
@@ -291,6 +294,7 @@ private class FakeHabitsRepository : HabitsRepository {
                         reminderMinutesOfDay = reminderMinutesOfDay,
                         targetAmount = targetAmount,
                         targetUnit = targetUnit,
+                        reminderOffsetsMinutes = reminderOffsetsMinutes,
                     )
                 } else {
                     it

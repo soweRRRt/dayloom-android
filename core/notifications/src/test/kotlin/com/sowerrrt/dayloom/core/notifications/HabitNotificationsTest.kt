@@ -2,6 +2,7 @@ package com.sowerrrt.dayloom.core.notifications
 
 import com.sowerrrt.dayloom.core.model.EntityId
 import com.sowerrrt.dayloom.core.model.Habit
+import com.sowerrrt.dayloom.core.model.PlanItem
 import com.sowerrrt.dayloom.core.model.Weekday
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -10,6 +11,71 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 
 class HabitNotificationsTest {
+    @Test
+    fun `habit creates every configured advance reminder`() {
+        val date = LocalDate.of(2026, 9, 21)
+        val now = date.atTime(6, 0).toInstant(ZoneOffset.UTC).toEpochMilli()
+        val habit =
+            Habit(
+                id = EntityId("water"),
+                title = "Drink water",
+                createdAtEpochMillis = 1L,
+                startEpochDay = date.toEpochDay(),
+                scheduledWeekdays = Weekday.entries.toSet(),
+                reminderMinutesOfDay = 9 * 60,
+                reminderOffsetsMinutes = setOf(0, 15, 30),
+            )
+
+        val reminders = listOf(habit).activeHabitReminders(now, ZoneOffset.UTC)
+
+        assertEquals(listOf(0, 15, 30), reminders.map { it.reminderOffsetMinutes })
+        assertEquals(
+            listOf("habit:water:0", "habit:water:15", "habit:water:30"),
+            reminders.map { it.id.value },
+        )
+        assertEquals(
+            listOf("09:00", "08:45", "08:30"),
+            reminders.map {
+                Instant
+                    .ofEpochMilli(it.triggerAtEpochMillis)
+                    .atZone(ZoneOffset.UTC)
+                    .toLocalTime()
+                    .toString()
+            },
+        )
+    }
+
+    @Test
+    fun `plan creates every configured advance reminder`() {
+        val date = LocalDate.of(2026, 9, 21)
+        val now = date.atTime(6, 0).toInstant(ZoneOffset.UTC).toEpochMilli()
+        val plan =
+            PlanItem(
+                id = EntityId("weigh-in"),
+                title = "Weigh-in",
+                dateEpochDay = date.toEpochDay(),
+                createdAtEpochMillis = 1L,
+                reminderMinutesOfDay = 8 * 60,
+                reminderEnabled = true,
+                reminderOffsetsMinutes = setOf(0, 30),
+            )
+
+        val reminders = listOf(plan).activePlanReminders(now, ZoneOffset.UTC)
+
+        assertEquals(listOf(0, 30), reminders.map { it.reminderOffsetMinutes })
+        assertEquals(listOf("plan:weigh-in:0", "plan:weigh-in:30"), reminders.map { it.id.value })
+        assertEquals(
+            listOf("08:00", "07:30"),
+            reminders.map {
+                Instant
+                    .ofEpochMilli(it.triggerAtEpochMillis)
+                    .atZone(ZoneOffset.UTC)
+                    .toLocalTime()
+                    .toString()
+            },
+        )
+    }
+
     @Test
     fun `next habit reminder skips a day already completed`() {
         val saturday = LocalDate.of(2026, 9, 19)

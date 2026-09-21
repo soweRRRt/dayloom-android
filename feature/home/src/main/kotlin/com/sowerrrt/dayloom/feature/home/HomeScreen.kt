@@ -1,11 +1,6 @@
 package com.sowerrrt.dayloom.feature.home
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -451,18 +446,6 @@ private fun WelcomeCard(state: HomeUiState) {
     val primary = MaterialTheme.colorScheme.primary
     val secondary = MaterialTheme.colorScheme.secondary
     val tertiary = MaterialTheme.colorScheme.tertiary
-    val gradientTransition = rememberInfiniteTransition(label = "welcomeGradient")
-    val gradientShift by
-        gradientTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec =
-                infiniteRepeatable(
-                    animation = tween(8_000, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse,
-                ),
-            label = "welcomeGradientShift",
-        )
     val total = state.habitsToday + state.plansToday
     val completed = state.habitsCompletedToday + state.plansCompletedToday
     val progressTarget = if (total == 0) 0f else completed.toFloat() / total
@@ -482,19 +465,18 @@ private fun WelcomeCard(state: HomeUiState) {
             modifier =
                 Modifier
                     .drawBehind {
-                        val travel = size.width * 0.34f
                         drawRect(
                             brush =
                                 Brush.linearGradient(
                                     colors = listOf(primary, secondary, tertiary),
-                                    start = Offset(-travel + travel * gradientShift, 0f),
-                                    end = Offset(size.width + travel * gradientShift, size.height),
+                                    start = Offset.Zero,
+                                    end = Offset(size.width, size.height),
                                 ),
                         )
                         drawCircle(
                             color = Color.White.copy(alpha = 0.055f),
                             radius = size.minDimension * 0.74f,
-                            center = Offset(size.width * (0.18f + 0.52f * gradientShift), 0f),
+                            center = Offset(size.width * 0.34f, 0f),
                         )
                     }.padding(DayloomSpacing.lg),
             verticalArrangement = Arrangement.spacedBy(DayloomSpacing.regular),

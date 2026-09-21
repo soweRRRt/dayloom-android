@@ -5,14 +5,11 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -38,23 +35,31 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -63,7 +68,12 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -71,69 +81,10 @@ fun DayloomAnimatedBackground(modifier: Modifier = Modifier) {
     val primary = MaterialTheme.colorScheme.primary
     val secondary = MaterialTheme.colorScheme.secondary
     val tertiary = MaterialTheme.colorScheme.tertiary
-    val motionEnabled = rememberDayloomMotionEnabled()
-    if (!motionEnabled) {
-        DayloomStaticBackground(modifier, primary, secondary, tertiary)
-        return
-    }
-
-    val transition = rememberInfiniteTransition(label = "dayloomBackground")
-    val horizontalDrift =
-        transition.animateFloat(
-            initialValue = -0.08f,
-            targetValue = 0.10f,
-            animationSpec =
-                infiniteRepeatable(
-                    animation = tween(18_000, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse,
-                ),
-            label = "horizontalDrift",
-        )
-    val verticalDrift =
-        transition.animateFloat(
-            initialValue = -0.06f,
-            targetValue = 0.08f,
-            animationSpec =
-                infiniteRepeatable(
-                    animation = tween(22_000, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse,
-                ),
-            label = "verticalDrift",
-        )
-
-    Box(modifier.fillMaxSize()) {
-        BackgroundGlow(
-            color = primary.copy(alpha = 0.11f),
-            centerX = 0.10f,
-            centerY = 0.14f,
-            radiusFactor = 0.62f,
-            modifier =
-                Modifier.fillMaxSize().graphicsLayer {
-                    translationX = horizontalDrift.value * 240.dp.toPx()
-                },
-        )
-        BackgroundGlow(
-            color = secondary.copy(alpha = 0.09f),
-            centerX = 0.92f,
-            centerY = 0.50f,
-            radiusFactor = 0.51f,
-            modifier =
-                Modifier.fillMaxSize().graphicsLayer {
-                    translationX = -horizontalDrift.value * 210.dp.toPx()
-                    translationY = verticalDrift.value * 210.dp.toPx()
-                },
-        )
-        BackgroundGlow(
-            color = tertiary.copy(alpha = 0.07f),
-            centerX = 0.24f,
-            centerY = 0.92f,
-            radiusFactor = 0.43f,
-            modifier =
-                Modifier.fillMaxSize().graphicsLayer {
-                    translationX = -verticalDrift.value * 180.dp.toPx()
-                },
-        )
-    }
+    // A calm static mesh keeps the visual depth without redrawing three
+    // full-screen gradients on every frame. Motion is reserved for direct
+    // interactions, where it feels intentional and remains consistently smooth.
+    DayloomStaticBackground(modifier, primary, secondary, tertiary)
 }
 
 @Composable
@@ -237,26 +188,20 @@ fun DayloomCard(
         ),
     content: @Composable () -> Unit,
 ) {
-    val motionEnabled = rememberDayloomMotionEnabled()
+    val motionEnabled = dayloomMotionEnabled()
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by
         animateFloatAsState(
-            targetValue = if (pressed && onClick != null) 0.982f else 1f,
-            animationSpec = spring(stiffness = 520f, dampingRatio = 0.78f),
+            targetValue = if (motionEnabled && pressed && onClick != null) 0.988f else 1f,
+            animationSpec = spring(stiffness = 650f, dampingRatio = 1f),
             label = "cardPress",
         )
-    val motionModifier =
-        if (motionEnabled) {
-            modifier.animateContentSize(animationSpec = spring(stiffness = 420f, dampingRatio = 0.86f))
-        } else {
-            modifier
-        }
     val interactiveModifier =
         if (onClick == null) {
-            motionModifier.defaultMinSize(minHeight = 48.dp)
+            modifier.defaultMinSize(minHeight = 48.dp)
         } else {
-            motionModifier
+            modifier
                 .defaultMinSize(minHeight = 48.dp)
                 .graphicsLayer {
                     scaleX = scale
@@ -277,6 +222,87 @@ fun DayloomCard(
     ) {
         Box(Modifier.padding(contentPadding)) { content() }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DayloomSwipeToArchive(
+    archiveLabel: String,
+    onArchive: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    val dismissState =
+        androidx.compose.material3.rememberSwipeToDismissBoxState(
+            confirmValueChange = { value ->
+                if (value == SwipeToDismissBoxValue.EndToStart && enabled) {
+                    onArchive()
+                }
+                // The data layer removes the row immediately. Keeping the dismiss state at
+                // EndToStart makes a restored item with the same stable key reappear as an
+                // empty archive background until the screen is recreated.
+                false
+            },
+            positionalThreshold = { distance -> distance * 0.38f },
+        )
+    val active = dismissState.targetValue == SwipeToDismissBoxValue.EndToStart
+    val backgroundColor by
+        animateColorAsState(
+            targetValue =
+                if (active) {
+                    MaterialTheme.colorScheme.tertiaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                },
+            animationSpec = tween(DayloomMotion.QUICK_MILLIS),
+            label = "archiveSwipeBackground",
+        )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        modifier =
+            modifier.semantics {
+                if (enabled) {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction(archiveLabel) {
+                                onArchive()
+                                true
+                            },
+                        )
+                }
+            },
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = enabled,
+        backgroundContent = {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clip(MaterialTheme.shapes.large)
+                    .background(backgroundColor)
+                    .padding(horizontal = DayloomSpacing.lg),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+                ) {
+                    Text(
+                        archiveLabel,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    Icon(
+                        Icons.Rounded.Archive,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                    )
+                }
+            }
+        },
+        content = { content() },
+    )
 }
 
 @Composable
@@ -316,7 +342,7 @@ fun <T> DayloomHorizontalRail(
 
 @Composable
 fun Modifier.dayloomDialogMotion(): Modifier {
-    val motionEnabled = rememberDayloomMotionEnabled()
+    val motionEnabled = dayloomMotionEnabled()
     val progress = remember { Animatable(if (motionEnabled) 0f else 1f) }
     LaunchedEffect(motionEnabled) {
         if (motionEnabled) {
@@ -378,6 +404,17 @@ fun rememberDayloomMotionEnabled(): Boolean {
     return motionEnabled
 }
 
+private val LocalDayloomMotionEnabled = staticCompositionLocalOf { true }
+
+@Composable
+fun DayloomMotionProvider(content: @Composable () -> Unit) {
+    val motionEnabled = rememberDayloomMotionEnabled()
+    CompositionLocalProvider(LocalDayloomMotionEnabled provides motionEnabled, content = content)
+}
+
+@Composable
+fun dayloomMotionEnabled(): Boolean = LocalDayloomMotionEnabled.current
+
 fun isDayloomMotionEnabled(animatorScale: Float): Boolean = animatorScale > 0f
 
 @Composable
@@ -394,6 +431,11 @@ fun DayloomButton(
         shape = MaterialTheme.shapes.medium,
         contentPadding = PaddingValues(horizontal = DayloomSpacing.lg, vertical = DayloomSpacing.regular),
     ) {
-        Text(text)
+        Text(
+            text = text,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
     }
 }

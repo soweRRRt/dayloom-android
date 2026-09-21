@@ -123,7 +123,7 @@ class LocalDemoContentRepositoryTest {
         }
 
     @Test
-    fun `habit and plan demo images are imported only once`() =
+    fun `habit demo images are imported only once while plans stay image free`() =
         runTest {
             val directory = temporaryFolder.newFolder()
             val habits = FileHabitsRepository(directory)
@@ -143,7 +143,7 @@ class LocalDemoContentRepositoryTest {
             val content =
                 DemoContent(
                     habits = listOf(DemoHabit("Stretch", Weekday.entries.toSet(), image = DemoImage.TRAVEL)),
-                    plans = listOf(DemoPlan("Prepare", 1, image = DemoImage.LAPTOP)),
+                    plans = listOf(DemoPlan("Prepare", 1)),
                     lists = emptyList(),
                     goals = emptyList(),
                 )
@@ -153,9 +153,9 @@ class LocalDemoContentRepositoryTest {
 
             assertEquals(1, first.habitsAdded)
             assertEquals(1, first.plansAdded)
-            assertEquals(2, first.imagesAdded)
+            assertEquals(1, first.imagesAdded)
             assertEquals(0, second.totalAdded)
-            assertEquals(2, attachments.imports)
+            assertEquals(1, attachments.imports)
             assertEquals(
                 "travel.png",
                 habits
@@ -164,14 +164,7 @@ class LocalDemoContentRepositoryTest {
                     .image
                     ?.displayName,
             )
-            assertEquals(
-                "laptop.png",
-                planner
-                    .loadPlans()
-                    .single()
-                    .image
-                    ?.displayName,
-            )
+            assertEquals(null, planner.loadPlans().single().image)
         }
 
     private fun testContent() =

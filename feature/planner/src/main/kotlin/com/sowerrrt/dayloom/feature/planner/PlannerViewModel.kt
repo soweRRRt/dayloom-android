@@ -1,6 +1,5 @@
 package com.sowerrrt.dayloom.feature.planner
 
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sowerrrt.dayloom.core.model.EntityId
@@ -47,9 +46,6 @@ data class PlannerUiState(
     val isLoading: Boolean = true,
     val hasError: Boolean = false,
     val reminderSchedulingFailed: Boolean = false,
-    val planImagePaths: Map<EntityId, String> = emptyMap(),
-    val isChangingImage: Boolean = false,
-    val hasImageError: Boolean = false,
     val presets: List<PlanPreset> = emptyList(),
 ) {
     val selectedHabits: List<Habit>
@@ -143,7 +139,6 @@ class PlannerViewModel
                             hasError = false,
                             reminderSchedulingFailed =
                                 planReminderResult.isFailure || habitReminderResult.isFailure,
-                            planImagePaths = imagePaths(plans + content.archivedPlans),
                             presets =
                                 content.presets
                                     .mapNotNull(String::toPlanPresetOrNull)
@@ -193,6 +188,8 @@ class PlannerViewModel
             repeatEveryDays: Int? = null,
             scheduledMonthDays: Set<Int> = emptySet(),
             note: String = "",
+            reminderOffsetsMinutes: Set<Int> = setOf(0),
+            measurementUnit: String = "",
         ) {
             if (title.isBlank()) return
             val day = mutableUiState.value.selectedEpochDay
@@ -208,6 +205,8 @@ class PlannerViewModel
                     scheduledWeekdays = scheduledWeekdays,
                     repeatEveryDays = repeatEveryDays,
                     scheduledMonthDays = scheduledMonthDays,
+                    reminderOffsetsMinutes = reminderOffsetsMinutes,
+                    measurementUnit = measurementUnit,
                 )
             }
         }
@@ -222,6 +221,8 @@ class PlannerViewModel
             repeatEveryDays: Int? = null,
             scheduledMonthDays: Set<Int> = emptySet(),
             note: String = "",
+            reminderOffsetsMinutes: Set<Int> = setOf(0),
+            measurementUnit: String = "",
         ) {
             if (title.isBlank()) return
             val day = mutableUiState.value.selectedEpochDay
@@ -238,6 +239,8 @@ class PlannerViewModel
                     scheduledWeekdays = scheduledWeekdays,
                     repeatEveryDays = repeatEveryDays,
                     scheduledMonthDays = scheduledMonthDays,
+                    reminderOffsetsMinutes = reminderOffsetsMinutes,
+                    measurementUnit = measurementUnit,
                 )
             }
         }
@@ -250,6 +253,8 @@ class PlannerViewModel
             scheduledWeekdays: Set<Weekday> = emptySet(),
             repeatEveryDays: Int? = null,
             scheduledMonthDays: Set<Int> = emptySet(),
+            reminderOffsetsMinutes: Set<Int> = setOf(0),
+            measurementUnit: String = "",
         ) {
             val normalized = title.trim()
             if (normalized.isEmpty()) return
@@ -262,6 +267,8 @@ class PlannerViewModel
                     scheduledWeekdays = scheduledWeekdays,
                     repeatEveryDays = repeatEveryDays,
                     scheduledMonthDays = scheduledMonthDays,
+                    reminderOffsetsMinutes = reminderOffsetsMinutes,
+                    measurementUnit = measurementUnit.trim(),
                 )
             viewModelScope.launch {
                 removeStoredPlanPresets(normalized)
@@ -294,6 +301,8 @@ class PlannerViewModel
                 preset.scheduledWeekdays,
                 preset.repeatEveryDays,
                 preset.scheduledMonthDays,
+                reminderOffsetsMinutes = preset.reminderOffsetsMinutes,
+                measurementUnit = preset.measurementUnit,
             )
         }
 
@@ -302,6 +311,14 @@ class PlannerViewModel
             epochDay: Long = mutableUiState.value.selectedEpochDay,
         ) {
             updatePlans { plannerRepository.toggleCompletion(id, epochDay) }
+        }
+
+        fun recordMeasurement(
+            id: EntityId,
+            epochDay: Long,
+            value: Double?,
+        ) {
+            updatePlans { plannerRepository.recordMeasurement(id, epochDay, value) }
         }
 
         fun movePlan(
@@ -329,55 +346,6 @@ class PlannerViewModel
                 plannerRepository.deletePlan(id).also {
                     if (previous != null) runCatching { attachmentRepository.delete(previous) }
                 }
-            }
-        }
-
-        fun setPlanImage(
-            planId: EntityId,
-            uri: Uri,
-        ) {
-            if (mutableUiState.value.isChangingImage) return
-            viewModelScope.launch {
-                mutableUiState.update { it.copy(isChangingImage = true, hasImageError = false) }
-                val previous =
-                    mutableUiState.value.plans
-                        .firstOrNull { it.id == planId }
-                        ?.image
-                runCatching {
-                    val imported = attachmentRepository.importImage(uri)
-                    try {
-                        plannerRepository.setImage(planId, imported).also {
-                            if (previous != null) attachmentRepository.delete(previous)
-                        }
-                    } catch (error: Throwable) {
-                        attachmentRepository.delete(imported)
-                        throw error
-                    }
-                }.onSuccess(::applyPlans)
-                    .onFailure {
-                        mutableUiState.update { state ->
-                            state.copy(isChangingImage = false, hasImageError = true)
-                        }
-                    }
-            }
-        }
-
-        fun removePlanImage(planId: EntityId) {
-            if (mutableUiState.value.isChangingImage) return
-            viewModelScope.launch {
-                val previous =
-                    mutableUiState.value.plans
-                        .firstOrNull { it.id == planId }
-                        ?.image ?: return@launch
-                mutableUiState.update { it.copy(isChangingImage = true, hasImageError = false) }
-                runCatching {
-                    plannerRepository.setImage(planId, null).also { attachmentRepository.delete(previous) }
-                }.onSuccess(::applyPlans)
-                    .onFailure {
-                        mutableUiState.update { state ->
-                            state.copy(isChangingImage = false, hasImageError = true)
-                        }
-                    }
             }
         }
 
@@ -417,9 +385,6 @@ class PlannerViewModel
                                 archivedPlans = archivedPlans,
                                 hasError = false,
                                 reminderSchedulingFailed = reminderResult.isFailure,
-                                planImagePaths = imagePaths(plans + archivedPlans),
-                                isChangingImage = false,
-                                hasImageError = false,
                             )
                         }
                     }.onFailure {
@@ -427,24 +392,6 @@ class PlannerViewModel
                     }
             }
         }
-
-        private fun applyPlans(plans: List<PlanItem>) {
-            mutableUiState.update {
-                it.copy(
-                    plans = plans,
-                    planImagePaths = imagePaths(plans + it.archivedPlans),
-                    hasError = false,
-                    isChangingImage = false,
-                    hasImageError = false,
-                )
-            }
-        }
-
-        private fun imagePaths(plans: List<PlanItem>): Map<EntityId, String> =
-            plans
-                .mapNotNull { plan ->
-                    plan.image?.let(attachmentRepository::localPath)?.let { plan.id to it }
-                }.toMap()
 
         private suspend fun removeStoredPlanPresets(title: String) {
             settingsRepository.settings

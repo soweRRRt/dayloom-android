@@ -39,6 +39,15 @@
     <string name="habits_image_description">Фото привычки «%1$s»</string>
     <string name="habits_image_error">Не удалось сохранить фото. Привычка не изменена.</string>
     <string name="habits_reminder_error">Привычка сохранена, но системное напоминание не удалось запланировать.</string>
+    <string name="habits_reminder_offsets">Когда напомнить</string>
+    <string name="habits_reminder_offsets_description">Можно выбрать сколько угодно напоминаний до назначенного времени.</string>
+    <string name="habits_custom_offset">Свой интервал заранее</string>
+    <string name="habits_minutes_short">мин</string>
+    <string name="habits_add_offset">Добавить</string>
+    <string name="habits_offset_at_time">В момент начала</string>
+    <string name="habits_offset_minutes">За %1$d мин</string>
+    <string name="habits_offset_hours">За %1$d ч</string>
+    <string name="habits_offset_days">За %1$d дн</string>
     <string name="habits_streaks">Текущая серия: %1$d · Лучшая: %2$d</string>
     <string name="habits_edit">Изменить привычку</string>
     <string name="habits_archive">Архивировать привычку</string>

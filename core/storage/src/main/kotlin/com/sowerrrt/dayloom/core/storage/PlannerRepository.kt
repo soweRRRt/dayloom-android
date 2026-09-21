@@ -74,6 +74,8 @@ interface PlannerRepository {
         scheduledWeekdays: Set<Weekday>,
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
+        reminderOffsetsMinutes: Set<Int> = setOf(0),
+        measurementUnit: String = "",
     ): List<PlanItem> =
         createPlan(
             title,
@@ -139,6 +141,8 @@ interface PlannerRepository {
         scheduledWeekdays: Set<Weekday>,
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
+        reminderOffsetsMinutes: Set<Int> = setOf(0),
+        measurementUnit: String = "",
     ): List<PlanItem> =
         updatePlan(
             id,
@@ -164,6 +168,12 @@ interface PlannerRepository {
         id: EntityId,
         dateEpochDay: Long,
     ): List<PlanItem> = error("This planner repository does not support moving plans")
+
+    suspend fun recordMeasurement(
+        id: EntityId,
+        epochDay: Long,
+        value: Double?,
+    ): List<PlanItem> = error("This planner repository does not support measurements")
 
     suspend fun setImage(
         id: EntityId,
@@ -238,6 +248,8 @@ class FilePlannerRepository(
             normalize(plan.title)
             normalizeNote(plan.note)
             validateReminder(plan.reminderMinutesOfDay)
+            validateReminderOffsets(plan.reminderOffsetsMinutes)
+            normalizeMeasurementUnit(plan.measurementUnit)
             validateRepeat(plan.dateEpochDay, plan.repeatUntilEpochDay)
             validateSchedule(plan.scheduledWeekdays, plan.repeatEveryDays, plan.scheduledMonthDays)
         }
@@ -364,6 +376,8 @@ class FilePlannerRepository(
         scheduledWeekdays: Set<Weekday>,
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
+        reminderOffsetsMinutes: Set<Int>,
+        measurementUnit: String,
     ): List<PlanItem> {
         purgeExpiredArchives()
         val normalizedTitle = normalize(title)
@@ -371,6 +385,8 @@ class FilePlannerRepository(
         validateReminder(reminderMinutesOfDay)
         validateRepeat(dateEpochDay, repeatUntilEpochDay)
         validateSchedule(scheduledWeekdays, repeatEveryDays, scheduledMonthDays)
+        validateReminderOffsets(reminderOffsetsMinutes)
+        val normalizedMeasurementUnit = normalizeMeasurementUnit(measurementUnit)
         return store
             .update { snapshot ->
                 snapshot.copy(
@@ -384,11 +400,13 @@ class FilePlannerRepository(
                                 createdAtEpochMillis = clock(),
                                 reminderMinutesOfDay = reminderMinutesOfDay,
                                 reminderEnabled = reminderEnabled && reminderMinutesOfDay != null,
+                                reminderOffsetsMinutes = reminderOffsetsMinutes,
                                 repeat = repeat,
                                 repeatUntilEpochDay = repeatUntilEpochDay,
                                 scheduledWeekdays = scheduledWeekdays,
                                 repeatEveryDays = repeatEveryDays,
                                 scheduledMonthDays = scheduledMonthDays,
+                                measurementUnit = normalizedMeasurementUnit,
                             ),
                 )
             }.activePlans()
@@ -423,12 +441,16 @@ class FilePlannerRepository(
         scheduledWeekdays: Set<Weekday>,
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
+        reminderOffsetsMinutes: Set<Int>,
+        measurementUnit: String,
     ): List<PlanItem> {
         val normalizedTitle = normalize(title)
         val normalizedNote = normalizeNote(note)
         validateReminder(reminderMinutesOfDay)
         validateRepeat(dateEpochDay, repeatUntilEpochDay)
         validateSchedule(scheduledWeekdays, repeatEveryDays, scheduledMonthDays)
+        validateReminderOffsets(reminderOffsetsMinutes)
+        val normalizedMeasurementUnit = normalizeMeasurementUnit(measurementUnit)
         return updateExisting(id) {
             it.copy(
                 title = normalizedTitle,
@@ -436,11 +458,13 @@ class FilePlannerRepository(
                 dateEpochDay = dateEpochDay,
                 reminderMinutesOfDay = reminderMinutesOfDay,
                 reminderEnabled = reminderEnabled && reminderMinutesOfDay != null,
+                reminderOffsetsMinutes = reminderOffsetsMinutes,
                 repeat = repeat,
                 repeatUntilEpochDay = repeatUntilEpochDay,
                 scheduledWeekdays = scheduledWeekdays,
                 repeatEveryDays = repeatEveryDays,
                 scheduledMonthDays = scheduledMonthDays,
+                measurementUnit = normalizedMeasurementUnit,
             )
         }
     }
@@ -538,6 +562,28 @@ class FilePlannerRepository(
         dateEpochDay: Long,
     ): List<PlanItem> = updateExisting(id) { it.copy(dateEpochDay = dateEpochDay) }
 
+    override suspend fun recordMeasurement(
+        id: EntityId,
+        epochDay: Long,
+        value: Double?,
+    ): List<PlanItem> {
+        require(value == null || value.isFinite()) { "Measurement must be finite" }
+        return updateExisting(id) { plan ->
+            require(plan.measurementUnit.isNotBlank()) { "Plan does not collect measurements" }
+            val values = plan.measurementValuesByEpochDay.toMutableMap()
+            if (value == null) values.remove(epochDay) else values[epochDay] = value
+            val completedDays = plan.completedEpochDays.toMutableSet()
+            if (plan.isRecurring()) {
+                if (value == null) completedDays.remove(epochDay) else completedDays.add(epochDay)
+            }
+            plan.copy(
+                completed = if (plan.isRecurring()) plan.completed else value != null,
+                completedEpochDays = completedDays,
+                measurementValuesByEpochDay = values,
+            )
+        }
+    }
+
     override suspend fun setImage(
         id: EntityId,
         image: AttachmentRef?,
@@ -618,6 +664,17 @@ class FilePlannerRepository(
         }
     }
 
+    private fun validateReminderOffsets(offsets: Set<Int>) {
+        require(offsets.size <= MAX_REMINDER_OFFSETS) { "Too many reminder offsets" }
+        require(offsets.all { it in 0..MAX_REMINDER_OFFSET_MINUTES }) { "Reminder offset is out of range" }
+    }
+
+    private fun normalizeMeasurementUnit(unit: String): String {
+        val normalized = unit.trim()
+        require(normalized.length <= MAX_MEASUREMENT_UNIT_LENGTH) { "Measurement unit is too long" }
+        return normalized
+    }
+
     private fun validateRepeat(
         dateEpochDay: Long,
         repeatUntilEpochDay: Long?,
@@ -658,6 +715,9 @@ class FilePlannerRepository(
         const val MAX_NOTE_LENGTH = 1000
         const val MINUTES_PER_DAY = 24 * 60
         const val MAX_REPEAT_INTERVAL_DAYS = 3650
+        const val MAX_REMINDER_OFFSETS = 24
+        const val MAX_REMINDER_OFFSET_MINUTES = 7 * MINUTES_PER_DAY
+        const val MAX_MEASUREMENT_UNIT_LENGTH = 24
     }
 }
 

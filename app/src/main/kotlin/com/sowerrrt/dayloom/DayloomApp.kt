@@ -5,19 +5,18 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -71,10 +70,13 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.os.LocaleListCompat
@@ -91,10 +93,12 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomButton
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomLogo
 import com.sowerrrt.dayloom.core.designsystem.DayloomMotion
+import com.sowerrrt.dayloom.core.designsystem.DayloomMotionProvider
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTheme
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
+import com.sowerrrt.dayloom.core.designsystem.dayloomMotionEnabled
 import com.sowerrrt.dayloom.core.model.AccentPalette
 import com.sowerrrt.dayloom.core.model.AppLanguage
 import com.sowerrrt.dayloom.core.model.AppSettings
@@ -110,9 +114,8 @@ import com.sowerrrt.dayloom.feature.settings.SettingsScreen
 import com.sowerrrt.dayloom.feature.settings.TemplatesScreen
 import com.sowerrrt.dayloom.feature.vault.VaultScreen
 import com.sowerrrt.dayloom.feature.wishlist.WishlistScreen
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 @Composable
 fun DayloomApp(
@@ -129,15 +132,17 @@ fun DayloomApp(
         themeMode = settings?.themeMode ?: ThemeMode.SYSTEM,
         accentPalette = settings?.accentPalette ?: AccentPalette.VIOLET,
     ) {
-        Surface(Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxSize()) {
-                DayloomAnimatedBackground()
-                if (settings == null) {
-                    StartupScreen()
-                } else if (!rootState.isAppUnlocked) {
-                    AppLockScreen(rootState, rootViewModel)
-                } else {
-                    DayloomShell(settings, updateState, updateViewModel)
+        DayloomMotionProvider {
+            Surface(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize()) {
+                    DayloomAnimatedBackground()
+                    if (settings == null) {
+                        StartupScreen()
+                    } else if (!rootState.isAppUnlocked) {
+                        AppLockScreen(rootState, rootViewModel)
+                    } else {
+                        DayloomShell(settings, updateState, updateViewModel)
+                    }
                 }
             }
         }
@@ -315,27 +320,8 @@ private fun DayloomShell(
         bottomDestinations
             .indexOfFirst { it.matches(currentRoute ?: startRoute) }
             .coerceAtLeast(0)
-    val indicatorHead = remember(destinationOrder) { Animatable(selectedBottomIndex.toFloat()) }
-    val indicatorTail = remember(destinationOrder) { Animatable(selectedBottomIndex.toFloat()) }
     val upToDateMessage = stringResource(R.string.update_up_to_date)
     val unavailableMessage = stringResource(R.string.update_unavailable)
-
-    LaunchedEffect(selectedBottomIndex, destinationOrder) {
-        coroutineScope {
-            launch {
-                indicatorHead.animateTo(
-                    targetValue = selectedBottomIndex.toFloat(),
-                    animationSpec = spring(dampingRatio = 0.72f, stiffness = 260f),
-                )
-            }
-            launch {
-                indicatorTail.animateTo(
-                    targetValue = selectedBottomIndex.toFloat(),
-                    animationSpec = spring(dampingRatio = 0.84f, stiffness = 105f),
-                )
-            }
-        }
-    }
 
     LaunchedEffect(updateState.feedback) {
         when (updateState.feedback) {
@@ -361,6 +347,7 @@ private fun DayloomShell(
                         startRoute = startRoute,
                         homeSections = settings.homeSections,
                         updateViewModel = updateViewModel,
+                        primaryRouteOrder = destinationOrder,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -371,8 +358,6 @@ private fun DayloomShell(
                             currentRoute = currentRoute,
                             navController = navController,
                             destinations = bottomDestinations,
-                            indicatorHead = indicatorHead,
-                            indicatorTail = indicatorTail,
                         )
                     },
                     contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -383,7 +368,22 @@ private fun DayloomShell(
                         startRoute = startRoute,
                         homeSections = settings.homeSections,
                         updateViewModel = updateViewModel,
-                        modifier = Modifier.padding(innerPadding),
+                        primaryRouteOrder = destinationOrder,
+                        modifier =
+                            Modifier
+                                .padding(innerPadding)
+                                .testTag("primary_navigation_surface")
+                                .primaryNavigationSwipe(
+                                    enabled = bottomDestinations.any { it.matches(currentRoute) },
+                                    selectedIndex = selectedBottomIndex,
+                                    destinationCount = bottomDestinations.size,
+                                    onNavigate = { index ->
+                                        bottomDestinations
+                                            .getOrNull(index)
+                                            ?.route
+                                            ?.let(navController::navigateSingleTop)
+                                    },
+                                ),
                     )
                 }
             }
@@ -445,6 +445,7 @@ private fun DayloomNavHost(
     startRoute: String,
     homeSections: List<HomeSection>,
     updateViewModel: UpdateViewModel,
+    primaryRouteOrder: List<String>,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -452,22 +453,28 @@ private fun DayloomNavHost(
         startDestination = startRoute,
         modifier = modifier,
         enterTransition = {
-            fadeIn(tween(DayloomMotion.STANDARD_MILLIS, delayMillis = 40)) +
-                slideInHorizontally(tween(DayloomMotion.EMPHASIZED_MILLIS)) { it / 12 } +
-                scaleIn(tween(DayloomMotion.EMPHASIZED_MILLIS), initialScale = 0.992f)
+            val direction =
+                navigationDirection(initialState.destination.route, targetState.destination.route, primaryRouteOrder)
+            fadeIn(tween(DayloomMotion.STANDARD_MILLIS, delayMillis = 35)) +
+                slideInHorizontally(tween(DayloomMotion.STANDARD_MILLIS, easing = FastOutSlowInEasing)) {
+                    direction * (it / 14)
+                }
         },
         exitTransition = {
+            val direction =
+                navigationDirection(initialState.destination.route, targetState.destination.route, primaryRouteOrder)
             fadeOut(tween(DayloomMotion.QUICK_MILLIS)) +
-                slideOutHorizontally(tween(DayloomMotion.STANDARD_MILLIS)) { -it / 28 }
+                slideOutHorizontally(tween(DayloomMotion.STANDARD_MILLIS, easing = FastOutSlowInEasing)) {
+                    -direction * (it / 24)
+                }
         },
         popEnterTransition = {
             fadeIn(tween(DayloomMotion.STANDARD_MILLIS, delayMillis = 30)) +
-                slideInHorizontally(tween(DayloomMotion.EMPHASIZED_MILLIS)) { -it / 12 }
+                slideInHorizontally(tween(DayloomMotion.STANDARD_MILLIS, easing = FastOutSlowInEasing)) { -it / 14 }
         },
         popExitTransition = {
             fadeOut(tween(DayloomMotion.QUICK_MILLIS)) +
-                slideOutHorizontally(tween(DayloomMotion.STANDARD_MILLIS)) { it / 20 } +
-                scaleOut(tween(DayloomMotion.QUICK_MILLIS), targetScale = 0.992f)
+                slideOutHorizontally(tween(DayloomMotion.STANDARD_MILLIS, easing = FastOutSlowInEasing)) { it / 24 }
         },
     ) {
         composable(Routes.HOME) {
@@ -523,10 +530,22 @@ private fun DayloomBottomBar(
     currentRoute: String?,
     navController: NavHostController,
     destinations: List<NavItem>,
-    indicatorHead: Animatable<Float, *>,
-    indicatorTail: Animatable<Float, *>,
 ) {
+    val selectedIndex = destinations.indexOfFirst { it.matches(currentRoute) }.coerceAtLeast(0)
+    val motionEnabled = dayloomMotionEnabled()
+    val indicatorPosition by
+        animateFloatAsState(
+            targetValue = selectedIndex.toFloat(),
+            animationSpec =
+                if (motionEnabled) {
+                    tween(DayloomMotion.STANDARD_MILLIS, easing = FastOutSlowInEasing)
+                } else {
+                    tween(0)
+                },
+            label = "navigationIndicatorPosition",
+        )
     NavigationBar(
+        modifier = Modifier.testTag("primary_navigation"),
         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
         tonalElevation = 0.dp,
     ) {
@@ -539,19 +558,22 @@ private fun DayloomBottomBar(
             val indicatorColor = MaterialTheme.colorScheme.primaryContainer
             Canvas(Modifier.fillMaxSize()) {
                 val itemWidth = size.width / destinations.size
-                val headX = itemWidth * (indicatorHead.value + 0.5f)
-                val tailX = itemWidth * (indicatorTail.value + 0.5f)
-                val radius = 32.dp.toPx()
-                val left = minOf(headX, tailX) - radius
-                val right = maxOf(headX, tailX) + radius
-                val stretch = ((right - left - radius * 2f) / itemWidth).coerceIn(0f, 1f)
-                val verticalInset = 2.dp.toPx() * stretch
-                val top = 12.dp.toPx() + verticalInset
-                val height = 32.dp.toPx() - verticalInset * 2f
+                val centerX = itemWidth * (indicatorPosition + 0.5f)
+                val travel = abs(selectedIndex - indicatorPosition).coerceIn(0f, 1f)
+                val width = 56.dp.toPx() + (8.dp.toPx() * travel)
+                val height = 34.dp.toPx() - (2.dp.toPx() * travel)
+                val top = 10.dp.toPx() + ((34.dp.toPx() - height) / 2f)
+                val left = centerX - width / 2f
+                drawRoundRect(
+                    color = indicatorColor.copy(alpha = 0.20f),
+                    topLeft = Offset(left - 4.dp.toPx(), top - 3.dp.toPx()),
+                    size = Size(width + 8.dp.toPx(), height + 6.dp.toPx()),
+                    cornerRadius = CornerRadius((height + 6.dp.toPx()) / 2f),
+                )
                 drawRoundRect(
                     color = indicatorColor,
                     topLeft = Offset(left, top),
-                    size = Size(right - left, height),
+                    size = Size(width, height),
                     cornerRadius = CornerRadius(height / 2f),
                 )
             }
@@ -561,7 +583,7 @@ private fun DayloomBottomBar(
                         selected = destination.matches(currentRoute),
                         onClick = { navController.navigateSingleTop(destination.route) },
                         icon = { AnimatedNavigationIcon(destination.icon, destination.matches(currentRoute)) },
-                        label = { Text(destination.label) },
+                        label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         colors =
                             NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -590,7 +612,7 @@ private fun DayloomNavigationRail(
                 selected = destination.matches(currentRoute),
                 onClick = { navController.navigateSingleTop(destination.route) },
                 icon = { AnimatedNavigationIcon(destination.icon, destination.matches(currentRoute)) },
-                label = { Text(destination.label) },
+                label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 colors =
                     NavigationRailItemDefaults.colors(
                         selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -610,8 +632,8 @@ private fun AnimatedNavigationIcon(
 ) {
     val scale by
         animateFloatAsState(
-            targetValue = if (selected) 1.12f else 1f,
-            animationSpec = spring(stiffness = 440f, dampingRatio = 0.68f),
+            targetValue = if (selected) 1.08f else 1f,
+            animationSpec = tween(DayloomMotion.QUICK_MILLIS, easing = FastOutSlowInEasing),
             label = "navigationIconScale",
         )
     Icon(
@@ -655,6 +677,55 @@ private fun NavHostController.navigateSingleTop(route: String) {
         launchSingleTop = true
         restoreState = true
     }
+}
+
+private fun Modifier.primaryNavigationSwipe(
+    enabled: Boolean,
+    selectedIndex: Int,
+    destinationCount: Int,
+    onNavigate: (Int) -> Unit,
+): Modifier =
+    if (!enabled || destinationCount < 2) {
+        this
+    } else {
+        pointerInput(selectedIndex, destinationCount) {
+            val threshold = 64.dp.toPx()
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Final)
+                var dragX = 0f
+                var dragY = 0f
+                var claimedByChild = down.isConsumed
+                var pressed = true
+                while (pressed) {
+                    val event = awaitPointerEvent(PointerEventPass.Final)
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    val delta = change.position - change.previousPosition
+                    dragX += delta.x
+                    dragY += delta.y
+                    claimedByChild = claimedByChild || change.isConsumed
+                    pressed = change.pressed
+                }
+                if (!claimedByChild && abs(dragX) >= threshold && abs(dragX) > abs(dragY) * 1.35f) {
+                    val target =
+                        when {
+                            dragX < 0f -> selectedIndex + 1
+                            dragX > 0f -> selectedIndex - 1
+                            else -> selectedIndex
+                        }.coerceIn(0, destinationCount - 1)
+                    if (target != selectedIndex) onNavigate(target)
+                }
+            }
+        }
+    }
+
+private fun navigationDirection(
+    fromRoute: String?,
+    toRoute: String?,
+    routeOrder: List<String>,
+): Int {
+    val fromIndex = routeOrder.indexOf(fromRoute)
+    val toIndex = routeOrder.indexOf(toRoute)
+    return if (fromIndex >= 0 && toIndex >= 0 && toIndex < fromIndex) -1 else 1
 }
 
 private val StartDestination.route: String

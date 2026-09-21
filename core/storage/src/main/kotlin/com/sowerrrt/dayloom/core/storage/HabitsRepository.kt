@@ -36,6 +36,7 @@ interface HabitsRepository {
         targetUnit: String = "",
         repeatEveryDays: Int? = null,
         scheduledMonthDays: Set<Int> = emptySet(),
+        reminderOffsetsMinutes: Set<Int> = setOf(0),
     ): List<Habit>
 
     suspend fun updateHabit(
@@ -47,6 +48,7 @@ interface HabitsRepository {
         targetUnit: String = "",
         repeatEveryDays: Int? = null,
         scheduledMonthDays: Set<Int> = emptySet(),
+        reminderOffsetsMinutes: Set<Int> = setOf(0),
     ): List<Habit>
 
     suspend fun archiveHabit(id: EntityId): List<Habit>
@@ -164,6 +166,7 @@ class FileHabitsRepository(
                 habit.scheduledMonthDays,
                 habit.reminderMinutesOfDay,
             )
+            validateReminderOffsets(habit.reminderOffsetsMinutes)
             normalizeTarget(habit.targetAmount, habit.targetUnit)
             require(habit.progressByEpochDay.values.all { it.length <= MAX_TARGET_AMOUNT_LENGTH }) {
                 "Habit progress is too long"
@@ -192,11 +195,13 @@ class FileHabitsRepository(
         targetUnit: String,
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
+        reminderOffsetsMinutes: Set<Int>,
     ): List<Habit> {
         purgeExpiredArchives()
         val normalizedTitle = title.trim()
         val target = normalizeTarget(targetAmount, targetUnit)
         validate(normalizedTitle, scheduledWeekdays, repeatEveryDays, scheduledMonthDays, reminderMinutesOfDay)
+        validateReminderOffsets(reminderOffsetsMinutes)
         return store
             .update { snapshot ->
                 snapshot.copy(
@@ -211,6 +216,7 @@ class FileHabitsRepository(
                                 repeatEveryDays = repeatEveryDays,
                                 scheduledMonthDays = scheduledMonthDays,
                                 reminderMinutesOfDay = reminderMinutesOfDay,
+                                reminderOffsetsMinutes = reminderOffsetsMinutes,
                                 targetAmount = target.first,
                                 targetUnit = target.second,
                             ),
@@ -227,10 +233,12 @@ class FileHabitsRepository(
         targetUnit: String,
         repeatEveryDays: Int?,
         scheduledMonthDays: Set<Int>,
+        reminderOffsetsMinutes: Set<Int>,
     ): List<Habit> {
         val normalizedTitle = title.trim()
         val target = normalizeTarget(targetAmount, targetUnit)
         validate(normalizedTitle, scheduledWeekdays, repeatEveryDays, scheduledMonthDays, reminderMinutesOfDay)
+        validateReminderOffsets(reminderOffsetsMinutes)
         return updateExisting(id) { habit ->
             habit.copy(
                 title = normalizedTitle,
@@ -238,6 +246,7 @@ class FileHabitsRepository(
                 repeatEveryDays = repeatEveryDays,
                 scheduledMonthDays = scheduledMonthDays,
                 reminderMinutesOfDay = reminderMinutesOfDay,
+                reminderOffsetsMinutes = reminderOffsetsMinutes,
                 targetAmount = target.first,
                 targetUnit = target.second,
             )
@@ -371,6 +380,11 @@ class FileHabitsRepository(
         return normalizedAmount to normalizedUnit
     }
 
+    private fun validateReminderOffsets(offsets: Set<Int>) {
+        require(offsets.size <= MAX_REMINDER_OFFSETS) { "Too many reminder offsets" }
+        require(offsets.all { it in 0..MAX_REMINDER_OFFSET_MINUTES }) { "Reminder offset is out of range" }
+    }
+
     private fun HabitsSnapshot.visibleHabits(): List<Habit> =
         habits
             .asSequence()
@@ -393,6 +407,8 @@ class FileHabitsRepository(
         const val MAX_TARGET_AMOUNT_LENGTH = 24
         const val MAX_TARGET_UNIT_LENGTH = 24
         const val MAX_REPEAT_INTERVAL_DAYS = 3650
+        const val MAX_REMINDER_OFFSETS = 24
+        const val MAX_REMINDER_OFFSET_MINUTES = 7 * 24 * 60
     }
 }
 
