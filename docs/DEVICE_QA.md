@@ -12,7 +12,7 @@ This file is the durable record for issue #21. Emulator results are useful for f
 | Battery restrictions | Permission guidance implemented | Pending device run |
 | Vault plaintext in logs/backups | Backup disabled; encrypted repository tests | Pending device audit |
 
-Macrobenchmark replaces the target APK and may clear its app data. Use a dedicated disposable device only; never run it on a working Dayloom installation. For an isolated physical run, set `DAYLOOM_ALLOW_DESTRUCTIVE_BENCHMARK=true`, execute `./gradlew :benchmark:connectedBenchmarkAndroidTest`, note the device model/Android version/date below, attach the benchmark output to issue #21, and replace each pending cell with the measured result.
+Macrobenchmark replaces the target APK and may clear its app data. Use a dedicated disposable device only; never run it on a working Dayloom installation. For an isolated physical run, set `DAYLOOM_ALLOW_DESTRUCTIVE_BENCHMARK=true`, execute `./gradlew :benchmark:connectedBenchmarkBenchmarkAndroidTest`, note the device model/Android version/date below, attach the benchmark output to issue #21, and replace each pending cell with the measured result.
 
 Device: _pending_  
 Android version: _pending_  

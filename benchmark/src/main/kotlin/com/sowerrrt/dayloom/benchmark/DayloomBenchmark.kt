@@ -1,5 +1,7 @@
 package com.sowerrrt.dayloom.benchmark
 
+import androidx.benchmark.macro.BaselineProfileMode
+import androidx.benchmark.macro.CompilationMode
 import androidx.benchmark.macro.FrameTimingMetric
 import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.StartupTimingMetric
@@ -17,11 +19,25 @@ class DayloomBenchmark {
     val benchmarkRule = MacrobenchmarkRule()
 
     @Test
-    fun coldStart() =
+    fun coldStartWithoutProfile() =
         benchmarkRule.measureRepeated(
             packageName = PACKAGE_NAME,
             metrics = listOf(StartupTimingMetric(), FrameTimingMetric()),
             iterations = 5,
+            compilationMode = CompilationMode.None(),
+            startupMode = StartupMode.COLD,
+            setupBlock = { pressHome() },
+        ) {
+            startActivityAndWait()
+        }
+
+    @Test
+    fun coldStartWithBaselineProfile() =
+        benchmarkRule.measureRepeated(
+            packageName = PACKAGE_NAME,
+            metrics = listOf(StartupTimingMetric(), FrameTimingMetric()),
+            iterations = 5,
+            compilationMode = CompilationMode.Partial(BaselineProfileMode.Require),
             startupMode = StartupMode.COLD,
             setupBlock = { pressHome() },
         ) {
@@ -34,6 +50,7 @@ class DayloomBenchmark {
             packageName = PACKAGE_NAME,
             metrics = listOf(FrameTimingMetric()),
             iterations = 5,
+            compilationMode = CompilationMode.Partial(BaselineProfileMode.Require),
             startupMode = StartupMode.WARM,
             setupBlock = {
                 pressHome()

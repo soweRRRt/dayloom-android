@@ -6,7 +6,6 @@ plugins {
     alias(libs.plugins.kotlin.kapt)
     alias(libs.plugins.hilt)
     alias(libs.plugins.screenshot)
-    alias(libs.plugins.baselineprofile)
 }
 
 val releaseStorePath = providers.environmentVariable("DAYLOOM_KEYSTORE_PATH").orNull
@@ -52,9 +51,14 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (hasReleaseSigning) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            signingConfig =
+                if (hasReleaseSigning) {
+                    signingConfigs.getByName("release")
+                } else {
+                    // Allows local benchmark/profile runs on disposable devices. The release
+                    // workflow always supplies the production signing secrets.
+                    signingConfigs.getByName("debug")
+                }
         }
         create("benchmark") {
             initWith(getByName("release"))
@@ -125,19 +129,6 @@ dependencies {
     add("qaImplementation", libs.androidx.compose.ui.test.manifest)
     screenshotTestImplementation(libs.screenshot.validation.api)
     screenshotTestImplementation(libs.androidx.compose.ui.tooling)
-    baselineProfile(project(":benchmark"))
-}
-
-baselineProfile {
-    automaticGenerationDuringBuild = false
-    saveInSrc = true
 }
 
 kapt { correctErrorTypes = true }
-
-// The Baseline Profile plugin exposes synthetic provider-backed source sets that ktlint 14
-// cannot stat on Windows. The same Kotlin sources are already covered by the regular variants.
-tasks
-    .matching {
-        it.name.contains("BenchmarkReleaseSourceSet") || it.name.contains("NonMinifiedReleaseSourceSet")
-    }.configureEach { enabled = false }

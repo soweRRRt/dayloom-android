@@ -40,8 +40,14 @@ dependencies {
     implementation(libs.androidx.benchmark.macro.junit4)
 }
 
-tasks.matching { it.name == "connectedBenchmarkAndroidTest" }.configureEach {
-    doFirst {
+gradle.taskGraph.whenReady {
+    val runsConnectedBenchmark =
+        allTasks.any {
+            it.project == project &&
+                it.name.startsWith("connected") &&
+                it.name.endsWith("BenchmarkAndroidTest")
+        }
+    if (runsConnectedBenchmark) {
         check(providers.environmentVariable("DAYLOOM_ALLOW_DESTRUCTIVE_BENCHMARK").orNull == "true") {
             "Macrobenchmark replaces the target APK and may clear its app data. " +
                 "Run it only on a disposable emulator/device with DAYLOOM_ALLOW_DESTRUCTIVE_BENCHMARK=true."

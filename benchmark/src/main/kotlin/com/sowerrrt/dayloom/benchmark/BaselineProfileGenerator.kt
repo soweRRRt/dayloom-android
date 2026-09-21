@@ -17,7 +17,8 @@ class BaselineProfileGenerator {
     fun generate() =
         baselineProfileRule.collect(
             packageName = PACKAGE_NAME,
-            includeInStartupProfile = true,
+            includeInStartupProfile = false,
+            filterPredicate = { rule -> rule.contains("Lcom/sowerrrt/dayloom/") },
         ) {
             pressHome()
             startActivityAndWait()

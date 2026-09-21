@@ -74,11 +74,18 @@ Dayloom — локальное Android-приложение, которое об
 # Instrumented UI tests на подключённом устройстве/эмуляторе
 ./gradlew :app:connectedDebugAndroidTest
 
-# Macrobenchmark на подключённом устройстве/эмуляторе
-./gradlew :benchmark:connectedBenchmarkAndroidTest
+# Macrobenchmark на отдельном тестовом устройстве/эмуляторе
+DAYLOOM_ALLOW_DESTRUCTIVE_BENCHMARK=true \
+  ./gradlew :benchmark:connectedBenchmarkBenchmarkAndroidTest
+
+# Обновление Baseline Profile на отдельном тестовом устройстве/эмуляторе
+DAYLOOM_ALLOW_DESTRUCTIVE_BENCHMARK=true \
+  ./gradlew :benchmark:connectedBenchmarkBenchmarkAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.sowerrrt.dayloom.benchmark.BaselineProfileGenerator \
+  -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.enabledRules=BaselineProfile
 ```
 
-Instrumented UI tests проверяют навигацию, сквозную связку привычек и планов в календаре, переключение недели/месяца, выполнение привычки из ленты «Сегодня», действия с локальными изображениями, редакторы одноразового и повторяющегося напоминаний, центр разрешений, создание и восстановление списков и финансовых целей, локальные обложки желаний, защиту всего приложения, добавление демонстрационных данных, заблокированное состояние Vault, восстановление после пересоздания Activity, сохранение темы/стартового экрана и диалог обновления. Macrobenchmark измеряет cold start и переход между основными вкладками. Запуск на эмуляторе разрешён для функциональной QA и поиска регрессий, но такие цифры не репрезентативны: итоговую производительность следует измерять на физическом Android-устройстве. Главный экран также имеет Compose Preview для RU/EN и light/dark.
+Instrumented UI tests проверяют навигацию, сквозную связку привычек и планов в календаре, переключение недели/месяца, выполнение привычки из ленты «Сегодня», действия с локальными изображениями, редакторы одноразового и повторяющегося напоминаний, центр разрешений, создание и восстановление списков и финансовых целей, локальные обложки желаний, защиту всего приложения, добавление демонстрационных данных, заблокированное состояние Vault, восстановление после пересоздания Activity, сохранение темы/стартового экрана и диалог обновления. Macrobenchmark сравнивает cold start без оптимизации и с Baseline Profile, а также измеряет переход между основными вкладками. Сгенерированный профиль хранится в `app/src/main/baseline-prof.txt`; после генерации файл из `benchmark/build/outputs/connected_android_test_additional_output` нужно скопировать туда и пересобрать release. Benchmark заменяет APK и может очистить данные, поэтому защитная переменная обязательна и запуск допустим только на отдельном устройстве. Цифры эмулятора пригодны для поиска регрессий, но итоговую производительность следует измерять на физическом Android-устройстве. Главный экран также имеет Compose Preview для RU/EN и light/dark.
 
 ## Приватность и данные
 
