@@ -647,6 +647,8 @@ private fun HabitsList(
                         DayloomSwipeToArchive(
                             archiveLabel = stringResource(R.string.habits_archive_confirm),
                             onArchive = { onSwipeArchive(habit) },
+                            editLabel = stringResource(R.string.habits_edit),
+                            onEdit = { onEdit(habit) },
                         ) {
                             HabitRow(
                                 habit = habit,

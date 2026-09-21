@@ -232,14 +232,18 @@ fun DayloomSwipeToArchive(
     archiveLabel: String,
     onArchive: () -> Unit,
     modifier: Modifier = Modifier,
+    editLabel: String? = null,
+    onEdit: (() -> Unit)? = null,
     enabled: Boolean = true,
     content: @Composable () -> Unit,
 ) {
+    val editEnabled = enabled && editLabel != null && onEdit != null
     val dismissState =
         androidx.compose.material3.rememberSwipeToDismissBoxState(
             confirmValueChange = { value ->
-                if (value == SwipeToDismissBoxValue.EndToStart && enabled) {
-                    onArchive()
+                when {
+                    value == SwipeToDismissBoxValue.StartToEnd && editEnabled -> onEdit()
+                    value == SwipeToDismissBoxValue.EndToStart && enabled -> onArchive()
                 }
                 // The data layer removes the row immediately. Keeping the dismiss state at
                 // EndToStart makes a restored item with the same stable key reappear as an
@@ -248,14 +252,15 @@ fun DayloomSwipeToArchive(
             },
             positionalThreshold = { distance -> distance * 0.38f },
         )
-    val active = dismissState.targetValue == SwipeToDismissBoxValue.EndToStart
+    val editing = dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd
+    val archiving = dismissState.targetValue == SwipeToDismissBoxValue.EndToStart
     val backgroundColor by
         animateColorAsState(
             targetValue =
-                if (active) {
-                    MaterialTheme.colorScheme.tertiaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
+                when {
+                    editing -> MaterialTheme.colorScheme.primaryContainer
+                    archiving -> MaterialTheme.colorScheme.tertiaryContainer
+                    else -> MaterialTheme.colorScheme.surfaceVariant
                 },
             animationSpec = tween(DayloomMotion.QUICK_MILLIS),
             label = "archiveSwipeBackground",
@@ -267,15 +272,25 @@ fun DayloomSwipeToArchive(
             modifier.semantics {
                 if (enabled) {
                     customActions =
-                        listOf(
-                            CustomAccessibilityAction(archiveLabel) {
-                                onArchive()
-                                true
-                            },
-                        )
+                        buildList {
+                            if (editEnabled) {
+                                add(
+                                    CustomAccessibilityAction(requireNotNull(editLabel)) {
+                                        requireNotNull(onEdit).invoke()
+                                        true
+                                    },
+                                )
+                            }
+                            add(
+                                CustomAccessibilityAction(archiveLabel) {
+                                    onArchive()
+                                    true
+                                },
+                            )
+                        }
                 }
             },
-        enableDismissFromStartToEnd = false,
+        enableDismissFromStartToEnd = editEnabled,
         enableDismissFromEndToStart = enabled,
         backgroundContent = {
             Box(
@@ -284,22 +299,41 @@ fun DayloomSwipeToArchive(
                     .clip(MaterialTheme.shapes.large)
                     .background(backgroundColor)
                     .padding(horizontal = DayloomSpacing.lg),
-                contentAlignment = Alignment.CenterEnd,
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
-                ) {
-                    Text(
-                        archiveLabel,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                    Icon(
-                        Icons.Rounded.Archive,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                    )
+                if (editing) {
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterStart),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+                    ) {
+                        Icon(
+                            Icons.Rounded.Edit,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        Text(
+                            requireNotNull(editLabel),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+                    ) {
+                        Text(
+                            archiveLabel,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        Icon(
+                            Icons.Rounded.Archive,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                        )
+                    }
                 }
             }
         },

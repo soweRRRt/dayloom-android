@@ -441,6 +441,26 @@ class NavigationUiTest {
     }
 
     @Test
+    fun habitCanBeEditedBySwipingRight() {
+        val title = "Swipe edit habit ${System.currentTimeMillis()}"
+        val editedTitle = "$title updated"
+        composeRule.onNodeWithTag("primary_nav_habits").performClick()
+        composeRule.onNodeWithTag("create_habit").performClick()
+        composeRule.onNodeWithTag("habit_name_input").performTextInput(title)
+        composeRule.onNodeWithTag("save_habit").performClick()
+        waitUntilScrollable("habits_list", "habit_toggle_$title")
+
+        composeRule.onNodeWithTag("habit_toggle_$title").performTouchInput { swipeRight() }
+        waitForTag("habit_name_input")
+        composeRule.onNodeWithTag("habit_name_input").assertTextContains(title)
+        composeRule.onNodeWithTag("habit_name_input").performTextReplacement(editedTitle)
+        composeRule.onNodeWithTag("save_habit").performClick()
+
+        waitUntilScrollable("habits_list", "habit_toggle_$editedTitle")
+        composeRule.onNodeWithTag("habit_toggle_$editedTitle").assertExists()
+    }
+
+    @Test
     fun listAndItemCanBeCreatedCompletedAndRestored() {
         val suffix = System.currentTimeMillis()
         val listTitle = "Groceries $suffix"
