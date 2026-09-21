@@ -37,6 +37,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Archive
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -298,6 +300,107 @@ fun DayloomSwipeToArchive(
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onTertiaryContainer,
                     )
+                }
+            }
+        },
+        content = { content() },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DayloomSwipeActions(
+    editLabel: String,
+    deleteLabel: String,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    val dismissState =
+        androidx.compose.material3.rememberSwipeToDismissBoxState(
+            confirmValueChange = { value ->
+                when {
+                    value == SwipeToDismissBoxValue.StartToEnd && enabled -> onEdit()
+                    value == SwipeToDismissBoxValue.EndToStart && enabled -> onDelete()
+                }
+                // Actions open a dialog or mutate the row. Returning false keeps a stable key
+                // from being recomposed in a permanently dismissed position.
+                false
+            },
+            positionalThreshold = { distance -> distance * 0.38f },
+        )
+    val direction = dismissState.targetValue
+    val editing = direction == SwipeToDismissBoxValue.StartToEnd
+    val deleting = direction == SwipeToDismissBoxValue.EndToStart
+    val backgroundColor by
+        animateColorAsState(
+            targetValue =
+                when {
+                    editing -> MaterialTheme.colorScheme.primaryContainer
+                    deleting -> MaterialTheme.colorScheme.errorContainer
+                    else -> MaterialTheme.colorScheme.surfaceVariant
+                },
+            animationSpec = tween(DayloomMotion.QUICK_MILLIS),
+            label = "itemSwipeBackground",
+        )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        modifier =
+            modifier.semantics {
+                if (enabled) {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction(editLabel) {
+                                onEdit()
+                                true
+                            },
+                            CustomAccessibilityAction(deleteLabel) {
+                                onDelete()
+                                true
+                            },
+                        )
+                }
+            },
+        enableDismissFromStartToEnd = enabled,
+        enableDismissFromEndToStart = enabled,
+        backgroundContent = {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clip(MaterialTheme.shapes.large)
+                    .background(backgroundColor)
+                    .padding(horizontal = DayloomSpacing.lg),
+            ) {
+                if (!deleting) {
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterStart),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+                    ) {
+                        Icon(Icons.Rounded.Edit, contentDescription = null)
+                        Text(editLabel, style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+                if (!editing) {
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
+                    ) {
+                        Text(
+                            deleteLabel,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        Icon(
+                            Icons.Rounded.DeleteOutline,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
                 }
             }
         },

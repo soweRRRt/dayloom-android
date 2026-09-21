@@ -1,7 +1,15 @@
 package com.sowerrrt.dayloom.feature.lists
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,12 +38,14 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FormatListBulleted
 import androidx.compose.material.icons.rounded.FormatListNumbered
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Luggage
 import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Notes
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Restore
@@ -44,6 +54,8 @@ import androidx.compose.material.icons.rounded.ShoppingCart
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -64,7 +76,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
@@ -74,6 +91,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sowerrrt.dayloom.core.designsystem.DayloomCard
 import com.sowerrrt.dayloom.core.designsystem.DayloomHorizontalRail
 import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
+import com.sowerrrt.dayloom.core.designsystem.DayloomSwipeActions
 import com.sowerrrt.dayloom.core.designsystem.DayloomSwipeToArchive
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
@@ -156,38 +174,65 @@ fun ListsScreen(viewModel: ListsViewModel = hiltViewModel()) {
                         onRetry = viewModel::refresh,
                         modifier = Modifier.weight(1f),
                     )
-                selectedList == null ->
-                    ListsOverview(
-                        state = state,
-                        onOpenList = { viewModel.openList(it.id) },
-                        onQueryChange = viewModel::setQuery,
-                        onShowArchive = viewModel::setShowingArchive,
-                        onRestore = { viewModel.restoreList(it.id) },
-                        onDuplicate = { viewModel.duplicateList(it.id) },
-                        onArchive = { viewModel.archiveList(it.id) },
-                        modifier = Modifier.weight(1f),
-                    )
                 else ->
-                    ListDetails(
-                        list = selectedList,
-                        otherLists = state.lists.filterNot { it.id == selectedList.id },
-                        presets = state.itemPresets,
-                        selectedItemIds = state.selectedItemIds,
-                        onUsePreset = { viewModel.addItemFromPreset(selectedList.id, it) },
-                        onToggle = { viewModel.toggleItem(selectedList.id, it.id) },
-                        onEdit = {
-                            editingItem = it
-                            showItemEditor = true
-                        },
-                        onDelete = { pendingItemDelete = it },
-                        onMove = { item, offset -> viewModel.moveItem(selectedList.id, item.id, offset) },
-                        onSelect = { viewModel.toggleItemSelection(it.id) },
-                        onClearSelection = viewModel::clearItemSelection,
-                        onCompleteSelected = { viewModel.completeSelected(selectedList.id) },
-                        onDeleteSelected = { viewModel.deleteSelected(selectedList.id) },
-                        onMoveSelected = { target -> viewModel.moveSelected(selectedList.id, target.id) },
-                        modifier = Modifier.weight(1f),
-                    )
+                    SharedTransitionLayout(Modifier.weight(1f)) {
+                        AnimatedContent(
+                            targetState = selectedList?.id,
+                            transitionSpec = {
+                                (fadeIn() + slideInHorizontally { it / 12 }) togetherWith
+                                    (fadeOut() + slideOutHorizontally { -it / 18 })
+                            },
+                            label = "listContainerTransition",
+                        ) { targetId ->
+                            val targetList = state.lists.firstOrNull { it.id == targetId }
+                            if (targetList == null) {
+                                ListsOverview(
+                                    state = state,
+                                    onOpenList = { viewModel.openList(it.id) },
+                                    onQueryChange = viewModel::setQuery,
+                                    onShowArchive = viewModel::setShowingArchive,
+                                    onRestore = { viewModel.restoreList(it.id) },
+                                    onDuplicate = { viewModel.duplicateList(it.id) },
+                                    onArchive = { viewModel.archiveList(it.id) },
+                                    cardModifier = { list ->
+                                        Modifier.sharedBounds(
+                                            sharedContentState =
+                                                rememberSharedContentState("list-container-${list.id.value}"),
+                                            animatedVisibilityScope = this@AnimatedContent,
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else {
+                                ListDetails(
+                                    list = targetList,
+                                    otherLists = state.lists.filterNot { it.id == targetList.id },
+                                    presets = state.itemPresets,
+                                    selectedItemIds = state.selectedItemIds,
+                                    onUsePreset = { viewModel.addItemFromPreset(targetList.id, it) },
+                                    onToggle = { viewModel.toggleItem(targetList.id, it.id) },
+                                    onEdit = {
+                                        editingItem = it
+                                        showItemEditor = true
+                                    },
+                                    onDelete = { pendingItemDelete = it },
+                                    onMove = { item, offset -> viewModel.moveItem(targetList.id, item.id, offset) },
+                                    onSelect = { viewModel.toggleItemSelection(it.id) },
+                                    onClearSelection = viewModel::clearItemSelection,
+                                    onCompleteSelected = { viewModel.completeSelected(targetList.id) },
+                                    onDeleteSelected = { viewModel.deleteSelected(targetList.id) },
+                                    onMoveSelected = { target -> viewModel.moveSelected(targetList.id, target.id) },
+                                    headerModifier =
+                                        Modifier.sharedBounds(
+                                            sharedContentState =
+                                                rememberSharedContentState("list-container-${targetList.id.value}"),
+                                            animatedVisibilityScope = this@AnimatedContent,
+                                        ),
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                        }
+                    }
             }
         }
 
@@ -284,6 +329,7 @@ private fun ListsOverview(
     onRestore: (DayList) -> Unit,
     onDuplicate: (DayList) -> Unit,
     onArchive: (DayList) -> Unit,
+    cardModifier: @Composable (DayList) -> Modifier = { Modifier },
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -346,6 +392,7 @@ private fun ListsOverview(
                             list = list,
                             onClick = {},
                             onRestore = { onRestore(list) },
+                            modifier = cardModifier(list),
                         )
                     } else {
                         DayloomSwipeToArchive(
@@ -356,6 +403,7 @@ private fun ListsOverview(
                                 list = list,
                                 onClick = { onOpenList(list) },
                                 onDuplicate = { onDuplicate(list) },
+                                modifier = cardModifier(list),
                             )
                         }
                     }
@@ -385,12 +433,13 @@ private fun ListOverviewCard(
     onClick: () -> Unit,
     onRestore: (() -> Unit)? = null,
     onDuplicate: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
 ) {
     val completed = list.items.count(DayListItem::completed)
     val total = list.items.size
     DayloomCard(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 .testTag("list_${list.title}"),
         onClick = onClick,
@@ -465,6 +514,7 @@ private fun ListDetails(
     onCompleteSelected: () -> Unit,
     onDeleteSelected: () -> Unit,
     onMoveSelected: (DayList) -> Unit,
+    headerModifier: Modifier = Modifier,
     modifier: Modifier = Modifier,
 ) {
     val completed = list.items.count(DayListItem::completed)
@@ -474,7 +524,7 @@ private fun ListDetails(
         verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm),
     ) {
         item {
-            DayloomCard(Modifier.fillMaxWidth()) {
+            DayloomCard(headerModifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(listIcon(list), contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
@@ -605,8 +655,32 @@ private fun ListItemRow(
     selected: Boolean,
     onSelect: () -> Unit,
 ) {
-    DayloomCard(Modifier.fillMaxWidth().testTag("list_item_${item.title}")) {
-        Column {
+    var menuExpanded by remember { mutableStateOf(false) }
+    var dragOffset by remember { mutableStateOf(0f) }
+    val haptic = LocalHapticFeedback.current
+    val moveThreshold = with(LocalDensity.current) { 46.dp.toPx() }
+    val editLabel = stringResource(R.string.lists_edit_item)
+    val deleteLabel = stringResource(R.string.lists_delete_item)
+
+    DayloomSwipeActions(
+        editLabel = editLabel,
+        deleteLabel = deleteLabel,
+        onEdit = {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            onEdit()
+        },
+        onDelete = {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            onDelete()
+        },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        DayloomCard(
+            Modifier
+                .fillMaxWidth()
+                .graphicsLayer { translationY = dragOffset }
+                .testTag("list_item_${item.title}"),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 when (kind) {
                     ListKind.GENERAL -> {
@@ -675,32 +749,115 @@ private fun ListItemRow(
                         )
                     }
                 }
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.lists_edit_item))
-                }
-                IconButton(onClick = onSelect, modifier = Modifier.testTag("select_list_item_${item.title}")) {
-                    Icon(
-                        if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-                        contentDescription = stringResource(R.string.lists_select_item, item.title),
-                        tint =
-                            if (selected) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                Icon(
+                    Icons.Rounded.DragHandle,
+                    contentDescription = stringResource(R.string.lists_drag_item),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier =
+                        Modifier
+                            .size(40.dp)
+                            .padding(8.dp)
+                            .testTag("drag_list_item_${item.title}")
+                            .pointerInput(item.id, canMoveUp, canMoveDown) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    },
+                                    onDragCancel = { dragOffset = 0f },
+                                    onDragEnd = { dragOffset = 0f },
+                                    onDrag = { change, amount ->
+                                        change.consume()
+                                        dragOffset += amount.y
+                                        when {
+                                            dragOffset <= -moveThreshold && canMoveDown -> {
+                                                onMoveDown()
+                                                dragOffset += moveThreshold
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            }
+                                            dragOffset >= moveThreshold && canMoveUp -> {
+                                                onMoveUp()
+                                                dragOffset -= moveThreshold
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            }
+                                        }
+                                    },
+                                )
                             },
-                    )
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.lists_delete_item))
-                }
-            }
-            HorizontalDivider()
-            Row(modifier = Modifier.align(Alignment.End)) {
-                IconButton(onClick = onMoveUp, enabled = canMoveUp) {
-                    Icon(Icons.Rounded.ArrowUpward, contentDescription = stringResource(R.string.lists_move_up))
-                }
-                IconButton(onClick = onMoveDown, enabled = canMoveDown) {
-                    Icon(Icons.Rounded.ArrowDownward, contentDescription = stringResource(R.string.lists_move_down))
+                )
+                Box {
+                    IconButton(
+                        onClick = { menuExpanded = true },
+                        modifier = Modifier.testTag("list_item_more_${item.title}"),
+                    ) {
+                        Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.lists_item_actions))
+                    }
+                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text(editLabel) },
+                            leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                onEdit()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(
+                                        if (selected) {
+                                            R.string.lists_unselect_item
+                                        } else {
+                                            R.string.lists_select_item_short
+                                        },
+                                    ),
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = {
+                                menuExpanded = false
+                                onSelect()
+                            },
+                            modifier = Modifier.testTag("select_list_item_${item.title}"),
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.lists_move_up)) },
+                            leadingIcon = { Icon(Icons.Rounded.ArrowUpward, contentDescription = null) },
+                            enabled = canMoveUp,
+                            onClick = {
+                                menuExpanded = false
+                                onMoveUp()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.lists_move_down)) },
+                            leadingIcon = { Icon(Icons.Rounded.ArrowDownward, contentDescription = null) },
+                            enabled = canMoveDown,
+                            onClick = {
+                                menuExpanded = false
+                                onMoveDown()
+                            },
+                        )
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(deleteLabel, color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Rounded.DeleteOutline,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                )
+                            },
+                            onClick = {
+                                menuExpanded = false
+                                onDelete()
+                            },
+                        )
+                    }
                 }
             }
         }

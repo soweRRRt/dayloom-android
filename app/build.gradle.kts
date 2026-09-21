@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.kapt)
     alias(libs.plugins.hilt)
     alias(libs.plugins.screenshot)
+    alias(libs.plugins.baselineprofile)
 }
 
 val releaseStorePath = providers.environmentVariable("DAYLOOM_KEYSTORE_PATH").orNull
@@ -105,6 +106,8 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.metrics.performance)
+    implementation(libs.androidx.profileinstaller)
     implementation(libs.hilt.android)
     implementation(libs.kotlinx.coroutines.android)
     kapt(libs.hilt.compiler)
@@ -122,6 +125,19 @@ dependencies {
     add("qaImplementation", libs.androidx.compose.ui.test.manifest)
     screenshotTestImplementation(libs.screenshot.validation.api)
     screenshotTestImplementation(libs.androidx.compose.ui.tooling)
+    baselineProfile(project(":benchmark"))
+}
+
+baselineProfile {
+    automaticGenerationDuringBuild = false
+    saveInSrc = true
 }
 
 kapt { correctErrorTypes = true }
+
+// The Baseline Profile plugin exposes synthetic provider-backed source sets that ktlint 14
+// cannot stat on Windows. The same Kotlin sources are already covered by the regular variants.
+tasks
+    .matching {
+        it.name.contains("BenchmarkReleaseSourceSet") || it.name.contains("NonMinifiedReleaseSourceSet")
+    }.configureEach { enabled = false }

@@ -12,6 +12,7 @@ plugins {
     alias(libs.plugins.hilt) apply false
     alias(libs.plugins.ktlint) apply false
     alias(libs.plugins.screenshot) apply false
+    alias(libs.plugins.baselineprofile) apply false
 }
 
 subprojects {

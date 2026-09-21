@@ -10,6 +10,8 @@
     <string name="planner_today">Today</string>
     <string name="planner_week">Week</string>
     <string name="planner_month">Month</string>
+    <string name="planner_agenda">Agenda</string>
+    <string name="planner_agenda_hint">Swipe dates; activity bars show habits and plans</string>
     <string name="planner_previous_week">Previous week</string>
     <string name="planner_next_week">Next week</string>
     <string name="planner_day_summary">%1$d habits · %2$d plans</string>

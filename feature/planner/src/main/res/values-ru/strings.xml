@@ -10,6 +10,8 @@
     <string name="planner_today">Сегодня</string>
     <string name="planner_week">Неделя</string>
     <string name="planner_month">Месяц</string>
+    <string name="planner_agenda">Лента</string>
+    <string name="planner_agenda_hint">Листайте даты; полоски показывают привычки и планы</string>
     <string name="planner_previous_week">Предыдущая неделя</string>
     <string name="planner_next_week">Следующая неделя</string>
     <string name="planner_day_summary">Привычки: %1$d · Планы: %2$d</string>

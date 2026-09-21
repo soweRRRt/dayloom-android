@@ -15,8 +15,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -28,6 +27,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CalendarMonth
@@ -60,6 +62,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -70,10 +73,11 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -82,7 +86,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.os.LocaleListCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.metrics.performance.PerformanceMetricsState
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -98,7 +102,6 @@ import com.sowerrrt.dayloom.core.designsystem.DayloomSpacing
 import com.sowerrrt.dayloom.core.designsystem.DayloomTheme
 import com.sowerrrt.dayloom.core.designsystem.DayloomTopBar
 import com.sowerrrt.dayloom.core.designsystem.dayloomDialogMotion
-import com.sowerrrt.dayloom.core.designsystem.dayloomMotionEnabled
 import com.sowerrrt.dayloom.core.model.AccentPalette
 import com.sowerrrt.dayloom.core.model.AppLanguage
 import com.sowerrrt.dayloom.core.model.AppSettings
@@ -115,6 +118,7 @@ import com.sowerrrt.dayloom.feature.settings.TemplatesScreen
 import com.sowerrrt.dayloom.feature.vault.VaultScreen
 import com.sowerrrt.dayloom.feature.wishlist.WishlistScreen
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 @Composable
@@ -315,11 +319,50 @@ private fun DayloomShell(
     val currentEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentEntry?.destination?.route
     val bottomDestinations = primaryDestinations(settings.bottomSections)
-    val destinationOrder = bottomDestinations.map(NavItem::route)
+    val initialPage =
+        remember(bottomDestinations, startRoute) {
+            bottomDestinations.indexOfFirst { it.route == startRoute }.coerceAtLeast(0)
+        }
+    val pagerState = rememberPagerState(initialPage = initialPage) { bottomDestinations.size }
+    val metricsStateHolder = rememberMetricsStateHolder()
+    val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
     val selectedBottomIndex =
-        bottomDestinations
-            .indexOfFirst { it.matches(currentRoute ?: startRoute) }
-            .coerceAtLeast(0)
+        if (currentRoute == Routes.MAIN || currentRoute == null) {
+            pagerState.currentPage
+        } else {
+            bottomDestinations.indexOfFirst { it.matches(currentRoute) }.coerceAtLeast(pagerState.currentPage)
+        }
+    val indicatorPosition =
+        if (currentRoute == Routes.MAIN || currentRoute == null) {
+            pagerState.currentPage + pagerState.currentPageOffsetFraction
+        } else {
+            selectedBottomIndex.toFloat()
+        }
+    val openPrimary: (Int) -> Unit = { index ->
+        if (index in bottomDestinations.indices) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            if (currentRoute != Routes.MAIN) navController.popBackStack(Routes.MAIN, false)
+            scope.launch { pagerState.animateScrollToPage(index) }
+        }
+    }
+
+    LaunchedEffect(currentRoute, pagerState.settledPage) {
+        val screen =
+            if (currentRoute == Routes.MAIN || currentRoute == null) {
+                bottomDestinations.getOrNull(pagerState.settledPage)?.route ?: Routes.MAIN
+            } else {
+                currentRoute
+            }
+        metricsStateHolder.state?.putState("Screen", screen)
+    }
+    LaunchedEffect(pagerState.isScrollInProgress) {
+        if (pagerState.isScrollInProgress) {
+            metricsStateHolder.state?.putState("Navigation", "Swiping")
+        } else {
+            metricsStateHolder.state?.removeState("Navigation")
+        }
+    }
     val upToDateMessage = stringResource(R.string.update_up_to_date)
     val unavailableMessage = stringResource(R.string.update_unavailable)
 
@@ -341,13 +384,18 @@ private fun DayloomShell(
             val wide = isWideLayout(maxWidth.value)
             if (wide) {
                 Row(Modifier.fillMaxSize()) {
-                    DayloomNavigationRail(currentRoute, navController, settings.bottomSections)
+                    DayloomNavigationRail(
+                        selectedIndex = selectedBottomIndex,
+                        destinations = bottomDestinations,
+                        onSelect = openPrimary,
+                    )
                     DayloomNavHost(
                         navController = navController,
-                        startRoute = startRoute,
                         homeSections = settings.homeSections,
                         updateViewModel = updateViewModel,
-                        primaryRouteOrder = destinationOrder,
+                        pagerState = pagerState,
+                        destinations = bottomDestinations,
+                        onSelectPrimary = openPrimary,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -355,9 +403,10 @@ private fun DayloomShell(
                 Scaffold(
                     bottomBar = {
                         DayloomBottomBar(
-                            currentRoute = currentRoute,
-                            navController = navController,
+                            selectedIndex = selectedBottomIndex,
+                            indicatorPosition = indicatorPosition,
                             destinations = bottomDestinations,
+                            onSelect = openPrimary,
                         )
                     },
                     contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -365,25 +414,12 @@ private fun DayloomShell(
                 ) { innerPadding ->
                     DayloomNavHost(
                         navController = navController,
-                        startRoute = startRoute,
                         homeSections = settings.homeSections,
                         updateViewModel = updateViewModel,
-                        primaryRouteOrder = destinationOrder,
-                        modifier =
-                            Modifier
-                                .padding(innerPadding)
-                                .testTag("primary_navigation_surface")
-                                .primaryNavigationSwipe(
-                                    enabled = bottomDestinations.any { it.matches(currentRoute) },
-                                    selectedIndex = selectedBottomIndex,
-                                    destinationCount = bottomDestinations.size,
-                                    onNavigate = { index ->
-                                        bottomDestinations
-                                            .getOrNull(index)
-                                            ?.route
-                                            ?.let(navController::navigateSingleTop)
-                                    },
-                                ),
+                        pagerState = pagerState,
+                        destinations = bottomDestinations,
+                        onSelectPrimary = openPrimary,
+                        modifier = Modifier.padding(innerPadding),
                     )
                 }
             }
@@ -404,6 +440,12 @@ private fun DayloomShell(
 }
 
 internal fun isWideLayout(widthDp: Float): Boolean = widthDp >= 720f
+
+@Composable
+private fun rememberMetricsStateHolder(): PerformanceMetricsState.Holder {
+    val view = LocalView.current
+    return remember(view) { PerformanceMetricsState.getHolderForHierarchy(view) }
+}
 
 @Composable
 internal fun UpdateAvailableDialog(
@@ -442,30 +484,27 @@ internal fun UpdateAvailableDialog(
 @Composable
 private fun DayloomNavHost(
     navController: NavHostController,
-    startRoute: String,
     homeSections: List<HomeSection>,
     updateViewModel: UpdateViewModel,
-    primaryRouteOrder: List<String>,
+    pagerState: PagerState,
+    destinations: List<NavItem>,
+    onSelectPrimary: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
         navController = navController,
-        startDestination = startRoute,
+        startDestination = Routes.MAIN,
         modifier = modifier,
         enterTransition = {
-            val direction =
-                navigationDirection(initialState.destination.route, targetState.destination.route, primaryRouteOrder)
             fadeIn(tween(DayloomMotion.STANDARD_MILLIS, delayMillis = 35)) +
                 slideInHorizontally(tween(DayloomMotion.STANDARD_MILLIS, easing = FastOutSlowInEasing)) {
-                    direction * (it / 14)
+                    it / 14
                 }
         },
         exitTransition = {
-            val direction =
-                navigationDirection(initialState.destination.route, targetState.destination.route, primaryRouteOrder)
             fadeOut(tween(DayloomMotion.QUICK_MILLIS)) +
                 slideOutHorizontally(tween(DayloomMotion.STANDARD_MILLIS, easing = FastOutSlowInEasing)) {
-                    -direction * (it / 24)
+                    -(it / 24)
                 }
         },
         popEnterTransition = {
@@ -477,20 +516,12 @@ private fun DayloomNavHost(
                 slideOutHorizontally(tween(DayloomMotion.STANDARD_MILLIS, easing = FastOutSlowInEasing)) { it / 24 }
         },
     ) {
-        composable(Routes.HOME) {
-            HomeScreen(
-                sections = homeSections,
-                onOpenHabits = { navController.navigateSingleTop(Routes.HABITS) },
-                onOpenPlanner = { navController.navigateSingleTop(Routes.PLANNER) },
-                onOpenLists = { navController.navigateSingleTop(Routes.LISTS) },
-                onOpenWishlist = { navController.navigate(Routes.WISHLIST) },
-            )
-        }
-        composable(Routes.HABITS) { HabitsScreen() }
-        composable(Routes.PLANNER) { PlannerScreen() }
-        composable(Routes.LISTS) { ListsScreen() }
-        composable(Routes.MORE) {
-            MoreScreen(
+        composable(Routes.MAIN) {
+            PrimaryPager(
+                pagerState = pagerState,
+                destinations = destinations,
+                homeSections = homeSections,
+                onSelectPrimary = onSelectPrimary,
                 onWishlist = { navController.navigate(Routes.WISHLIST) },
                 onVault = { navController.navigate(Routes.VAULT) },
                 onTemplates = { navController.navigate(Routes.TEMPLATES) },
@@ -506,6 +537,48 @@ private fun DayloomNavHost(
                 onApplyLanguage = ::applyAppLanguage,
                 onBack = navController::popBackStack,
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PrimaryPager(
+    pagerState: PagerState,
+    destinations: List<NavItem>,
+    homeSections: List<HomeSection>,
+    onSelectPrimary: (Int) -> Unit,
+    onWishlist: () -> Unit,
+    onVault: () -> Unit,
+    onTemplates: () -> Unit,
+    onSettings: () -> Unit,
+) {
+    fun pageOf(route: String): Int = destinations.indexOfFirst { it.route == route }.coerceAtLeast(0)
+    HorizontalPager(
+        state = pagerState,
+        modifier = Modifier.fillMaxSize().testTag("primary_navigation_surface"),
+        key = { page -> destinations[page].route },
+        beyondViewportPageCount = 1,
+    ) { page ->
+        when (destinations[page].route) {
+            Routes.HOME ->
+                HomeScreen(
+                    sections = homeSections,
+                    onOpenHabits = { onSelectPrimary(pageOf(Routes.HABITS)) },
+                    onOpenPlanner = { onSelectPrimary(pageOf(Routes.PLANNER)) },
+                    onOpenLists = { onSelectPrimary(pageOf(Routes.LISTS)) },
+                    onOpenWishlist = onWishlist,
+                )
+            Routes.HABITS -> HabitsScreen()
+            Routes.PLANNER -> PlannerScreen()
+            Routes.LISTS -> ListsScreen()
+            Routes.MORE ->
+                MoreScreen(
+                    onWishlist = onWishlist,
+                    onVault = onVault,
+                    onTemplates = onTemplates,
+                    onSettings = onSettings,
+                )
         }
     }
 }
@@ -527,23 +600,11 @@ internal val AppLanguage.languageTags: String
 
 @Composable
 private fun DayloomBottomBar(
-    currentRoute: String?,
-    navController: NavHostController,
+    selectedIndex: Int,
+    indicatorPosition: Float,
     destinations: List<NavItem>,
+    onSelect: (Int) -> Unit,
 ) {
-    val selectedIndex = destinations.indexOfFirst { it.matches(currentRoute) }.coerceAtLeast(0)
-    val motionEnabled = dayloomMotionEnabled()
-    val indicatorPosition by
-        animateFloatAsState(
-            targetValue = selectedIndex.toFloat(),
-            animationSpec =
-                if (motionEnabled) {
-                    tween(DayloomMotion.STANDARD_MILLIS, easing = FastOutSlowInEasing)
-                } else {
-                    tween(0)
-                },
-            label = "navigationIndicatorPosition",
-        )
     NavigationBar(
         modifier = Modifier.testTag("primary_navigation"),
         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
@@ -578,11 +639,11 @@ private fun DayloomBottomBar(
                 )
             }
             Row(Modifier.fillMaxSize()) {
-                destinations.forEach { destination ->
+                destinations.forEachIndexed { index, destination ->
                     NavigationBarItem(
-                        selected = destination.matches(currentRoute),
-                        onClick = { navController.navigateSingleTop(destination.route) },
-                        icon = { AnimatedNavigationIcon(destination.icon, destination.matches(currentRoute)) },
+                        selected = index == selectedIndex,
+                        onClick = { onSelect(index) },
+                        icon = { AnimatedNavigationIcon(destination.icon, index == selectedIndex) },
                         label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         colors =
                             NavigationBarItemDefaults.colors(
@@ -602,16 +663,16 @@ private fun DayloomBottomBar(
 
 @Composable
 private fun DayloomNavigationRail(
-    currentRoute: String?,
-    navController: NavHostController,
-    sections: List<BottomSection>,
+    selectedIndex: Int,
+    destinations: List<NavItem>,
+    onSelect: (Int) -> Unit,
 ) {
     NavigationRail(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)) {
-        primaryDestinations(sections).forEach { destination ->
+        destinations.forEachIndexed { index, destination ->
             NavigationRailItem(
-                selected = destination.matches(currentRoute),
-                onClick = { navController.navigateSingleTop(destination.route) },
-                icon = { AnimatedNavigationIcon(destination.icon, destination.matches(currentRoute)) },
+                selected = index == selectedIndex,
+                onClick = { onSelect(index) },
+                icon = { AnimatedNavigationIcon(destination.icon, index == selectedIndex) },
                 label = { Text(destination.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 colors =
                     NavigationRailItemDefaults.colors(
@@ -671,63 +732,6 @@ private data class NavItem(
     fun matches(currentRoute: String?): Boolean = currentRoute == route || currentRoute in relatedRoutes
 }
 
-private fun NavHostController.navigateSingleTop(route: String) {
-    navigate(route) {
-        popUpTo(graph.findStartDestination().id) { saveState = true }
-        launchSingleTop = true
-        restoreState = true
-    }
-}
-
-private fun Modifier.primaryNavigationSwipe(
-    enabled: Boolean,
-    selectedIndex: Int,
-    destinationCount: Int,
-    onNavigate: (Int) -> Unit,
-): Modifier =
-    if (!enabled || destinationCount < 2) {
-        this
-    } else {
-        pointerInput(selectedIndex, destinationCount) {
-            val threshold = 64.dp.toPx()
-            awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Final)
-                var dragX = 0f
-                var dragY = 0f
-                var claimedByChild = down.isConsumed
-                var pressed = true
-                while (pressed) {
-                    val event = awaitPointerEvent(PointerEventPass.Final)
-                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                    val delta = change.position - change.previousPosition
-                    dragX += delta.x
-                    dragY += delta.y
-                    claimedByChild = claimedByChild || change.isConsumed
-                    pressed = change.pressed
-                }
-                if (!claimedByChild && abs(dragX) >= threshold && abs(dragX) > abs(dragY) * 1.35f) {
-                    val target =
-                        when {
-                            dragX < 0f -> selectedIndex + 1
-                            dragX > 0f -> selectedIndex - 1
-                            else -> selectedIndex
-                        }.coerceIn(0, destinationCount - 1)
-                    if (target != selectedIndex) onNavigate(target)
-                }
-            }
-        }
-    }
-
-private fun navigationDirection(
-    fromRoute: String?,
-    toRoute: String?,
-    routeOrder: List<String>,
-): Int {
-    val fromIndex = routeOrder.indexOf(fromRoute)
-    val toIndex = routeOrder.indexOf(toRoute)
-    return if (fromIndex >= 0 && toIndex >= 0 && toIndex < fromIndex) -1 else 1
-}
-
 private val StartDestination.route: String
     get() =
         when (this) {
@@ -738,6 +742,7 @@ private val StartDestination.route: String
         }
 
 private object Routes {
+    const val MAIN = "main"
     const val HOME = "home"
     const val HABITS = "habits"
     const val PLANNER = "planner"

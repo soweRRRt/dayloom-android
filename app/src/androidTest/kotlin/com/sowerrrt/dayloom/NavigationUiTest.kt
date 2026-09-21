@@ -206,6 +206,9 @@ class NavigationUiTest {
 
         composeRule.onNodeWithTag("calendar_mode_month").performClick()
         composeRule.onNodeWithTag("month_calendar").assertExists()
+
+        composeRule.onNodeWithTag("calendar_mode_agenda").performClick()
+        composeRule.onNodeWithTag("agenda_calendar").assertExists()
     }
 
     @Test
@@ -465,6 +468,34 @@ class NavigationUiTest {
         composeRule.onNodeWithTag("list_item_$itemTitle").assertExists()
         composeRule.onNodeWithTag("list_item_quantity_$itemTitle").assertTextContains("2 cartons", substring = true)
         composeRule.onNodeWithTag("list_item_note_$itemTitle").assertTextContains("Unsweetened")
+    }
+
+    @Test
+    fun listItemSupportsDirectionalSwipesDragHandleAndOverflow() {
+        val suffix = System.currentTimeMillis()
+        val listTitle = "Gesture list $suffix"
+        val itemTitle = "Gesture item $suffix"
+
+        composeRule.onNodeWithTag("primary_nav_lists").performClick()
+        composeRule.onNodeWithTag("create_list").performClick()
+        composeRule.onNodeWithTag("list_name_input").performTextInput(listTitle)
+        composeRule.onNodeWithTag("save_list").performClick()
+        composeRule.onNodeWithTag("create_list_item").performClick()
+        composeRule.onNodeWithTag("list_item_name_input").performTextInput(itemTitle)
+        composeRule.onNodeWithTag("save_list_item").performClick()
+
+        waitUntilScrollable("list_details", "list_item_$itemTitle")
+        composeRule.onNodeWithTag("drag_list_item_$itemTitle", useUnmergedTree = true).assertExists()
+        composeRule.onNodeWithTag("list_item_$itemTitle").performTouchInput { swipeRight() }
+        composeRule.onNodeWithTag("list_item_name_input").assertExists()
+        pressBack()
+
+        composeRule.onNodeWithTag("list_item_$itemTitle").performTouchInput { swipeLeft() }
+        composeRule.onNodeWithTag("confirm_delete").assertExists()
+        pressBack()
+
+        composeRule.onNodeWithTag("list_item_more_$itemTitle").performClick()
+        composeRule.onNodeWithTag("select_list_item_$itemTitle").assertExists()
     }
 
     @Test

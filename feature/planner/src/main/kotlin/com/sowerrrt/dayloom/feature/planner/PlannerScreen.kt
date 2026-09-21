@@ -397,28 +397,42 @@ private fun PlannerContent(
                             label = { Text(stringResource(R.string.planner_month)) },
                             modifier = Modifier.weight(1f).testTag("calendar_mode_month"),
                         )
+                        FilterChip(
+                            selected = calendarMode == CalendarMode.AGENDA,
+                            onClick = { calendarMode = CalendarMode.AGENDA },
+                            label = { Text(stringResource(R.string.planner_agenda)) },
+                            modifier = Modifier.weight(1f).testTag("calendar_mode_agenda"),
+                        )
                     }
                     Crossfade(
                         targetState = calendarMode,
                         animationSpec = tween(DayloomMotion.STANDARD_MILLIS),
                         label = "calendarMode",
                     ) { mode ->
-                        if (mode == CalendarMode.MONTH) {
-                            MonthCalendar(
-                                state = state,
-                                locale = locale,
-                                onSelectDate = onSelectDate,
-                                onPreviousMonth = onPreviousMonth,
-                                onNextMonth = onNextMonth,
-                                onToday = onToday,
-                            )
-                        } else {
-                            WeekCalendar(
-                                state = state,
-                                locale = locale,
-                                onSelectDate = onSelectDate,
-                                onToday = onToday,
-                            )
+                        when (mode) {
+                            CalendarMode.MONTH ->
+                                MonthCalendar(
+                                    state = state,
+                                    locale = locale,
+                                    onSelectDate = onSelectDate,
+                                    onPreviousMonth = onPreviousMonth,
+                                    onNextMonth = onNextMonth,
+                                    onToday = onToday,
+                                )
+                            CalendarMode.WEEK ->
+                                WeekCalendar(
+                                    state = state,
+                                    locale = locale,
+                                    onSelectDate = onSelectDate,
+                                    onToday = onToday,
+                                )
+                            CalendarMode.AGENDA ->
+                                AgendaCalendar(
+                                    state = state,
+                                    locale = locale,
+                                    onSelectDate = onSelectDate,
+                                    onToday = onToday,
+                                )
                         }
                     }
                 }
@@ -740,7 +754,92 @@ private fun PlanFilterPanel(
     }
 }
 
-private enum class CalendarMode { WEEK, MONTH }
+private enum class CalendarMode { WEEK, MONTH, AGENDA }
+
+@Composable
+private fun AgendaCalendar(
+    state: PlannerUiState,
+    locale: Locale,
+    onSelectDate: (Long) -> Unit,
+    onToday: () -> Unit,
+) {
+    val center = LocalDate.ofEpochDay(state.selectedEpochDay)
+    val days = remember(center) { (-3L..10L).map(center::plusDays) }
+    DayloomCard(Modifier.fillMaxWidth().testTag("agenda_calendar")) {
+        Column(verticalArrangement = Arrangement.spacedBy(DayloomSpacing.sm)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        center.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale)).replaceFirstChar {
+                            if (it.isLowerCase()) it.titlecase(locale) else it.toString()
+                        },
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    Text(
+                        stringResource(R.string.planner_agenda_hint),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                TextButton(onClick = onToday) {
+                    Text(stringResource(R.string.planner_today), maxLines = 1)
+                }
+            }
+            CalendarLegend()
+            DayloomHorizontalRail(items = days, key = { it.toEpochDay() }) { date ->
+                val epochDay = date.toEpochDay()
+                val selected = epochDay == state.selectedEpochDay
+                DayloomCard(
+                    modifier = Modifier.width(92.dp).testTag("agenda_day_$epochDay"),
+                    onClick = { onSelectDate(epochDay) },
+                    contentPadding = PaddingValues(horizontal = DayloomSpacing.sm, vertical = DayloomSpacing.sm),
+                ) {
+                    Column(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.medium)
+                                .background(
+                                    if (selected) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else {
+                                        Color.Transparent
+                                    },
+                                ).padding(DayloomSpacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(DayloomSpacing.xs),
+                    ) {
+                        Text(
+                            date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(date.dayOfMonth.toString(), style = MaterialTheme.typography.headlineSmall)
+                        CalendarActivityBar(
+                            color = MaterialTheme.colorScheme.primary,
+                            progress =
+                                completionProgress(
+                                    state.completedHabitCount(epochDay),
+                                    state.habitCount(epochDay),
+                                ),
+                        )
+                        CalendarActivityBar(
+                            color = MaterialTheme.colorScheme.secondary,
+                            progress =
+                                completionProgress(
+                                    state.completedPlanCount(epochDay),
+                                    state.planCount(epochDay),
+                                ),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun WeekCalendar(
@@ -1029,6 +1128,11 @@ private fun CalendarActivityBar(
         )
     }
 }
+
+private fun completionProgress(
+    completed: Int,
+    total: Int,
+): Float = if (total == 0) 0f else completed.toFloat() / total
 
 @Composable
 private fun CalendarLegend() {
