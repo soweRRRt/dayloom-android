@@ -47,7 +47,7 @@ jobs:
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@67621b124fd2e251c5e8a0e6e3b91318f2287669 # v6.3.0
 
-      - name: Validate release version and detect signing
+      - name: Validate release version and signing secrets
         id: release_meta
         shell: bash
         run: |
@@ -66,15 +66,15 @@ jobs:
             echo "Release version ${requested_version} does not match app versionName ${version_name:-<missing>}." >&2
             exit 1
           fi
-          signed=true
           for value in KEYSTORE_BASE64 DAYLOOM_KEYSTORE_PASSWORD DAYLOOM_KEY_ALIAS DAYLOOM_KEY_PASSWORD; do
-            if [[ -z "${!value:-}" ]]; then signed=false; fi
+            if [[ -z "${!value:-}" ]]; then
+              echo "Required release secret ${value} is not configured." >&2
+              exit 1
+            fi
           done
           echo "tag=v${requested_version}" >> "${GITHUB_OUTPUT}"
-          echo "signed=${signed}" >> "${GITHUB_OUTPUT}"
 
       - name: Restore release keystore
-        if: steps.release_meta.outputs.signed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -84,63 +84,50 @@ jobs:
           echo "DAYLOOM_KEYSTORE_PATH=${keystore_path}" >> "${GITHUB_ENV}"
 
       - name: Verify and build signed release
-        if: steps.release_meta.outputs.signed == 'true'
         run: ./gradlew --no-daemon ktlintCheck testDebugUnitTest lintDebug validateDebugScreenshotTest assembleRelease bundleRelease
 
-      - name: Confirm APK signature
-        if: steps.release_meta.outputs.signed == 'true'
+      - name: Confirm APK and AAB signatures
         shell: bash
-        run: "${ANDROID_HOME}/build-tools/35.0.0/apksigner verify --verbose app/build/outputs/apk/release/app-release.apk"
+        run: |
+          set -euo pipefail
+          build_tools="$(find "${ANDROID_HOME}/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          "${build_tools}/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify app/build/outputs/bundle/release/app-release.aab
 
-      - name: Publish GitHub release
-        if: steps.release_meta.outputs.signed == 'true'
+      - name: Prepare versioned artifacts and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.release_meta.outputs.tag }}"
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/dayloom-${tag}.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "dist/dayloom-${tag}.aab"
+          (
+            cd dist
+            sha256sum "dayloom-${tag}.apk" "dayloom-${tag}.aab" > SHA256SUMS.txt
+          )
+
+      - name: Upload signed workflow artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dayloom-${{ steps.release_meta.outputs.tag }}-signed
+          path: |
+            dist/dayloom-${{ steps.release_meta.outputs.tag }}.apk
+            dist/dayloom-${{ steps.release_meta.outputs.tag }}.aab
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish stable GitHub release
         shell: bash
         run: |
           set -euo pipefail
           tag="${{ steps.release_meta.outputs.tag }}"
           gh release create "${tag}" \
-            app/build/outputs/apk/release/app-release.apk \
-            app/build/outputs/bundle/release/app-release.aab \
+            "dist/dayloom-${tag}.apk" \
+            "dist/dayloom-${tag}.aab" \
+            dist/SHA256SUMS.txt \
             --target "${GITHUB_SHA}" \
             --title "Dayloom ${tag}" \
             --generate-notes \
-            --verify-tag=false
-
-      - name: Verify and build unsigned preview
-        if: steps.release_meta.outputs.signed != 'true'
-        run: ./gradlew --no-daemon ktlintCheck testDebugUnitTest lintDebug validateDebugScreenshotTest assembleDebug bundleRelease
-
-      - name: Prepare clearly labeled preview artifacts
-        if: steps.release_meta.outputs.signed != 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="${{ steps.release_meta.outputs.tag }}"
-          cp app/build/outputs/apk/debug/app-debug.apk "dayloom-${tag}-debug-test-only.apk"
-          cp app/build/outputs/bundle/release/app-release.aab "dayloom-${tag}-unsigned.aab"
-          cat > preview-notes.md <<'EOF'
-          ## Preview build
-
-          Production signing secrets are not configured yet, so this first release is marked as a prerelease.
-
-          This build includes the local habit tracker, unified habit/plan calendar, flexible lists, wishlist savings goals, encrypted password Vault, reminders, customizable navigation and dashboard, RU/EN interface, example content, and portable data backup/restore.
-
-          - `debug-test-only.apk` is installable for testing but must not be distributed as a production build.
-          - `unsigned.aab` is provided for build verification only and cannot be uploaded to Google Play as-is.
-          - Password Vault data is never included in exported Dayloom backups because its key stays in Android Keystore.
-          EOF
-
-      - name: Publish unsigned preview release
-        if: steps.release_meta.outputs.signed != 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="${{ steps.release_meta.outputs.tag }}"
-          gh release create "${tag}" \
-            "dayloom-${tag}-debug-test-only.apk" \
-            "dayloom-${tag}-unsigned.aab" \
-            --target "${GITHUB_SHA}" \
-            --title "Dayloom ${tag} Preview" \
-            --notes-file preview-notes.md \
-            --prerelease \
-            --verify-tag=false
+            --latest
